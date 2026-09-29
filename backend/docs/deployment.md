@@ -16,9 +16,9 @@
 - 本机 Node `v26.3.0`、wrangler `4.44.0`；CI 使用 Node 22。
 - `DEMO_ENABLED=true` 与 `AI_PROVIDER=mock` 按 `PLAN.md` 保留：这是正式托管的公开演示站，不是具备真实账号认证或真实模型服务的生产业务系统。
 
-本轮生产复核部署版本：后端 `5f52b069-4e4d-4ecf-aa3a-47fbc193cfdb`，前端
+本轮生产复核部署版本：后端 `ae05602c-039c-458c-a3ba-335fbaa90f82`，前端
 `2bb5d439-cdf0-4216-837b-d26a7856d1b3`。线上后端冒烟 9/9，前端主流程 26/26，移动端与深链接
-9/9，离线刷新与恢复同步 4/4。主流程中的断网步骤会产生预期的 `ERR_INTERNET_DISCONNECTED` 资源日志。
+9/9，离线刷新与恢复同步 4/4；CORS 预检对前端来源返回 204 并带白名单响应头，对 `localhost` 不返回允许来源头。主流程中的断网步骤会产生预期的 `ERR_INTERNET_DISCONNECTED` 资源日志。
 
 更新 `react-router-dom` 至 `7.18.4` 后，前后端 `npm audit --omit=dev` 均为 0 项；开发依赖告警仍需单独评估。
 
