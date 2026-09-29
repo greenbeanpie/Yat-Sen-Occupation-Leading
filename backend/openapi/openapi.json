@@ -1,0 +1,1179 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Yat-Sen 求职辅助后端 API",
+    "version": "1.0.0",
+    "description": "画像与证据 / 文档解析 / 岗位 / 匹配与组合 / 计划与改写 / 投递与统计 / 离线同步 / 通知"
+  },
+  "servers": [
+    {
+      "url": "/api/v1"
+    }
+  ],
+  "components": {
+    "schemas": {
+      "SessionResponse": {
+        "type": "object",
+        "properties": {
+          "authenticated": {
+            "type": "boolean"
+          },
+          "user": {
+            "type": "object",
+            "nullable": true,
+            "properties": {
+              "id": {
+                "$ref": "#/components/schemas/Uuid"
+              },
+              "role": {
+                "type": "string",
+                "enum": [
+                  "student",
+                  "admin"
+                ]
+              },
+              "displayName": {
+                "type": "string"
+              },
+              "timezone": {
+                "type": "string"
+              },
+              "demo": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "id",
+              "role",
+              "displayName",
+              "timezone",
+              "demo"
+            ]
+          },
+          "demoUsers": {
+            "type": "array",
+            "nullable": true,
+            "items": {
+              "$ref": "#/components/schemas/DemoUser"
+            }
+          },
+          "capabilities": {
+            "type": "object",
+            "nullable": true,
+            "properties": {
+              "push": {
+                "type": "boolean"
+              },
+              "offline": {
+                "type": "boolean"
+              },
+              "demoMode": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "push",
+              "offline",
+              "demoMode"
+            ]
+          }
+        },
+        "required": [
+          "authenticated"
+        ]
+      },
+      "Uuid": {
+        "type": "string",
+        "format": "uuid"
+      },
+      "DemoUser": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/Uuid"
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "student",
+              "admin"
+            ]
+          },
+          "displayName": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "role",
+          "displayName"
+        ]
+      },
+      "ErrorBody": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              },
+              "details": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              },
+              "server": {
+                "nullable": true
+              }
+            },
+            "required": [
+              "code",
+              "message"
+            ]
+          }
+        },
+        "required": [
+          "error"
+        ]
+      },
+      "ErrorDetail": {
+        "type": "object",
+        "properties": {
+          "field": {
+            "type": "string"
+          },
+          "issue": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "field",
+          "issue"
+        ]
+      },
+      "LoginRequest": {
+        "type": "object",
+        "properties": {
+          "userId": {
+            "$ref": "#/components/schemas/Uuid"
+          }
+        },
+        "required": [
+          "userId"
+        ]
+      },
+      "Profile": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/Uuid"
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 0,
+            "exclusiveMinimum": true
+          },
+          "deleted": {
+            "type": "boolean"
+          },
+          "createdAt": {
+            "$ref": "#/components/schemas/IsoDateTime"
+          },
+          "updatedAt": {
+            "$ref": "#/components/schemas/IsoDateTime"
+          },
+          "userId": {
+            "$ref": "#/components/schemas/Uuid"
+          },
+          "targetRoles": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "industries": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "graduationYear": {
+            "type": "integer",
+            "nullable": true
+          },
+          "degree": {
+            "type": "string",
+            "nullable": true,
+            "enum": [
+              "associate",
+              "bachelor",
+              "master",
+              "phd",
+              null
+            ]
+          },
+          "preferredLocations": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "weeklyTimeBudgetHours": {
+            "type": "number",
+            "nullable": true
+          }
+        },
+        "required": [
+          "id",
+          "version",
+          "deleted",
+          "createdAt",
+          "updatedAt",
+          "userId",
+          "targetRoles",
+          "industries",
+          "preferredLocations"
+        ]
+      },
+      "IsoDateTime": {
+        "type": "string",
+        "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?Z$"
+      },
+      "ProfilePayload": {
+        "type": "object",
+        "properties": {
+          "targetRoles": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "maxItems": 20
+          },
+          "industries": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "maxItems": 20
+          },
+          "graduationYear": {
+            "type": "integer",
+            "nullable": true,
+            "minimum": 2000,
+            "maximum": 2100
+          },
+          "degree": {
+            "type": "string",
+            "nullable": true,
+            "enum": [
+              "associate",
+              "bachelor",
+              "master",
+              "phd",
+              null
+            ]
+          },
+          "preferredLocations": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "maxItems": 20
+          },
+          "weeklyTimeBudgetHours": {
+            "type": "number",
+            "nullable": true,
+            "minimum": 0,
+            "exclusiveMinimum": true,
+            "maximum": 80
+          }
+        }
+      },
+      "EvidenceBundle": {
+        "type": "object",
+        "properties": {
+          "experiences": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Experience"
+            }
+          },
+          "skills": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Skill"
+            }
+          },
+          "links": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Evidence"
+            }
+          }
+        },
+        "required": [
+          "experiences",
+          "skills",
+          "links"
+        ]
+      },
+      "Experience": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/Uuid"
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 0,
+            "exclusiveMinimum": true
+          },
+          "deleted": {
+            "type": "boolean"
+          },
+          "createdAt": {
+            "$ref": "#/components/schemas/IsoDateTime"
+          },
+          "updatedAt": {
+            "$ref": "#/components/schemas/IsoDateTime"
+          },
+          "userId": {
+            "$ref": "#/components/schemas/Uuid"
+          },
+          "title": {
+            "type": "string"
+          },
+          "organization": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "project",
+              "internship",
+              "research",
+              "competition",
+              "other"
+            ]
+          },
+          "startDate": {
+            "$ref": "#/components/schemas/DateYmd"
+          },
+          "endDate": {
+            "$ref": "#/components/schemas/DateYmd"
+          },
+          "description": {
+            "type": "string"
+          },
+          "sourceDocumentId": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Uuid"
+              },
+              {
+                "nullable": true
+              }
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "version",
+          "deleted",
+          "createdAt",
+          "updatedAt",
+          "userId",
+          "title",
+          "organization",
+          "kind",
+          "description"
+        ]
+      },
+      "DateYmd": {
+        "type": "string",
+        "nullable": true,
+        "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+      },
+      "Skill": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/Uuid"
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 0,
+            "exclusiveMinimum": true
+          },
+          "deleted": {
+            "type": "boolean"
+          },
+          "createdAt": {
+            "$ref": "#/components/schemas/IsoDateTime"
+          },
+          "updatedAt": {
+            "$ref": "#/components/schemas/IsoDateTime"
+          },
+          "userId": {
+            "$ref": "#/components/schemas/Uuid"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "version",
+          "deleted",
+          "createdAt",
+          "updatedAt",
+          "userId",
+          "name"
+        ]
+      },
+      "Evidence": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/Uuid"
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 0,
+            "exclusiveMinimum": true
+          },
+          "deleted": {
+            "type": "boolean"
+          },
+          "createdAt": {
+            "$ref": "#/components/schemas/IsoDateTime"
+          },
+          "updatedAt": {
+            "$ref": "#/components/schemas/IsoDateTime"
+          },
+          "userId": {
+            "$ref": "#/components/schemas/Uuid"
+          },
+          "skillId": {
+            "$ref": "#/components/schemas/Uuid"
+          },
+          "experienceId": {
+            "$ref": "#/components/schemas/Uuid"
+          },
+          "quote": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "confirmed",
+              "missing_evidence"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "version",
+          "deleted",
+          "createdAt",
+          "updatedAt",
+          "userId",
+          "skillId",
+          "experienceId",
+          "quote",
+          "status"
+        ]
+      },
+      "ExperiencePayload": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "organization": {
+            "type": "string",
+            "maxLength": 200
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "project",
+              "internship",
+              "research",
+              "competition",
+              "other"
+            ]
+          },
+          "startDate": {
+            "$ref": "#/components/schemas/DateYmd"
+          },
+          "endDate": {
+            "$ref": "#/components/schemas/DateYmd"
+          },
+          "description": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 20000
+          },
+          "sourceDocumentId": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Uuid"
+              },
+              {
+                "nullable": true
+              }
+            ]
+          }
+        },
+        "required": [
+          "title",
+          "description"
+        ]
+      },
+      "SkillPayload": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          }
+        },
+        "required": [
+          "name"
+        ]
+      },
+      "EvidencePayload": {
+        "type": "object",
+        "properties": {
+          "skillId": {
+            "$ref": "#/components/schemas/Uuid"
+          },
+          "experienceId": {
+            "$ref": "#/components/schemas/Uuid"
+          },
+          "quote": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2000
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "confirmed",
+              "missing_evidence"
+            ]
+          }
+        }
+      }
+    },
+    "parameters": {}
+  },
+  "paths": {
+    "/api/v1/session": {
+      "get": {
+        "tags": [
+          "session"
+        ],
+        "responses": {
+          "200": {
+            "description": "当前身份与能力（未登录时返回演示身份列表）",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "session"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoginRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "登录成功（演示身份，服务端签发会话）",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "演示身份不存在",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "参数错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "session"
+        ],
+        "responses": {
+          "204": {
+            "description": "已登出"
+          }
+        }
+      }
+    },
+    "/api/v1/profile": {
+      "get": {
+        "tags": [
+          "profile"
+        ],
+        "responses": {
+          "200": {
+            "description": "当前画像（无则返回空壳）",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Profile"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未登录",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "profile"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/ProfilePayload"
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "baseVersion": {
+                        "allOf": [
+                          {
+                            "$ref": "#/components/schemas/Uuid"
+                          },
+                          {
+                            "nullable": true
+                          }
+                        ]
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "已保存",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Profile"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "版本冲突",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "参数错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/evidence": {
+      "get": {
+        "tags": [
+          "evidence"
+        ],
+        "responses": {
+          "200": {
+            "description": "经历、技能与证据关联",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EvidenceBundle"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未登录",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/evidence/experiences": {
+      "post": {
+        "tags": [
+          "evidence"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExperiencePayload"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "已创建",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Experience"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未登录",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "参数错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/evidence/experiences/{id}": {
+      "put": {
+        "tags": [
+          "evidence"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "$ref": "#/components/schemas/Uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/ExperiencePayload"
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "baseVersion": {
+                        "type": "integer"
+                      }
+                    },
+                    "required": [
+                      "baseVersion"
+                    ]
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "已保存（相关分析标记过期）",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Experience"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "版本冲突",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "参数错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "evidence"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "$ref": "#/components/schemas/Uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "已删除（墓碑）"
+          },
+          "401": {
+            "description": "未登录",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "不存在",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/evidence/skills": {
+      "post": {
+        "tags": [
+          "evidence"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SkillPayload"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "已创建",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Skill"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未登录",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/evidence/skills/{id}": {
+      "delete": {
+        "tags": [
+          "evidence"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "$ref": "#/components/schemas/Uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "已删除（墓碑）"
+          },
+          "401": {
+            "description": "未登录",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "不存在",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/evidence/links": {
+      "post": {
+        "tags": [
+          "evidence"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EvidencePayload"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "引用命中原文，已创建待确认证据",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Evidence"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未登录",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "引用未命中原文或参数错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/evidence/links/{id}": {
+      "put": {
+        "tags": [
+          "evidence"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "$ref": "#/components/schemas/Uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EvidencePayload"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "已更新（确认/缺少证据）",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Evidence"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未登录",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "版本冲突",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "evidence"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "$ref": "#/components/schemas/Uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "已删除（墓碑）"
+          },
+          "401": {
+            "description": "未登录",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "不存在",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
