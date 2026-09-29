@@ -39,7 +39,7 @@ curl -X POST https://<worker-domain>/api/v1/session -H 'Content-Type: applicatio
 
 ## 三、前端联调配置
 
-- `CORS_ORIGIN` 设为前端 Worker 域名；
+- 先部署名为 `yso-backend` 的后端 Worker，再部署前端 Worker。前端的 `BACKEND` Service Binding 将同源 `/api/v1/*` 请求转发至后端；会话 Cookie 因此保持同源。若另有直接访问后端的跨域客户端，再把其 Origin 加入 `CORS_ORIGIN` 白名单。
 - 契约：`GET /api/v1/openapi.json`，或仓库内 `backend/openapi/openapi.json` 快照生成类型（`openapi-typescript`）；
 - 演示模式标识：`GET /api/v1/session` 的 `capabilities.demoMode`。
 

@@ -1,6 +1,6 @@
 # 前端对接文档（Frontend Integration Guide）
 
-面向前端（PWA，`webui` 分支）对接后端 `/api/v1` 的完整说明。字段定义的**唯一权威来源**是 OpenAPI 契约：`backend/openapi/openapi.json`（快照，随契约变更提交）或线上 `GET /api/v1/openapi.json`。本文档解释契约之外的行为约定、状态机和时序。
+面向仓库 `frontend/` 中的 PWA 对接后端 `/api/v1` 的说明。字段定义的**唯一权威来源**是 OpenAPI 契约：`backend/openapi/openapi.json`（快照，随契约变更提交）或线上 `GET /api/v1/openapi.json`。本文档解释契约之外的行为约定、状态机和时序。
 
 ## 1. 接入基础
 
@@ -21,10 +21,11 @@ fetch(url, { credentials: "include", ... });
 ### 1.2 类型生成（契约先行）
 
 ```bash
-npx openapi-typescript backend/openapi/openapi.json -o src/types/api.ts
+cd frontend
+npm run generate:api
 ```
 
-契约更新流程：后端改字段 → `npm run export:openapi` → 提交进 `backend` 分支 → 前端重新生成。前端**不要手写接口类型**。
+契约更新流程：后端改字段 → 在 `backend/` 运行 `npm run export:openapi` → 提交契约快照 → 在 `frontend/` 重新生成。前端**不要手写接口类型**。
 
 ### 1.3 统一错误包络
 
@@ -186,6 +187,7 @@ DELETE /session     登出（204）
 
 - **离线新建**：客户端自己生成 UUID，`baseVersion: 0`，服务器会以此 ID 创建。
 - **离线更新**：`baseVersion` 必须等于离线时读到的服务器 `version`。
+- **离线删除**：同样必须带当前 `baseVersion`；版本过期时返回 `conflict`，不能直接覆盖服务器的新修改。
 
 ### 6.2 提交与回执
 
