@@ -1,4 +1,5 @@
 import { createApp } from "./app";
+import { cronTick } from "./application/reminders";
 import {
   ParseDocumentWorkflow,
   ParseJobRequirementsWorkflow,
@@ -6,12 +7,14 @@ import {
   GeneratePlanWorkflow,
   RewriteResumeWorkflow,
 } from "./infra/workflows";
+import type { Env } from "./env";
 
 const app = createApp();
 
 export default {
   fetch: app.fetch,
-  // 定时提醒调度在 M5 里程碑接入（src/application/reminders.ts 的 cronTick）
+  /** Cron 每 15 分钟：扫描到期提醒并发送（PLAN.md 2.6）。 */
+  scheduled: (_event: unknown, env: Env): Promise<unknown> => cronTick(env),
 };
 
 export {

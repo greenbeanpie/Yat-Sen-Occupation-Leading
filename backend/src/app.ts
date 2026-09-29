@@ -10,6 +10,8 @@ import { registerAdminRoutes } from "./routes/admin";
 import { registerMatchingRoutes } from "./routes/matching";
 import { registerPlanningRoutes } from "./routes/planning";
 import { registerTrackingRoutes } from "./routes/tracking";
+import { registerSyncRoutes } from "./routes/sync";
+import { registerNotificationRoutes } from "./routes/notifications";
 import type { Env, SessionUser } from "./env";
 
 export type AppEnv = { Bindings: Env; Variables: { user: SessionUser } };
@@ -83,6 +85,8 @@ export function createApp(): App {
   registerMatchingRoutes(app);
   registerPlanningRoutes(app);
   registerTrackingRoutes(app);
+  registerSyncRoutes(app);
+  registerNotificationRoutes(app);
 
   app.doc("/openapi.json", OPENAPI_CONFIG as never);
 

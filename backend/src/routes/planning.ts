@@ -19,6 +19,7 @@ import { EXPERIENCE_CFG, TASK_CFG } from "../application/configs";
 import { rowToJson, updateEntity } from "../application/entity-writer";
 import { canTransitionTask } from "../domain/state";
 import { nowIso, uuid } from "../shared/datetime";
+import { cancelRemindersFor, scheduleTaskReminder } from "../application/reminders";
 import type { AppEnv } from "../env";
 
 type App = OpenAPIHono<AppEnv>;
@@ -204,6 +205,15 @@ export function registerPlanningRoutes(app: App): void {
     }
     const now = nowIso();
     await c.env.DB.batch([c.env.DB.prepare(`UPDATE plans SET status = 'confirmed', updated_at = ?1 WHERE id = ?2`).bind(now, id)]);
+    // 确认后为每个任务排到期提醒（到期日 09:00，用户时区）
+    const user = c.get("user");
+    const tasks = await c.env.DB
+      .prepare(`SELECT id, version, title, scheduled_date FROM plan_tasks WHERE plan_id = ?1 AND user_id = ?2 AND deleted = 0 AND status IN ('pending','in_progress')`)
+      .bind(id, userId)
+      .all<{ id: string; version: number; title: string; scheduled_date: string | null }>();
+    for (const t of tasks.results) {
+      await scheduleTaskReminder(c.env, userId, t.id, t.version, t.title, t.scheduled_date ?? "", user.timezone);
+    }
     const updated = await c.env.DB.prepare(`SELECT * FROM plans WHERE id = ?1`).bind(id).first<Record<string, unknown>>();
     return c.json(planToJson(updated!) as never, 200 as const);
   });
@@ -226,6 +236,17 @@ export function registerPlanningRoutes(app: App): void {
     const suggestionId = await maybeCreateAdjustment(c.env, userId, plan as Record<string, unknown>, task as Record<string, unknown>, payload, baseVersion);
 
     const { record } = await updateEntity(c.env, userId, TASK_CFG, id, baseVersion, payload);
+
+    // 提醒联动：改期重排、完成/取消撤销（提醒绑定任务版本）
+    if (plan.status === "confirmed") {
+      const user = c.get("user");
+      const newStatus = payload.status as string | undefined;
+      if (newStatus === "done" || newStatus === "cancelled") {
+        await cancelRemindersFor(c.env, userId, "task", id);
+      } else if (payload.scheduledDate !== undefined) {
+        await scheduleTaskReminder(c.env, userId, id, Number(record.version), record.title as string, (record.scheduledDate as string | null) ?? "", user.timezone);
+      }
+    }
     return c.json({ task: record, suggestionId: suggestionId ?? null } as never, 200 as const);
   });
 

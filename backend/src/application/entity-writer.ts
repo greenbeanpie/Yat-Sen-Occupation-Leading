@@ -65,8 +65,9 @@ export interface WriteResult {
 }
 
 /**
- * 创建实体：原子写（实体行 + 变更日志）。
+ * 创建实体：原子写（实体行 + 变更日志 + 附加语句）。
  * payload 必须已由调用方用对应 Zod schema 校验。
+ * explicitId 供离线创建的同步路径使用（客户端已生成 UUID）。
  */
 export async function createEntity(
   env: Env,
@@ -74,8 +75,9 @@ export async function createEntity(
   cfg: EntityConfig,
   payload: Record<string, unknown>,
   extra?: (id: string) => D1PreparedStatement[],
+  explicitId?: string,
 ): Promise<WriteResult> {
-  const id = uuid();
+  const id = explicitId ?? uuid();
   const now = nowIso();
   const columns = buildColumnValues(cfg, payload);
   const colNames = ["id", "user_id", "version", "deleted", "created_at", "updated_at", ...Object.keys(columns)];

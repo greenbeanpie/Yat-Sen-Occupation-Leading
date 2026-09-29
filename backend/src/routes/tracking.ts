@@ -20,6 +20,7 @@ import { createEntity, deleteEntity, rowToJson, updateEntity } from "../applicat
 import { canTransition } from "../domain/state";
 import { DateYmdSchema } from "../shared/schemas/common";
 import { nowIso } from "../shared/datetime";
+import { scheduleInterviewReminder } from "../application/reminders";
 import type { AppEnv } from "../env";
 
 type App = OpenAPIHono<AppEnv>;
@@ -339,7 +340,8 @@ export function registerTrackingRoutes(app: App): void {
     const existing = await c.env.DB.prepare(`SELECT * FROM applications WHERE id = ?1 AND user_id = ?2 AND deleted = 0`).bind(id, userId).first<Record<string, unknown>>();
     if (!existing) throw notFound();
     const { record } = await createEntity(c.env, userId, INTERVIEW_CFG, { applicationId: id, ...payload } as Record<string, unknown>);
-    // M5：在此接入提醒排程（提前 1 小时，绑定面试版本）
+    // 面试默认提前 1 小时提醒（绑定面试版本，改期自动重排）
+    await scheduleInterviewReminder(c.env, userId, record.id as string, 1, (payload.stage ?? "面试") as string, payload.scheduledAt as string);
     return c.json(record as never, 201 as const);
   });
 
@@ -356,6 +358,10 @@ export function registerTrackingRoutes(app: App): void {
     const body = c.req.valid("json") as Record<string, unknown> & { baseVersion: number };
     const { baseVersion, ...payload } = body;
     const { record } = await updateEntity(c.env, userId, INTERVIEW_CFG, id, baseVersion, payload);
+    // 改期重排提醒
+    if (payload.scheduledAt !== undefined) {
+      await scheduleInterviewReminder(c.env, userId, id, Number(record.version), (record.stage as string) ?? "面试", payload.scheduledAt as string);
+    }
     return c.json(record as never, 200 as const);
   });
 

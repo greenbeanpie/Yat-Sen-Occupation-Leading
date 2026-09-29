@@ -8,7 +8,8 @@ import { DEMO_USERS } from "../src/shared/constants";
 import { MIGRATION_0001 } from "../src/infra/db/schema";
 
 const root = dirname(dirname(fileURLToPath(import.meta.url)));
-const bundlePath = join(root, "test", ".tmp", "worker.bundle.mjs");
+// 每个测试进程独立 bundle 文件，避免并行 esbuild 写同一文件
+const bundlePath = join(root, "test", ".tmp", `worker.${process.pid}.${Math.random().toString(36).slice(2, 8)}.mjs`);
 
 interface MfBundle {
   mf: Miniflare;
@@ -38,6 +39,8 @@ export function getMf(): Promise<MfBundle> {
       compatibilityFlags: ["nodejs_compat"],
       d1Databases: ["DB"],
       r2Buckets: ["DOCS"],
+      d1Persist: false, // 并行测试文件各自实例，避免共享持久化目录的 SQLite 锁冲突
+      r2Persist: false,
       bindings: {
         AI_PROVIDER: "mock",
         AI_BASE_URL: "",
