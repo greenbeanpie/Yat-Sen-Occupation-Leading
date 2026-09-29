@@ -2,6 +2,8 @@ import type { Env } from "../env";
 import { processParseDocument } from "./parse-document";
 import { processGenerateMatch } from "./generate-match";
 import { processParseJobRequirements } from "./parse-job-requirements";
+import { processGeneratePlan } from "./generate-plan";
+import { processRewriteResume } from "./rewrite-resume";
 
 /**
  * 异步作业处理器（backend_plan.md 7.3）。
@@ -26,10 +28,10 @@ export function runParseJobRequirements(env: Env, operationId: string): Promise<
   return processParseJobRequirements(env, operationId);
 }
 
-export function runGeneratePlan(_env: Env, _operationId: string): Promise<ProcessorResult> {
-  return Promise.resolve({ status: "failed", error: "M4 里程碑实现" });
+export function runGeneratePlan(env: Env, operationId: string): Promise<ProcessorResult> {
+  return processGeneratePlan(env, operationId);
 }
 
-export function runRewriteResume(_env: Env, _operationId: string): Promise<ProcessorResult> {
-  return Promise.resolve({ status: "failed", error: "M4 里程碑实现" });
+export function runRewriteResume(env: Env, operationId: string): Promise<ProcessorResult> {
+  return processRewriteResume(env, operationId);
 }
