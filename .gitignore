@@ -1,0 +1,23 @@
+# ===== ZCode 本地目录与文件（不上传）=====
+.mimosa/
+.zcode/
+.claude/
+.zcodeignore
+
+# ===== Cloudflare / Wrangler 本地状态与密钥 =====
+.wrangler/
+.dev.vars
+*.dev.vars
+
+# ===== 依赖与构建产物 =====
+node_modules/
+dist/
+coverage/
+
+# ===== 环境与系统文件 =====
+.env
+.env.*
+!.env.example
+.DS_Store
+Thumbs.db
+*.log
