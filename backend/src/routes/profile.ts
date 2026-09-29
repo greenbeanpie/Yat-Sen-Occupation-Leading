@@ -13,10 +13,57 @@ import {
   UuidSchema,
 } from "../shared/schemas";
 import { requireAuth } from "../middleware/auth";
-import { notImplemented } from "../shared/errors";
-import type { Env, SessionUser } from "../env";
+import { quoteRejected, conflict } from "../shared/errors";
+import { verifyQuote } from "../domain/quotes";
+import { createEntity, deleteEntity, issue, rowToJson, updateEntity, type EntityConfig } from "../application/entity-writer";
+import { getRow } from "../infra/db/helpers";
+import type { AppEnv } from "../env";
 
-type App = OpenAPIHono<{ Bindings: Env; Variables: { user: SessionUser } }>;
+type App = OpenAPIHono<AppEnv>;
+
+export const PROFILE_CFG: EntityConfig = {
+  entity: "profile",
+  table: "profiles",
+  fields: {
+    targetRoles: { json: true },
+    industries: { json: true },
+    graduationYear: { nullable: true },
+    degree: { nullable: true },
+    preferredLocations: { json: true },
+    weeklyTimeBudgetHours: { nullable: true },
+  },
+};
+
+export const EXPERIENCE_CFG: EntityConfig = {
+  entity: "experience",
+  table: "experiences",
+  fields: {
+    title: {},
+    organization: {},
+    kind: {},
+    startDate: { nullable: true },
+    endDate: { nullable: true },
+    description: {},
+    sourceDocumentId: { nullable: true },
+  },
+};
+
+export const SKILL_CFG: EntityConfig = {
+  entity: "skill",
+  table: "skills",
+  fields: { name: {} },
+};
+
+export const EVIDENCE_CFG: EntityConfig = {
+  entity: "evidence",
+  table: "experience_skills",
+  fields: {
+    skillId: {},
+    experienceId: {},
+    quote: {},
+    status: {},
+  },
+};
 
 const idParam = { name: "id", in: "params" as const, required: true, schema: UuidSchema };
 
@@ -40,7 +87,7 @@ const putProfile = createRoute({
     body: {
       content: {
         "application/json": {
-          schema: ProfilePayloadSchema.extend({ baseVersion: UuidSchema.nullish() }),
+          schema: ProfilePayloadSchema.extend({ baseVersion: z.number().int().nullish() }),
         },
       },
       required: true,
@@ -87,7 +134,7 @@ const putExperience = createRoute({
     body: { content: { "application/json": { schema: ExperiencePayloadSchema.extend({ baseVersion: z.number().int() }) } }, required: true },
   },
   responses: {
-    200: { content: { "application/json": { schema: ExperienceSchema } }, description: "已保存（相关分析标记过期）" },
+    200: { content: { "application/json": { schema: ExperienceSchema } }, description: "已保存（相关分析读取时标记过期）" },
     409: { content: { "application/json": { schema: ErrorBodySchema } }, description: "版本冲突" },
     422: { content: { "application/json": { schema: ErrorBodySchema } }, description: "参数错误" },
   },
@@ -113,7 +160,7 @@ const postSkill = createRoute({
   middleware: [requireAuth] as const,
   request: { body: { content: { "application/json": { schema: SkillPayloadSchema } }, required: true } },
   responses: {
-    201: { content: { "application/json": { schema: SkillSchema } }, description: "已创建" },
+    201: { content: { "application/json": { schema: SkillSchema } }, description: "已创建（同名返回已有技能）" },
     401: { content: { "application/json": { schema: ErrorBodySchema } }, description: "未登录" },
   },
 });
@@ -174,37 +221,132 @@ const deleteLink = createRoute({
 });
 
 export function registerProfileRoutes(app: App): void {
-  app.openapi(getProfile, () => {
-    throw notImplemented();
+  app.openapi(getProfile, async (c) => {
+    const userId = c.get("user").id;
+    const row = await c.env.DB.prepare(`SELECT * FROM profiles WHERE user_id = ?1`).bind(userId).first<Record<string, unknown>>();
+    if (!row) {
+      // 空壳画像：profile 行在首次 PUT 时创建
+      return c.json(
+        {
+          id: "",
+          userId,
+          version: 0,
+          deleted: false,
+          createdAt: "",
+          updatedAt: "",
+          targetRoles: [],
+          industries: [],
+          graduationYear: null,
+          degree: null,
+          preferredLocations: [],
+          weeklyTimeBudgetHours: null,
+        },
+        200 as const,
+      );
+    }
+    return c.json(rowToJson(PROFILE_CFG, row), 200 as const) as never;
   });
-  app.openapi(putProfile, () => {
-    throw notImplemented();
+
+  app.openapi(putProfile, async (c) => {
+    const userId = c.get("user").id;
+    const { baseVersion, ...payload } = c.req.valid("json");
+    const existing = await c.env.DB.prepare(`SELECT * FROM profiles WHERE user_id = ?1`).bind(userId).first<Record<string, unknown>>();
+    if (!existing) {
+      const { record } = await createEntity(c.env, userId, PROFILE_CFG, payload as Record<string, unknown>);
+      return c.json(record as never, 200 as const);
+    }
+    if (baseVersion !== undefined && baseVersion !== null && baseVersion !== Number(existing.version)) {
+      throw conflict("画像已被其他修改更新", rowToJson(PROFILE_CFG, existing)) as never;
+    }
+    const { record } = await updateEntity(c.env, userId, PROFILE_CFG, existing.id as string, baseVersion ?? null, payload as Record<string, unknown>);
+    return c.json(record as never, 200 as const);
   });
-  app.openapi(getEvidence, () => {
-    throw notImplemented();
+
+  app.openapi(getEvidence, async (c) => {
+    const userId = c.get("user").id;
+    const [experiences, skills, links] = await Promise.all([
+      c.env.DB.prepare(`SELECT * FROM experiences WHERE user_id = ?1 AND deleted = 0 ORDER BY created_at DESC`).bind(userId).all<Record<string, unknown>>(),
+      c.env.DB.prepare(`SELECT * FROM skills WHERE user_id = ?1 AND deleted = 0 ORDER BY created_at DESC`).bind(userId).all<Record<string, unknown>>(),
+      c.env.DB.prepare(`SELECT * FROM experience_skills WHERE user_id = ?1 AND deleted = 0 ORDER BY created_at DESC`).bind(userId).all<Record<string, unknown>>(),
+    ]);
+    return c.json(
+      {
+        experiences: experiences.results.map((r) => rowToJson(EXPERIENCE_CFG, r)),
+        skills: skills.results.map((r) => rowToJson(SKILL_CFG, r)),
+        links: links.results.map((r) => rowToJson(EVIDENCE_CFG, r)),
+      },
+      200 as const,
+    ) as never;
   });
-  app.openapi(postExperience, () => {
-    throw notImplemented();
+
+  app.openapi(postExperience, async (c) => {
+    const userId = c.get("user").id;
+    const payload = c.req.valid("json");
+    const { record } = await createEntity(c.env, userId, EXPERIENCE_CFG, payload as Record<string, unknown>);
+    return c.json(record as never, 201 as const);
   });
-  app.openapi(putExperience, () => {
-    throw notImplemented();
+
+  app.openapi(putExperience, async (c) => {
+    const userId = c.get("user").id;
+    const { id } = c.req.valid("param");
+    const { baseVersion, ...payload } = c.req.valid("json");
+    const { record } = await updateEntity(c.env, userId, EXPERIENCE_CFG, id, baseVersion, payload as Record<string, unknown>);
+    return c.json(record as never, 200 as const);
   });
-  app.openapi(deleteExperience, () => {
-    throw notImplemented();
+
+  app.openapi(deleteExperience, async (c) => {
+    const userId = c.get("user").id;
+    const { id } = c.req.valid("param");
+    await deleteEntity(c.env, userId, EXPERIENCE_CFG, id);
+    return c.body(null, 204 as const);
   });
-  app.openapi(postSkill, () => {
-    throw notImplemented();
+
+  app.openapi(postSkill, async (c) => {
+    const userId = c.get("user").id;
+    const { name } = c.req.valid("json");
+    const existing = await c.env.DB.prepare(`SELECT * FROM skills WHERE user_id = ?1 AND name = ?2 AND deleted = 0`)
+      .bind(userId, name.trim())
+      .first<Record<string, unknown>>();
+    if (existing) return c.json(rowToJson(SKILL_CFG, existing) as never, 201 as const);
+    const { record } = await createEntity(c.env, userId, SKILL_CFG, { name: name.trim() });
+    return c.json(record as never, 201 as const);
   });
-  app.openapi(deleteSkill, () => {
-    throw notImplemented();
+
+  app.openapi(deleteSkill, async (c) => {
+    const userId = c.get("user").id;
+    const { id } = c.req.valid("param");
+    await deleteEntity(c.env, userId, SKILL_CFG, id);
+    return c.body(null, 204 as const);
   });
-  app.openapi(postLink, () => {
-    throw notImplemented();
+
+  app.openapi(postLink, async (c) => {
+    const userId = c.get("user").id;
+    const { skillId, experienceId, quote } = c.req.valid("json");
+    if (!skillId || !experienceId || !quote) throw issue("(body)", "skillId、experienceId 与 quote 均为必填") as never;
+    const experience = await getRow(c.env.DB, "experiences", experienceId, userId);
+    if (!experience || Number(experience.deleted) === 1) throw issue("experienceId", "经历不存在") as never;
+    if (!verifyQuote(experience.description as string, quote).found) {
+      throw quoteRejected("引用未在经历原文中命中，请核对原文") as never;
+    }
+    const skill = await getRow(c.env.DB, "skills", skillId, userId);
+    if (!skill || Number(skill.deleted) === 1) throw issue("skillId", "技能不存在") as never;
+    const { record } = await createEntity(c.env, userId, EVIDENCE_CFG, { skillId, experienceId, quote, status: "pending" });
+    return c.json(record as never, 201 as const);
   });
-  app.openapi(putLink, () => {
-    throw notImplemented();
+
+  app.openapi(putLink, async (c) => {
+    const userId = c.get("user").id;
+    const { id } = c.req.valid("param");
+    const payload = c.req.valid("json");
+    const { baseVersion, ...rest } = payload as Record<string, unknown> & { baseVersion?: number };
+    const { record } = await updateEntity(c.env, userId, EVIDENCE_CFG, id, baseVersion ?? null, rest);
+    return c.json(record as never, 200 as const);
   });
-  app.openapi(deleteLink, () => {
-    throw notImplemented();
+
+  app.openapi(deleteLink, async (c) => {
+    const userId = c.get("user").id;
+    const { id } = c.req.valid("param");
+    await deleteEntity(c.env, userId, EVIDENCE_CFG, id);
+    return c.body(null, 204 as const);
   });
 }

@@ -3,6 +3,8 @@ import { cors } from "hono/cors";
 import { errorBody, AppError } from "./shared/errors";
 import { registerSessionRoutes } from "./routes/session";
 import { registerProfileRoutes } from "./routes/profile";
+import { registerDocumentRoutes } from "./routes/documents";
+import { registerOperationRoutes } from "./routes/operations";
 import type { Env, SessionUser } from "./env";
 
 export type AppEnv = { Bindings: Env; Variables: { user: SessionUser } };
@@ -69,6 +71,8 @@ export function createApp(): App {
 
   registerSessionRoutes(app);
   registerProfileRoutes(app);
+  registerDocumentRoutes(app);
+  registerOperationRoutes(app);
 
   app.doc("/openapi.json", OPENAPI_CONFIG as never);
 

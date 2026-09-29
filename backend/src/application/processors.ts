@@ -1,4 +1,5 @@
 import type { Env } from "../env";
+import { processParseDocument } from "./parse-document";
 
 /**
  * 异步作业处理器（backend_plan.md 7.3）。
@@ -11,8 +12,8 @@ export interface ProcessorResult {
   error?: string;
 }
 
-export async function runParseDocument(_env: Env, _operationId: string): Promise<ProcessorResult> {
-  return { status: "failed", error: "M2 里程碑实现" };
+export function runParseDocument(env: Env, operationId: string): Promise<ProcessorResult> {
+  return processParseDocument(env, operationId);
 }
 
 export async function runGenerateMatch(_env: Env, _operationId: string): Promise<ProcessorResult> {
