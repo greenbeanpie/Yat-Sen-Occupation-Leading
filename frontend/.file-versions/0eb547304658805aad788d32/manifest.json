@@ -1,0 +1,37 @@
+{
+  "schemaVersion": 2,
+  "fileName": "index.html",
+  "currentVersionId": "e3bf2636-8255-479d-8d39-85e7f9de87a7",
+  "entries": [
+    {
+      "id": "7d5547bc-d3f7-4224-9a0f-fd4af45e60dc",
+      "fileName": "index.html",
+      "version": 1,
+      "label": "Version 1",
+      "createdAt": 1790680337636,
+      "source": "ai",
+      "prompt": "请你继续工作",
+      "size": 223678,
+      "mime": "text/html; charset=utf-8",
+      "kind": "html",
+      "contentPath": "0001-7d5547bc-d3f7-4224-9a0f-fd4af45e60dc.html",
+      "promptSource": "message",
+      "contentDigest": "2e65361d1e9c8cac76b01ae1124587de381b7d77dd2039287f1609663a5c6fa6"
+    },
+    {
+      "id": "e3bf2636-8255-479d-8d39-85e7f9de87a7",
+      "fileName": "index.html",
+      "version": 2,
+      "label": "Version 2",
+      "createdAt": 1790680608574,
+      "source": "ai",
+      "prompt": "请你强化如图页面的展示使其更加明显；可以改为柱状图或折线图等",
+      "size": 232052,
+      "mime": "text/html; charset=utf-8",
+      "kind": "html",
+      "contentPath": "0002-e3bf2636-8255-479d-8d39-85e7f9de87a7.html",
+      "contentDigest": "4ea1b53a3c01d70cb958da172359b9994938ff81941aac85b45240319783f6ef",
+      "promptSource": "message"
+    }
+  ]
+}
