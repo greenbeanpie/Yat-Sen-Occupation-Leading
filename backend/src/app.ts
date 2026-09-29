@@ -56,7 +56,7 @@ export function createApp(): App {
     },
   }).basePath("/api/v1");
 
-  app.use("/api/v1/*", async (c, next) => {
+  app.use("/*", async (c, next) => {
     const middleware = cors({
       origin: (origin) => (allowedOrigins(c.env).includes(origin) ? origin : null),
       allowHeaders: ["Content-Type", "Authorization"],
