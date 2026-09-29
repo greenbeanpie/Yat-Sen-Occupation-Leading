@@ -1,0 +1,32 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "yso-backend",
+  "main": "src/index.ts",
+  "compatibility_date": "2025-10-11",
+  "compatibility_flags": ["nodejs_compat"],
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "yso-db",
+      "database_id": "REPLACE_AFTER_D1_CREATE",
+      "migrations_dir": "migrations"
+    }
+  ],
+  "r2_buckets": [{ "binding": "DOCS", "bucket_name": "yso-docs" }],
+  "workflows": [
+    { "binding": "PARSE_DOCUMENT", "name": "parse-document", "class_name": "ParseDocumentWorkflow" },
+    { "binding": "PARSE_JOB_REQUIREMENTS", "name": "parse-job-requirements", "class_name": "ParseJobRequirementsWorkflow" },
+    { "binding": "GENERATE_MATCH", "name": "generate-match", "class_name": "GenerateMatchWorkflow" },
+    { "binding": "GENERATE_PLAN", "name": "generate-plan", "class_name": "GeneratePlanWorkflow" },
+    { "binding": "REWRITE_RESUME", "name": "rewrite-resume", "class_name": "RewriteResumeWorkflow" }
+  ],
+  "triggers": { "crons": ["*/15 * * * *"] },
+  "observability": { "enabled": true },
+  "vars": {
+    "AI_PROVIDER": "mock",
+    "AI_BASE_URL": "",
+    "AI_MODEL": "",
+    "CORS_ORIGIN": "http://localhost:5173",
+    "DEMO_ENABLED": "true"
+  }
+}

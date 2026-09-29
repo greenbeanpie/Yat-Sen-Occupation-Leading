@@ -1,0 +1,6194 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Yat-Sen 求职辅助后端 API",
+    "version": "1.0.0",
+    "description": "画像与证据 / 文档解析 / 岗位 / 匹配与组合 / 计划与改写 / 投递与统计 / 离线同步 / 通知"
+  },
+  "servers": [
+    {
+      "url": "/api/v1"
+    }
+  ],
+  "components": {
+    "schemas": {
+      "SessionResponse": {
+        "type": "object",
+        "properties": {
+          "authenticated": {
+            "type": "boolean"
+          },
+          "user": {
+            "type": "object",
+            "nullable": true,
+            "properties": {
+              "id": {
+                "$ref": "#/components/schemas/Uuid"
+              },
+              "role": {
+                "type": "string",
+                "enum": [
+                  "student",
+                  "admin"
+                ]
+              },
+              "displayName": {
+                "type": "string"
+              },
+              "timezone": {
+                "type": "string"
+              },
+              "demo": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "id",
+              "role",
+              "displayName",
+              "timezone",
+              "demo"
+            ]
+          },
+          "demoUsers": {
+            "type": "array",
+            "nullable": true,
+            "items": {
+              "$ref": "#/components/schemas/DemoUser"
+            }
+          },
+          "capabilities": {
+            "type": "object",
+            "nullable": true,
+            "properties": {
+              "push": {
+                "type": "boolean"
+              },
+              "offline": {
+                "type": "boolean"
+              },
+              "demoMode": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "push",
+              "offline",
+              "demoMode"
+            ]
+          }
+        },
+        "required": [
+          "authenticated"
+        ]
+      },
+      "Uuid": {
+        "type": "string",
+        "format": "uuid"
+      },
+      "DemoUser": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/Uuid"
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "student",
+              "admin"
+            ]
+          },
+          "displayName": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "role",
+          "displayName"
+        ]
+      },
+      "ErrorBody": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              },
+              "details": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              },
+              "server": {
+                "nullable": true
+              }
+            },
+            "required": [
+              "code",
+              "message"
+            ]
+          }
+        },
+        "required": [
+          "error"
+        ]
+      },
+      "ErrorDetail": {
+        "type": "object",
+        "properties": {
+          "field": {
+            "type": "string"
+          },
+          "issue": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "field",
+          "issue"
+        ]
+      },
+      "LoginRequest": {
+        "type": "object",
+        "properties": {
+          "userId": {
+            "$ref": "#/components/schemas/Uuid"
+          }
+        },
+        "required": [
+          "userId"
+        ]
+      },
+      "Profile": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/Uuid"
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 0,
+            "exclusiveMinimum": true
+          },
+          "deleted": {
+            "type": "boolean"
+          },
+          "createdAt": {
+            "$ref": "#/components/schemas/IsoDateTime"
+          },
+          "updatedAt": {
+            "$ref": "#/components/schemas/IsoDateTime"
+          },
+          "userId": {
+            "$ref": "#/components/schemas/Uuid"
+          },
+          "targetRoles": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "industries": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "graduationYear": {
+            "type": "integer",
+            "nullable": true
+          },
+          "degree": {
+            "type": "string",
+            "nullable": true,
+            "enum": [
+              "associate",
+              "bachelor",
+              "master",
+              "phd",
+              null
+            ]
+          },
+          "preferredLocations": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "weeklyTimeBudgetHours": {
+            "type": "number",
+            "nullable": true
+          }
+        },
+        "required": [
+          "id",
+          "version",
+          "deleted",
+          "createdAt",
+          "updatedAt",
+          "userId",
+          "targetRoles",
+          "industries",
+          "preferredLocations"
+        ]
+      },
+      "IsoDateTime": {
+        "type": "string",
+        "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?Z$"
+      },
+      "ProfilePayload": {
+        "type": "object",
+        "properties": {
+          "targetRoles": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "maxItems": 20
+          },
+          "industries": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "maxItems": 20
+          },
+          "graduationYear": {
+            "type": "integer",
+            "nullable": true,
+            "minimum": 2000,
+            "maximum": 2100
+          },
+          "degree": {
+            "type": "string",
+            "nullable": true,
+            "enum": [
+              "associate",
+              "bachelor",
+              "master",
+              "phd",
+              null
+            ]
+          },
+          "preferredLocations": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "maxItems": 20
+          },
+          "weeklyTimeBudgetHours": {
+            "type": "number",
+            "nullable": true,
+            "minimum": 0,
+            "exclusiveMinimum": true,
+            "maximum": 80
+          }
+        }
+      },
+      "EvidenceBundle": {
+        "type": "object",
+        "properties": {
+          "experiences": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Experience"
+            }
+          },
+          "skills": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Skill"
+            }
+          },
+          "links": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Evidence"
+            }
+          }
+        },
+        "required": [
+          "experiences",
+          "skills",
+          "links"
+        ]
+      },
+      "Experience": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/Uuid"
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 0,
+            "exclusiveMinimum": true
+          },
+          "deleted": {
+            "type": "boolean"
+          },
+          "createdAt": {
+            "$ref": "#/components/schemas/IsoDateTime"
+          },
+          "updatedAt": {
+            "$ref": "#/components/schemas/IsoDateTime"
+          },
+          "userId": {
+            "$ref": "#/components/schemas/Uuid"
+          },
+          "title": {
+            "type": "string"
+          },
+          "organization": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "project",
+              "internship",
+              "research",
+              "competition",
+              "other"
+            ]
+          },
+          "startDate": {
+            "$ref": "#/components/schemas/DateYmd"
+          },
+          "endDate": {
+            "$ref": "#/components/schemas/DateYmd"
+          },
+          "description": {
+            "type": "string"
+          },
+          "sourceDocumentId": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Uuid"
+              },
+              {
+                "nullable": true
+              }
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "version",
+          "deleted",
+          "createdAt",
+          "updatedAt",
+          "userId",
+          "title",
+          "organization",
+          "kind",
+          "description"
+        ]
+      },
+      "DateYmd": {
+        "type": "string",
+        "nullable": true,
+        "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+      },
+      "Skill": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/Uuid"
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 0,
+            "exclusiveMinimum": true
+          },
+          "deleted": {
+            "type": "boolean"
+          },
+          "createdAt": {
+            "$ref": "#/components/schemas/IsoDateTime"
+          },
+          "updatedAt": {
+            "$ref": "#/components/schemas/IsoDateTime"
+          },
+          "userId": {
+            "$ref": "#/components/schemas/Uuid"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "version",
+          "deleted",
+          "createdAt",
+          "updatedAt",
+          "userId",
+          "name"
+        ]
+      },
+      "Evidence": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/Uuid"
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 0,
+            "exclusiveMinimum": true
+          },
+          "deleted": {
+            "type": "boolean"
+          },
+          "createdAt": {
+            "$ref": "#/components/schemas/IsoDateTime"
+          },
+          "updatedAt": {
+            "$ref": "#/components/schemas/IsoDateTime"
+          },
+          "userId": {
+            "$ref": "#/components/schemas/Uuid"
+          },
+          "skillId": {
+            "$ref": "#/components/schemas/Uuid"
+          },
+          "experienceId": {
+            "$ref": "#/components/schemas/Uuid"
+          },
+          "quote": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "confirmed",
+              "missing_evidence"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "version",
+          "deleted",
+          "createdAt",
+          "updatedAt",
+          "userId",
+          "skillId",
+          "experienceId",
+          "quote",
+          "status"
+        ]
+      },
+      "ExperiencePayload": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "organization": {
+            "type": "string",
+            "maxLength": 200
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "project",
+              "internship",
+              "research",
+              "competition",
+              "other"
+            ]
+          },
+          "startDate": {
+            "$ref": "#/components/schemas/DateYmd"
+          },
+          "endDate": {
+            "$ref": "#/components/schemas/DateYmd"
+          },
+          "description": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 20000
+          },
+          "sourceDocumentId": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Uuid"
+              },
+              {
+                "nullable": true
+              }
+            ]
+          }
+        },
+        "required": [
+          "title",
+          "description"
+        ]
+      },
+      "SkillPayload": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          }
+        },
+        "required": [
+          "name"
+        ]
+      },
+      "EvidencePayload": {
+        "type": "object",
+        "properties": {
+          "skillId": {
+            "$ref": "#/components/schemas/Uuid"
+          },
+          "experienceId": {
+            "$ref": "#/components/schemas/Uuid"
+          },
+          "quote": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2000
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "confirmed",
+              "missing_evidence"
+            ]
+          }
+        }
+      },
+      "Document": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/Uuid"
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 0,
+            "exclusiveMinimum": true
+          },
+          "deleted": {
+            "type": "boolean"
+          },
+          "createdAt": {
+            "$ref": "#/components/schemas/IsoDateTime"
+          },
+          "updatedAt": {
+            "$ref": "#/components/schemas/IsoDateTime"
+          },
+          "userId": {
+            "$ref": "#/components/schemas/Uuid"
+          },
+          "filename": {
+            "type": "string"
+          },
+          "mimeType": {
+            "type": "string"
+          },
+          "sizeBytes": {
+            "type": "integer"
+          },
+          "pageCount": {
+            "type": "integer",
+            "nullable": true
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "uploaded",
+              "extracting",
+              "extracted",
+              "parsing",
+              "draft_ready",
+              "confirmed",
+              "failed"
+            ]
+          },
+          "error": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "id",
+          "version",
+          "deleted",
+          "createdAt",
+          "updatedAt",
+          "userId",
+          "filename",
+          "mimeType",
+          "sizeBytes",
+          "status"
+        ]
+      },
+      "AcceptedResponse": {
+        "type": "object",
+        "properties": {
+          "operationId": {
+            "$ref": "#/components/schemas/Uuid"
+          }
+        },
+        "required": [
+          "operationId"
+        ]
+      },
+      "ParseDraft": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/Uuid"
+          },
+          "documentId": {
+            "$ref": "#/components/schemas/Uuid"
+          },
+          "operationId": {
+            "$ref": "#/components/schemas/Uuid"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "ready",
+              "confirmed",
+              "rejected"
+            ]
+          },
+          "result": {
+            "nullable": true
+          },
+          "createdAt": {
+            "$ref": "#/components/schemas/IsoDateTime"
+          }
+        },
+        "required": [
+          "id",
+          "documentId",
+          "operationId",
+          "status",
+          "createdAt"
+        ]
+      },
+      "ConfirmParse": {
+        "type": "object",
+        "properties": {
+          "confirm": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          }
+        },
+        "required": [
+          "confirm"
+        ]
+      },
+      "Operation": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/Uuid"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "parse_document",
+              "parse_job_requirements",
+              "generate_match",
+              "generate_plan",
+              "rewrite_resume"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "queued",
+              "running",
+              "succeeded",
+              "failed"
+            ]
+          },
+          "error": {
+            "type": "string",
+            "nullable": true
+          },
+          "resultRef": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Uuid"
+              },
+              {
+                "nullable": true
+              }
+            ]
+          },
+          "createdAt": {
+            "$ref": "#/components/schemas/IsoDateTime"
+          }
+        },
+        "required": [
+          "id",
+          "type",
+          "status",
+          "createdAt"
+        ]
+      },
+      "JobListResponse": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Job"
+            }
+          }
+        },
+        "required": [
+          "items"
+        ]
+      },
+      "Job": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/Uuid"
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 0,
+            "exclusiveMinimum": true
+          },
+          "deleted": {
+            "type": "boolean"
+          },
+          "createdAt": {
+            "$ref": "#/components/schemas/IsoDateTime"
+          },
+          "updatedAt": {
+            "$ref": "#/components/schemas/IsoDateTime"
+          },
+          "userId": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Uuid"
+              },
+              {
+                "nullable": true
+              }
+            ]
+          },
+          "scope": {
+            "type": "string",
+            "enum": [
+              "public",
+              "private"
+            ]
+          },
+          "title": {
+            "type": "string"
+          },
+          "company": {
+            "type": "string"
+          },
+          "location": {
+            "type": "string",
+            "nullable": true
+          },
+          "degreeRequirement": {
+            "type": "string",
+            "nullable": true
+          },
+          "graduationYearFrom": {
+            "type": "integer",
+            "nullable": true
+          },
+          "graduationYearTo": {
+            "type": "integer",
+            "nullable": true
+          },
+          "sourceUrl": {
+            "type": "string",
+            "nullable": true
+          },
+          "deadlineDate": {
+            "$ref": "#/components/schemas/DateYmd"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "draft",
+              "published",
+              "archived"
+            ]
+          },
+          "jdText": {
+            "type": "string"
+          },
+          "jobVersion": {
+            "type": "integer"
+          },
+          "requirements": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/JobRequirement"
+            }
+          }
+        },
+        "required": [
+          "id",
+          "version",
+          "deleted",
+          "createdAt",
+          "updatedAt",
+          "scope",
+          "title",
+          "company",
+          "status",
+          "jdText",
+          "jobVersion",
+          "requirements"
+        ]
+      },
+      "JobRequirement": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string"
+          },
+          "value": {
+            "type": "string"
+          },
+          "quote": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "kind",
+          "value"
+        ]
+      },
+      "JobPayload": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "company": {
+            "type": "string",
+            "maxLength": 200
+          },
+          "location": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 200
+          },
+          "degreeRequirement": {
+            "type": "string",
+            "nullable": true,
+            "enum": [
+              "associate",
+              "bachelor",
+              "master",
+              "phd",
+              "none",
+              null
+            ]
+          },
+          "graduationYearFrom": {
+            "type": "integer",
+            "nullable": true,
+            "minimum": 2000,
+            "maximum": 2100
+          },
+          "graduationYearTo": {
+            "type": "integer",
+            "nullable": true,
+            "minimum": 2000,
+            "maximum": 2100
+          },
+          "sourceUrl": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 1000
+          },
+          "deadlineDate": {
+            "$ref": "#/components/schemas/DateYmd"
+          },
+          "jdText": {
+            "type": "string",
+            "maxLength": 50000
+          }
+        },
+        "required": [
+          "title"
+        ]
+      },
+      "JobRequirementsDraft": {
+        "type": "object",
+        "properties": {
+          "jobId": {
+            "$ref": "#/components/schemas/Uuid"
+          },
+          "operationId": {
+            "$ref": "#/components/schemas/Uuid"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "ready",
+              "confirmed",
+              "rejected"
+            ]
+          },
+          "candidates": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RequirementCandidate"
+            }
+          }
+        },
+        "required": [
+          "jobId",
+          "operationId",
+          "status",
+          "candidates"
+        ]
+      },
+      "RequirementCandidate": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "degree",
+              "location",
+              "graduation_year",
+              "skill",
+              "experience",
+              "other"
+            ]
+          },
+          "value": {
+            "type": "string"
+          },
+          "quote": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "value",
+          "quote"
+        ]
+      },
+      "JobPublishRequest": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": [
+              "publish",
+              "archive",
+              "unpublish"
+            ]
+          }
+        },
+        "required": [
+          "action"
+        ]
+      },
+      "CreateMatch": {
+        "type": "object",
+        "properties": {
+          "jobId": {
+            "$ref": "#/components/schemas/Uuid"
+          },
+          "clientProfileVersion": {
+            "type": "integer",
+            "nullable": true
+          },
+          "clientExperienceVersions": {
+            "type": "array",
+            "nullable": true,
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "$ref": "#/components/schemas/Uuid"
+                },
+                "version": {
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "id",
+                "version"
+              ]
+            }
+          }
+        },
+        "required": [
+          "jobId"
+        ]
+      },
+      "MatchSnapshot": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/Uuid"
+          },
+          "jobId": {
+            "$ref": "#/components/schemas/Uuid"
+          },
+          "operationId": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Uuid"
+              },
+              {
+                "nullable": true
+              }
+            ]
+          },
+          "ruleVersion": {
+            "type": "string"
+          },
+          "inputVersions": {
+            "nullable": true
+          },
+          "hardConditions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/HardCondition"
+            }
+          },
+          "scores": {
+            "$ref": "#/components/schemas/MatchScores"
+          },
+          "gaps": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "explanation": {
+            "nullable": true
+          },
+          "quotes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/QuoteRef"
+            }
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "queued",
+              "running",
+              "ready",
+              "failed",
+              "stale"
+            ]
+          },
+          "error": {
+            "type": "string",
+            "nullable": true
+          },
+          "createdAt": {
+            "$ref": "#/components/schemas/IsoDateTime"
+          },
+          "updatedAt": {
+            "$ref": "#/components/schemas/IsoDateTime"
+          }
+        },
+        "required": [
+          "id",
+          "jobId",
+          "ruleVersion",
+          "hardConditions",
+          "scores",
+          "gaps",
+          "quotes",
+          "status",
+          "createdAt",
+          "updatedAt"
+        ]
+      },
+      "HardCondition": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string"
+          },
+          "requirement": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "met",
+              "unmet",
+              "unknown"
+            ]
+          },
+          "note": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "kind",
+          "requirement",
+          "status"
+        ]
+      },
+      "MatchScores": {
+        "type": "object",
+        "properties": {
+          "skillCoverage": {
+            "type": "number"
+          },
+          "evidenceCoverage": {
+            "type": "number"
+          },
+          "preference": {
+            "type": "number",
+            "nullable": true
+          },
+          "total": {
+            "type": "number"
+          },
+          "coverageNote": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "skillCoverage",
+          "evidenceCoverage",
+          "total",
+          "coverageNote"
+        ]
+      },
+      "QuoteRef": {
+        "type": "object",
+        "properties": {
+          "text": {
+            "type": "string"
+          },
+          "source": {
+            "type": "string"
+          },
+          "location": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "text",
+          "source"
+        ]
+      },
+      "Portfolio": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/Uuid"
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 0,
+            "exclusiveMinimum": true
+          },
+          "deleted": {
+            "type": "boolean"
+          },
+          "createdAt": {
+            "$ref": "#/components/schemas/IsoDateTime"
+          },
+          "updatedAt": {
+            "$ref": "#/components/schemas/IsoDateTime"
+          },
+          "userId": {
+            "$ref": "#/components/schemas/Uuid"
+          },
+          "timeBudgetHours": {
+            "type": "number"
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PortfolioItem"
+            }
+          },
+          "notes": {
+            "nullable": true
+          }
+        },
+        "required": [
+          "id",
+          "version",
+          "deleted",
+          "createdAt",
+          "updatedAt",
+          "userId",
+          "timeBudgetHours",
+          "items"
+        ]
+      },
+      "PortfolioItem": {
+        "type": "object",
+        "properties": {
+          "jobId": {
+            "$ref": "#/components/schemas/Uuid"
+          },
+          "pinned": {
+            "type": "boolean"
+          },
+          "score": {
+            "type": "number"
+          },
+          "prepHours": {
+            "type": "number",
+            "nullable": true
+          },
+          "deadline": {
+            "$ref": "#/components/schemas/DateYmd"
+          },
+          "unitBenefit": {
+            "type": "number",
+            "nullable": true
+          },
+          "selected": {
+            "type": "boolean"
+          },
+          "excludedReason": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "jobId",
+          "pinned",
+          "score",
+          "selected"
+        ]
+      },
+      "PortfolioRequest": {
+        "type": "object",
+        "properties": {
+          "timeBudgetHours": {
+            "type": "number",
+            "minimum": 0,
+            "exclusiveMinimum": true,
+            "maximum": 200
+          },
+          "pinnedJobIds": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Uuid"
+            },
+            "maxItems": 50
+          },
+          "removedJobIds": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Uuid"
+            },
+            "maxItems": 50
+          },
+          "asOfDate": {
+            "$ref": "#/components/schemas/DateYmd"
+          }
+        },
+        "required": [
+          "timeBudgetHours"
+        ]
+      },
+      "CreatePlan": {
+        "type": "object",
+        "properties": {
+          "portfolioId": {
+            "$ref": "#/components/schemas/Uuid"
+          },
+          "clientProfileVersion": {
+            "type": "integer",
+            "nullable": true
+          },
+          "clientExperienceVersions": {
+            "type": "array",
+            "nullable": true,
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "$ref": "#/components/schemas/Uuid"
+                },
+                "version": {
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "id",
+                "version"
+              ]
+            }
+          }
+        },
+        "required": [
+          "portfolioId"
+        ]
+      },
+      "Plan": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/Uuid"
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 0,
+            "exclusiveMinimum": true
+          },
+          "deleted": {
+            "type": "boolean"
+          },
+          "createdAt": {
+            "$ref": "#/components/schemas/IsoDateTime"
+          },
+          "updatedAt": {
+            "$ref": "#/components/schemas/IsoDateTime"
+          },
+          "userId": {
+            "$ref": "#/components/schemas/Uuid"
+          },
+          "portfolioId": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Uuid"
+              },
+              {
+                "nullable": true
+              }
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "draft",
+              "confirmed",
+              "superseded"
+            ]
+          },
+          "ruleVersion": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "version",
+          "deleted",
+          "createdAt",
+          "updatedAt",
+          "userId",
+          "status",
+          "ruleVersion"
+        ]
+      },
+      "PlanDetail": {
+        "type": "object",
+        "properties": {
+          "plan": {
+            "$ref": "#/components/schemas/Plan"
+          },
+          "tasks": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PlanTask"
+            }
+          }
+        },
+        "required": [
+          "plan",
+          "tasks"
+        ]
+      },
+      "PlanTask": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/Uuid"
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 0,
+            "exclusiveMinimum": true
+          },
+          "deleted": {
+            "type": "boolean"
+          },
+          "createdAt": {
+            "$ref": "#/components/schemas/IsoDateTime"
+          },
+          "updatedAt": {
+            "$ref": "#/components/schemas/IsoDateTime"
+          },
+          "userId": {
+            "$ref": "#/components/schemas/Uuid"
+          },
+          "planId": {
+            "$ref": "#/components/schemas/Uuid"
+          },
+          "title": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "jobId": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Uuid"
+              },
+              {
+                "nullable": true
+              }
+            ]
+          },
+          "evidenceId": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Uuid"
+              },
+              {
+                "nullable": true
+              }
+            ]
+          },
+          "gap": {
+            "type": "string",
+            "nullable": true
+          },
+          "estimateHours": {
+            "type": "number",
+            "nullable": true
+          },
+          "actualHours": {
+            "type": "number",
+            "nullable": true
+          },
+          "scheduledDate": {
+            "$ref": "#/components/schemas/DateYmd"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "in_progress",
+              "done",
+              "cancelled"
+            ]
+          },
+          "deps": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Uuid"
+            }
+          }
+        },
+        "required": [
+          "id",
+          "version",
+          "deleted",
+          "createdAt",
+          "updatedAt",
+          "userId",
+          "planId",
+          "title",
+          "description",
+          "status",
+          "deps"
+        ]
+      },
+      "TaskUpdate": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "scheduledDate": {
+            "$ref": "#/components/schemas/DateYmd"
+          },
+          "estimateHours": {
+            "type": "number",
+            "nullable": true,
+            "minimum": 0,
+            "exclusiveMinimum": true,
+            "maximum": 100
+          },
+          "actualHours": {
+            "type": "number",
+            "nullable": true,
+            "minimum": 0,
+            "maximum": 100
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "in_progress",
+              "done",
+              "cancelled"
+            ]
+          }
+        }
+      },
+      "AdjustmentSuggestion": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/Uuid"
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 0,
+            "exclusiveMinimum": true
+          },
+          "deleted": {
+            "type": "boolean"
+          },
+          "createdAt": {
+            "$ref": "#/components/schemas/IsoDateTime"
+          },
+          "updatedAt": {
+            "$ref": "#/components/schemas/IsoDateTime"
+          },
+          "userId": {
+            "$ref": "#/components/schemas/Uuid"
+          },
+          "planId": {
+            "$ref": "#/components/schemas/Uuid"
+          },
+          "trigger": {
+            "type": "string",
+            "enum": [
+              "feedback",
+              "profile_change",
+              "task_delay",
+              "task_overrun"
+            ]
+          },
+          "summary": {
+            "type": "string"
+          },
+          "proposal": {
+            "nullable": true
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "accepted",
+              "rejected"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "version",
+          "deleted",
+          "createdAt",
+          "updatedAt",
+          "userId",
+          "planId",
+          "trigger",
+          "summary",
+          "status"
+        ]
+      },
+      "CreateRewrite": {
+        "type": "object",
+        "properties": {
+          "experienceId": {
+            "$ref": "#/components/schemas/Uuid"
+          }
+        },
+        "required": [
+          "experienceId"
+        ]
+      },
+      "Rewrite": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/Uuid"
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 0,
+            "exclusiveMinimum": true
+          },
+          "deleted": {
+            "type": "boolean"
+          },
+          "createdAt": {
+            "$ref": "#/components/schemas/IsoDateTime"
+          },
+          "updatedAt": {
+            "$ref": "#/components/schemas/IsoDateTime"
+          },
+          "userId": {
+            "$ref": "#/components/schemas/Uuid"
+          },
+          "experienceId": {
+            "$ref": "#/components/schemas/Uuid"
+          },
+          "operationId": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Uuid"
+              },
+              {
+                "nullable": true
+              }
+            ]
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RewriteItem"
+            }
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "queued",
+              "running",
+              "ready",
+              "failed"
+            ]
+          },
+          "error": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "id",
+          "version",
+          "deleted",
+          "createdAt",
+          "updatedAt",
+          "userId",
+          "experienceId",
+          "items",
+          "status"
+        ]
+      },
+      "RewriteItem": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "originalQuote": {
+            "type": "string"
+          },
+          "suggestion": {
+            "type": "string"
+          },
+          "rationale": {
+            "type": "string"
+          },
+          "quoteVerified": {
+            "type": "boolean"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "accepted",
+              "rejected"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "originalQuote",
+          "suggestion",
+          "rationale",
+          "quoteVerified",
+          "status"
+        ]
+      },
+      "EfficiencyStats": {
+        "type": "object",
+        "properties": {
+          "from": {
+            "$ref": "#/components/schemas/DateYmd"
+          },
+          "to": {
+            "$ref": "#/components/schemas/DateYmd"
+          },
+          "interviewedCount": {
+            "type": "integer"
+          },
+          "totalHours": {
+            "type": "number"
+          },
+          "efficiency": {
+            "type": "number",
+            "nullable": true
+          }
+        },
+        "required": [
+          "from",
+          "to",
+          "interviewedCount",
+          "totalHours"
+        ]
+      },
+      "Application": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/Uuid"
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 0,
+            "exclusiveMinimum": true
+          },
+          "deleted": {
+            "type": "boolean"
+          },
+          "createdAt": {
+            "$ref": "#/components/schemas/IsoDateTime"
+          },
+          "updatedAt": {
+            "$ref": "#/components/schemas/IsoDateTime"
+          },
+          "userId": {
+            "$ref": "#/components/schemas/Uuid"
+          },
+          "jobId": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Uuid"
+              },
+              {
+                "nullable": true
+              }
+            ]
+          },
+          "jobTitle": {
+            "type": "string"
+          },
+          "company": {
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/ApplicationStatus"
+          },
+          "notes": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "version",
+          "deleted",
+          "createdAt",
+          "updatedAt",
+          "userId",
+          "jobTitle",
+          "company",
+          "status",
+          "notes"
+        ]
+      },
+      "ApplicationStatus": {
+        "type": "string",
+        "enum": [
+          "preparing",
+          "submitted",
+          "interviewing",
+          "offered",
+          "rejected",
+          "withdrawn"
+        ]
+      },
+      "ApplicationPayload": {
+        "type": "object",
+        "properties": {
+          "jobId": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Uuid"
+              },
+              {
+                "nullable": true
+              }
+            ]
+          },
+          "jobTitle": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "company": {
+            "type": "string",
+            "maxLength": 200
+          },
+          "notes": {
+            "type": "string",
+            "maxLength": 5000
+          },
+          "status": {
+            "$ref": "#/components/schemas/ApplicationStatus"
+          }
+        },
+        "required": [
+          "jobTitle"
+        ]
+      },
+      "ApplicationEvent": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/Uuid"
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 0,
+            "exclusiveMinimum": true
+          },
+          "deleted": {
+            "type": "boolean"
+          },
+          "createdAt": {
+            "$ref": "#/components/schemas/IsoDateTime"
+          },
+          "updatedAt": {
+            "$ref": "#/components/schemas/IsoDateTime"
+          },
+          "userId": {
+            "$ref": "#/components/schemas/Uuid"
+          },
+          "applicationId": {
+            "$ref": "#/components/schemas/Uuid"
+          },
+          "type": {
+            "type": "string"
+          },
+          "fromStatus": {
+            "type": "string",
+            "nullable": true
+          },
+          "toStatus": {
+            "type": "string",
+            "nullable": true
+          },
+          "note": {
+            "type": "string",
+            "nullable": true
+          },
+          "occurredAt": {
+            "$ref": "#/components/schemas/IsoDateTime"
+          }
+        },
+        "required": [
+          "id",
+          "version",
+          "deleted",
+          "createdAt",
+          "updatedAt",
+          "userId",
+          "applicationId",
+          "type",
+          "occurredAt"
+        ]
+      },
+      "ApplicationEventPayload": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "status_change",
+              "interview_scheduled",
+              "feedback",
+              "note"
+            ]
+          },
+          "toStatus": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ApplicationStatus"
+              },
+              {
+                "nullable": true
+              }
+            ]
+          },
+          "note": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 5000
+          },
+          "occurredAt": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/IsoDateTime"
+              },
+              {
+                "nullable": true
+              }
+            ]
+          }
+        },
+        "required": [
+          "type"
+        ]
+      },
+      "Interview": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/Uuid"
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 0,
+            "exclusiveMinimum": true
+          },
+          "deleted": {
+            "type": "boolean"
+          },
+          "createdAt": {
+            "$ref": "#/components/schemas/IsoDateTime"
+          },
+          "updatedAt": {
+            "$ref": "#/components/schemas/IsoDateTime"
+          },
+          "userId": {
+            "$ref": "#/components/schemas/Uuid"
+          },
+          "applicationId": {
+            "$ref": "#/components/schemas/Uuid"
+          },
+          "stage": {
+            "type": "string"
+          },
+          "scheduledAt": {
+            "$ref": "#/components/schemas/IsoDateTime"
+          },
+          "locationOrLink": {
+            "type": "string",
+            "nullable": true
+          },
+          "result": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "passed",
+              "failed"
+            ]
+          },
+          "feedback": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "id",
+          "version",
+          "deleted",
+          "createdAt",
+          "updatedAt",
+          "userId",
+          "applicationId",
+          "stage",
+          "scheduledAt",
+          "result"
+        ]
+      },
+      "InterviewPayload": {
+        "type": "object",
+        "properties": {
+          "stage": {
+            "type": "string",
+            "maxLength": 100
+          },
+          "scheduledAt": {
+            "$ref": "#/components/schemas/IsoDateTime"
+          },
+          "locationOrLink": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 500
+          }
+        },
+        "required": [
+          "scheduledAt"
+        ]
+      },
+      "TimeEntry": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/Uuid"
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 0,
+            "exclusiveMinimum": true
+          },
+          "deleted": {
+            "type": "boolean"
+          },
+          "createdAt": {
+            "$ref": "#/components/schemas/IsoDateTime"
+          },
+          "updatedAt": {
+            "$ref": "#/components/schemas/IsoDateTime"
+          },
+          "userId": {
+            "$ref": "#/components/schemas/Uuid"
+          },
+          "applicationId": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Uuid"
+              },
+              {
+                "nullable": true
+              }
+            ]
+          },
+          "taskId": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Uuid"
+              },
+              {
+                "nullable": true
+              }
+            ]
+          },
+          "minutes": {
+            "type": "integer"
+          },
+          "spentOn": {
+            "$ref": "#/components/schemas/DateYmd"
+          },
+          "note": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "id",
+          "version",
+          "deleted",
+          "createdAt",
+          "updatedAt",
+          "userId",
+          "minutes",
+          "spentOn"
+        ]
+      },
+      "TimeEntryPayload": {
+        "type": "object",
+        "properties": {
+          "applicationId": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Uuid"
+              },
+              {
+                "nullable": true
+              }
+            ]
+          },
+          "taskId": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Uuid"
+              },
+              {
+                "nullable": true
+              }
+            ]
+          },
+          "minutes": {
+            "type": "integer",
+            "minimum": 0,
+            "exclusiveMinimum": true,
+            "maximum": 1440
+          },
+          "spentOn": {
+            "$ref": "#/components/schemas/DateYmd"
+          },
+          "note": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 1000
+          }
+        },
+        "required": [
+          "minutes",
+          "spentOn"
+        ]
+      },
+      "SyncResponse": {
+        "type": "object",
+        "properties": {
+          "results": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SyncResult"
+            }
+          }
+        },
+        "required": [
+          "results"
+        ]
+      },
+      "SyncResult": {
+        "type": "object",
+        "properties": {
+          "opId": {
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/SyncResultStatus"
+          },
+          "version": {
+            "type": "integer"
+          },
+          "record": {
+            "nullable": true
+          },
+          "error": {
+            "type": "string"
+          },
+          "details": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ErrorDetail"
+            }
+          }
+        },
+        "required": [
+          "opId",
+          "status"
+        ]
+      },
+      "SyncResultStatus": {
+        "type": "string",
+        "enum": [
+          "applied",
+          "duplicate",
+          "conflict",
+          "rejected"
+        ]
+      },
+      "SyncRequest": {
+        "type": "object",
+        "properties": {
+          "operations": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SyncOperation"
+            },
+            "minItems": 1,
+            "maxItems": 100
+          }
+        },
+        "required": [
+          "operations"
+        ]
+      },
+      "SyncOperation": {
+        "type": "object",
+        "properties": {
+          "opId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "entity": {
+            "type": "string",
+            "enum": [
+              "profile",
+              "experience",
+              "skill",
+              "evidence",
+              "job",
+              "portfolio",
+              "task",
+              "application",
+              "application_event",
+              "interview",
+              "time_entry"
+            ]
+          },
+          "entityId": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Uuid"
+              },
+              {
+                "nullable": true
+              }
+            ]
+          },
+          "baseVersion": {
+            "type": "integer",
+            "nullable": true,
+            "minimum": 0
+          },
+          "action": {
+            "type": "string",
+            "enum": [
+              "upsert",
+              "delete"
+            ]
+          },
+          "payload": {
+            "nullable": true
+          }
+        },
+        "required": [
+          "opId",
+          "entity",
+          "action"
+        ]
+      },
+      "SyncChangesResponse": {
+        "type": "object",
+        "properties": {
+          "cursor": {
+            "type": "integer"
+          },
+          "hasMore": {
+            "type": "boolean"
+          },
+          "changes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SyncChange"
+            }
+          }
+        },
+        "required": [
+          "cursor",
+          "hasMore",
+          "changes"
+        ]
+      },
+      "SyncChange": {
+        "type": "object",
+        "properties": {
+          "seq": {
+            "type": "integer"
+          },
+          "entity": {
+            "type": "string"
+          },
+          "entityId": {
+            "$ref": "#/components/schemas/Uuid"
+          },
+          "version": {
+            "type": "integer"
+          },
+          "changeType": {
+            "type": "string",
+            "enum": [
+              "upsert",
+              "delete"
+            ]
+          },
+          "record": {
+            "nullable": true
+          },
+          "changedAt": {
+            "$ref": "#/components/schemas/IsoDateTime"
+          }
+        },
+        "required": [
+          "seq",
+          "entity",
+          "entityId",
+          "version",
+          "changeType",
+          "changedAt"
+        ]
+      },
+      "NotificationListResponse": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Notification"
+            }
+          },
+          "unreadCount": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "unreadCount"
+        ]
+      },
+      "Notification": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/Uuid"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "body": {
+            "type": "string"
+          },
+          "entity": {
+            "type": "string"
+          },
+          "entityId": {
+            "$ref": "#/components/schemas/Uuid"
+          },
+          "fireAt": {
+            "$ref": "#/components/schemas/IsoDateTime"
+          },
+          "sentAt": {
+            "$ref": "#/components/schemas/IsoDateTime"
+          },
+          "readAt": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/IsoDateTime"
+              },
+              {
+                "nullable": true
+              }
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "title",
+          "body",
+          "entity",
+          "entityId",
+          "fireAt",
+          "sentAt"
+        ]
+      },
+      "UserSettingsResponse": {
+        "type": "object",
+        "properties": {
+          "timezone": {
+            "type": "string"
+          },
+          "notifyTaskDue": {
+            "type": "boolean"
+          },
+          "notifyInterview": {
+            "type": "boolean"
+          },
+          "updatedAt": {
+            "$ref": "#/components/schemas/IsoDateTime"
+          }
+        },
+        "required": [
+          "timezone",
+          "notifyTaskDue",
+          "notifyInterview",
+          "updatedAt"
+        ]
+      },
+      "ReminderSettings": {
+        "type": "object",
+        "properties": {
+          "notifyTaskDue": {
+            "type": "boolean"
+          },
+          "notifyInterview": {
+            "type": "boolean"
+          },
+          "timezone": {
+            "type": "string",
+            "maxLength": 60
+          }
+        }
+      },
+      "PushSubscription": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/Uuid"
+          },
+          "endpoint": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "active",
+              "expired"
+            ]
+          },
+          "createdAt": {
+            "$ref": "#/components/schemas/IsoDateTime"
+          }
+        },
+        "required": [
+          "id",
+          "endpoint",
+          "status",
+          "createdAt"
+        ]
+      },
+      "PushSubscriptionPayload": {
+        "type": "object",
+        "properties": {
+          "endpoint": {
+            "type": "string",
+            "maxLength": 1000,
+            "format": "uri"
+          },
+          "keys": {
+            "type": "object",
+            "properties": {
+              "p256dh": {
+                "type": "string",
+                "minLength": 1
+              },
+              "auth": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "required": [
+              "p256dh",
+              "auth"
+            ]
+          }
+        },
+        "required": [
+          "endpoint",
+          "keys"
+        ]
+      },
+      "VapidPublicKey": {
+        "type": "object",
+        "properties": {
+          "publicKey": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "publicKey"
+        ]
+      }
+    },
+    "parameters": {}
+  },
+  "paths": {
+    "/api/v1/session": {
+      "get": {
+        "tags": [
+          "session"
+        ],
+        "responses": {
+          "200": {
+            "description": "当前身份与能力（未登录时返回演示身份列表）",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "session"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoginRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "登录成功（演示身份，服务端签发会话）",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "演示身份不存在",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "参数错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "session"
+        ],
+        "responses": {
+          "204": {
+            "description": "已登出"
+          }
+        }
+      }
+    },
+    "/api/v1/profile": {
+      "get": {
+        "tags": [
+          "profile"
+        ],
+        "responses": {
+          "200": {
+            "description": "当前画像（无则返回空壳）",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Profile"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未登录",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "profile"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/ProfilePayload"
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "baseVersion": {
+                        "type": "integer",
+                        "nullable": true
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "已保存",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Profile"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "版本冲突",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "参数错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/evidence": {
+      "get": {
+        "tags": [
+          "evidence"
+        ],
+        "responses": {
+          "200": {
+            "description": "经历、技能与证据关联",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EvidenceBundle"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未登录",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/evidence/experiences": {
+      "post": {
+        "tags": [
+          "evidence"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExperiencePayload"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "已创建",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Experience"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未登录",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "参数错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/evidence/experiences/{id}": {
+      "put": {
+        "tags": [
+          "evidence"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "$ref": "#/components/schemas/Uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/ExperiencePayload"
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "baseVersion": {
+                        "type": "integer"
+                      }
+                    },
+                    "required": [
+                      "baseVersion"
+                    ]
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "已保存（相关分析读取时标记过期）",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Experience"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "版本冲突",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "参数错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "evidence"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "$ref": "#/components/schemas/Uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "已删除（墓碑）"
+          },
+          "401": {
+            "description": "未登录",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "不存在",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/evidence/skills": {
+      "post": {
+        "tags": [
+          "evidence"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SkillPayload"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "已创建（同名返回已有技能）",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Skill"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未登录",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/evidence/skills/{id}": {
+      "delete": {
+        "tags": [
+          "evidence"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "$ref": "#/components/schemas/Uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "已删除（墓碑）"
+          },
+          "401": {
+            "description": "未登录",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "不存在",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/evidence/links": {
+      "post": {
+        "tags": [
+          "evidence"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EvidencePayload"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "引用命中原文，已创建待确认证据",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Evidence"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未登录",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "引用未命中原文或参数错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/evidence/links/{id}": {
+      "put": {
+        "tags": [
+          "evidence"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "$ref": "#/components/schemas/Uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EvidencePayload"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "已更新（确认/缺少证据）",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Evidence"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未登录",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "版本冲突",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "evidence"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "$ref": "#/components/schemas/Uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "已删除（墓碑）"
+          },
+          "401": {
+            "description": "未登录",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "不存在",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/documents": {
+      "post": {
+        "tags": [
+          "documents"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "file": {
+                    "type": "string",
+                    "format": "binary"
+                  }
+                },
+                "required": [
+                  "file"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "已上传（尚未解析）",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Document"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未登录",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "文件类型或大小不符合要求",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "documents"
+        ],
+        "responses": {
+          "200": {
+            "description": "文档列表",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Document"
+                      }
+                    }
+                  },
+                  "required": [
+                    "items"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未登录",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/documents/{id}": {
+      "get": {
+        "tags": [
+          "documents"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "$ref": "#/components/schemas/Uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "文档详情",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Document"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未登录",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "不存在",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "documents"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "$ref": "#/components/schemas/Uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "已删除（墓碑；原始文件保留在私有桶中）"
+          },
+          "401": {
+            "description": "未登录",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "不存在",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/documents/{id}/content": {
+      "get": {
+        "tags": [
+          "documents"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "$ref": "#/components/schemas/Uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "文件内容（受控访问，仅本人）",
+            "content": {
+              "application/octet-stream": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未登录",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "不存在",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/documents/{id}/parse": {
+      "post": {
+        "tags": [
+          "documents"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "$ref": "#/components/schemas/Uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "解析作业已排队",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AcceptedResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未登录",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "不存在",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/documents/{id}/draft": {
+      "get": {
+        "tags": [
+          "documents"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "$ref": "#/components/schemas/Uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "解析草稿（须确认后入库）",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ParseDraft"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未登录",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "尚无就绪草稿",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/documents/{id}/confirm": {
+      "post": {
+        "tags": [
+          "documents"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "$ref": "#/components/schemas/Uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConfirmParse"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "草稿已确认并写入画像（证据为待确认）",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "experienceIds": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "skillIds": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  },
+                  "required": [
+                    "experienceIds",
+                    "skillIds"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未登录",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "草稿不可确认（未就绪或已确认）",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/operations/{id}": {
+      "get": {
+        "tags": [
+          "operations"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "$ref": "#/components/schemas/Uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "作业状态（排队/执行/成功/失败）",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Operation"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未登录",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "不存在",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/jobs": {
+      "get": {
+        "tags": [
+          "jobs"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "public",
+                "mine"
+              ]
+            },
+            "required": false,
+            "name": "scope",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 200
+            },
+            "required": false,
+            "name": "q",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 20
+            },
+            "required": false,
+            "name": "degree",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 200
+            },
+            "required": false,
+            "name": "location",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "公共（已发布）与私人岗位查询",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobListResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未登录",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "jobs"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/JobPayload"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "私人岗位已创建（草稿）",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Job"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未登录",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/jobs/{id}": {
+      "get": {
+        "tags": [
+          "jobs"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "$ref": "#/components/schemas/Uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "岗位详情（含当前版本硬条件）",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Job"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未登录",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "不存在或未发布",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "jobs"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "$ref": "#/components/schemas/Uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/JobPayload"
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "baseVersion": {
+                        "type": "integer"
+                      }
+                    },
+                    "required": [
+                      "baseVersion"
+                    ]
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "已保存（JD 变化会生成新版本并清空要求）",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Job"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未登录",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "无权修改",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "版本冲突",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "jobs"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "$ref": "#/components/schemas/Uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "已删除（墓碑）"
+          },
+          "401": {
+            "description": "未登录",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "无权删除",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/jobs/{id}/parse-requirements": {
+      "post": {
+        "tags": [
+          "jobs"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "$ref": "#/components/schemas/Uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "要求解析作业已排队",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AcceptedResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未登录",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "不存在",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/jobs/{id}/requirements-draft": {
+      "get": {
+        "tags": [
+          "jobs"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "$ref": "#/components/schemas/Uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "要求解析草稿（确认后才写入岗位）",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobRequirementsDraft"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未登录",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "尚无就绪草稿",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/jobs/{id}/requirements/confirm": {
+      "post": {
+        "tags": [
+          "jobs"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "$ref": "#/components/schemas/Uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "要求已确认写入当前 JD 版本",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "count": {
+                      "type": "number"
+                    }
+                  },
+                  "required": [
+                    "count"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未登录",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "尚无就绪草稿",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/admin/jobs": {
+      "get": {
+        "tags": [
+          "admin"
+        ],
+        "responses": {
+          "200": {
+            "description": "全部公共岗位（含草稿与下架）",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobListResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未登录",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "非管理员",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "admin"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/JobPayload"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "公共岗位已创建（草稿）",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Job"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "非管理员",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/admin/jobs/{id}": {
+      "put": {
+        "tags": [
+          "admin"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "$ref": "#/components/schemas/Uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/JobPayload"
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "baseVersion": {
+                        "type": "integer"
+                      }
+                    },
+                    "required": [
+                      "baseVersion"
+                    ]
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "已保存",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Job"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "非管理员",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "版本冲突",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/admin/jobs/{id}/publish": {
+      "post": {
+        "tags": [
+          "admin"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "$ref": "#/components/schemas/Uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/JobPublishRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "发布/下架/恢复",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Job"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "非管理员",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/matches": {
+      "post": {
+        "tags": [
+          "matches"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateMatch"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "匹配分析作业已排队",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AcceptedResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未登录",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "sync_required：存在未同步修改",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "matches"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "$ref": "#/components/schemas/Uuid"
+            },
+            "required": true,
+            "name": "jobId",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "该岗位的匹配快照（最新在前）",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/MatchSnapshot"
+                      }
+                    }
+                  },
+                  "required": [
+                    "items"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未登录",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/matches/{id}": {
+      "get": {
+        "tags": [
+          "matches"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "$ref": "#/components/schemas/Uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "匹配解释（输入版本 + 引用列表）",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MatchSnapshot"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未登录",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "不存在",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/portfolios": {
+      "post": {
+        "tags": [
+          "portfolios"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PortfolioRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "已生成求职组合",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Portfolio"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未登录",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "portfolios"
+        ],
+        "responses": {
+          "200": {
+            "description": "我的组合列表",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Portfolio"
+                      }
+                    }
+                  },
+                  "required": [
+                    "items"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未登录",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/portfolios/{id}": {
+      "get": {
+        "tags": [
+          "portfolios"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "$ref": "#/components/schemas/Uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "组合详情",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Portfolio"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未登录",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "不存在",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "portfolios"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "$ref": "#/components/schemas/Uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PortfolioRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "已重算（固定/移除/替换）",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Portfolio"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未登录",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "版本冲突",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/plans": {
+      "post": {
+        "tags": [
+          "plans"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreatePlan"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "计划生成作业已排队",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AcceptedResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未登录",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "sync_required：存在未同步修改",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "plans"
+        ],
+        "responses": {
+          "200": {
+            "description": "我的计划列表",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Plan"
+                      }
+                    }
+                  },
+                  "required": [
+                    "items"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未登录",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/plans/{id}": {
+      "get": {
+        "tags": [
+          "plans"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "$ref": "#/components/schemas/Uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "计划详情（含任务）",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlanDetail"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未登录",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "不存在",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/plans/{id}/confirm": {
+      "post": {
+        "tags": [
+          "plans"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "$ref": "#/components/schemas/Uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "计划已采纳（学生确认后生效）",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Plan"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未登录",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "版本冲突",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/tasks/{id}": {
+      "patch": {
+        "tags": [
+          "tasks"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "$ref": "#/components/schemas/Uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/TaskUpdate"
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "baseVersion": {
+                        "type": "integer"
+                      }
+                    },
+                    "required": [
+                      "baseVersion"
+                    ]
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "已更新（必要时产生调整建议）",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "task": {
+                      "nullable": true
+                    },
+                    "suggestionId": {
+                      "allOf": [
+                        {
+                          "$ref": "#/components/schemas/Uuid"
+                        },
+                        {
+                          "nullable": true
+                        }
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未登录",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "版本冲突",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/plans/{id}/suggestions": {
+      "get": {
+        "tags": [
+          "plans"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "$ref": "#/components/schemas/Uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "调整建议列表",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/AdjustmentSuggestion"
+                      }
+                    }
+                  },
+                  "required": [
+                    "items"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未登录",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/suggestions/{id}/resolve": {
+      "post": {
+        "tags": [
+          "plans"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "$ref": "#/components/schemas/Uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "action": {
+                    "type": "string",
+                    "enum": [
+                      "accept",
+                      "reject"
+                    ]
+                  }
+                },
+                "required": [
+                  "action"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "建议已采纳（应用变更）或驳回",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdjustmentSuggestion"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未登录",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "版本冲突",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/rewrites": {
+      "post": {
+        "tags": [
+          "rewrites"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateRewrite"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "改写作业已排队",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AcceptedResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未登录",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/rewrites/{id}": {
+      "get": {
+        "tags": [
+          "rewrites"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "$ref": "#/components/schemas/Uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "改写建议（原文对照，逐条采纳）",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Rewrite"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未登录",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "不存在",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/rewrites/{id}/items/{itemId}/resolve": {
+      "post": {
+        "tags": [
+          "rewrites"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "$ref": "#/components/schemas/Uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "itemId",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "action": {
+                    "type": "string",
+                    "enum": [
+                      "accept",
+                      "reject"
+                    ]
+                  }
+                },
+                "required": [
+                  "action"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "采纳后改写文本应用到经历（版本 +1）",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Rewrite"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未登录",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "版本冲突",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/applications/stats": {
+      "get": {
+        "tags": [
+          "applications"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "$ref": "#/components/schemas/DateYmd"
+            },
+            "required": true,
+            "name": "from",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "$ref": "#/components/schemas/DateYmd"
+            },
+            "required": true,
+            "name": "to",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "效率统计（零工时返回 data=null）",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EfficiencyStats"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未登录",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/applications": {
+      "post": {
+        "tags": [
+          "applications"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ApplicationPayload"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "已创建投递记录",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Application"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未登录",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "applications"
+        ],
+        "responses": {
+          "200": {
+            "description": "投递列表",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Application"
+                      }
+                    }
+                  },
+                  "required": [
+                    "items"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未登录",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/applications/{id}": {
+      "get": {
+        "tags": [
+          "applications"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "$ref": "#/components/schemas/Uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "投递详情",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Application"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未登录",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "不存在",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "applications"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "$ref": "#/components/schemas/Uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "jobId": {
+                    "allOf": [
+                      {
+                        "$ref": "#/components/schemas/Uuid"
+                      },
+                      {
+                        "nullable": true
+                      }
+                    ]
+                  },
+                  "jobTitle": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200
+                  },
+                  "company": {
+                    "type": "string",
+                    "maxLength": 200
+                  },
+                  "notes": {
+                    "type": "string",
+                    "maxLength": 5000
+                  },
+                  "status": {
+                    "$ref": "#/components/schemas/ApplicationStatus"
+                  },
+                  "baseVersion": {
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "baseVersion"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "已更新（状态变化记录历史）",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Application"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未登录",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "版本冲突",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "applications"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "$ref": "#/components/schemas/Uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "已删除（墓碑）"
+          },
+          "401": {
+            "description": "未登录",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "不存在",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/applications/{id}/events": {
+      "get": {
+        "tags": [
+          "applications"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "$ref": "#/components/schemas/Uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "状态历史与反馈",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/ApplicationEvent"
+                      }
+                    }
+                  },
+                  "required": [
+                    "items"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未登录",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "applications"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "$ref": "#/components/schemas/Uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ApplicationEventPayload"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "已记录事件（状态变化校验状态机）",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApplicationEvent"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未登录",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "非法状态流转",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/applications/{id}/interviews": {
+      "post": {
+        "tags": [
+          "applications"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "$ref": "#/components/schemas/Uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InterviewPayload"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "面试已安排（默认提前 1 小时提醒）",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Interview"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未登录",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "applications"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "$ref": "#/components/schemas/Uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "面试安排",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Interview"
+                      }
+                    }
+                  },
+                  "required": [
+                    "items"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未登录",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/interviews/{id}": {
+      "patch": {
+        "tags": [
+          "applications"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "$ref": "#/components/schemas/Uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "stage": {
+                    "type": "string",
+                    "maxLength": 100
+                  },
+                  "scheduledAt": {
+                    "$ref": "#/components/schemas/IsoDateTime"
+                  },
+                  "locationOrLink": {
+                    "type": "string",
+                    "nullable": true,
+                    "maxLength": 500
+                  },
+                  "result": {
+                    "type": "string",
+                    "enum": [
+                      "pending",
+                      "passed",
+                      "failed"
+                    ]
+                  },
+                  "feedback": {
+                    "type": "string",
+                    "nullable": true,
+                    "maxLength": 5000
+                  },
+                  "baseVersion": {
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "baseVersion"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "已更新（改期会重排提醒）",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Interview"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未登录",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "版本冲突",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/time-entries": {
+      "post": {
+        "tags": [
+          "time-entries"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TimeEntryPayload"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "工时已录入",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TimeEntry"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未登录",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "time-entries"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "$ref": "#/components/schemas/DateYmd"
+            },
+            "required": true,
+            "name": "from",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "$ref": "#/components/schemas/DateYmd"
+            },
+            "required": true,
+            "name": "to",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "工时记录",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/TimeEntry"
+                      }
+                    }
+                  },
+                  "required": [
+                    "items"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未登录",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/time-entries/{id}": {
+      "delete": {
+        "tags": [
+          "time-entries"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "$ref": "#/components/schemas/Uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "已删除（墓碑）"
+          },
+          "401": {
+            "description": "未登录",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "不存在",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/sync/operations": {
+      "post": {
+        "tags": [
+          "sync"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SyncRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "逐条回执：applied/duplicate/conflict/rejected（冲突附服务器记录）",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SyncResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未登录",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "参数错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/sync/changes": {
+      "get": {
+        "tags": [
+          "sync"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "integer",
+              "nullable": true,
+              "minimum": 0,
+              "default": 0
+            },
+            "required": false,
+            "name": "since",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "exclusiveMinimum": true,
+              "maximum": 500,
+              "default": 100
+            },
+            "required": false,
+            "name": "limit",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "增量变更（含墓碑），cursor 供下次 since 使用",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SyncChangesResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未登录",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/notifications": {
+      "get": {
+        "tags": [
+          "notifications"
+        ],
+        "responses": {
+          "200": {
+            "description": "站内提醒（已发送），附未读数",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotificationListResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未登录",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/notifications/{id}/read": {
+      "post": {
+        "tags": [
+          "notifications"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "$ref": "#/components/schemas/Uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "已标记已读",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Notification"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未登录",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "不存在",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/notifications/settings": {
+      "get": {
+        "tags": [
+          "notifications"
+        ],
+        "responses": {
+          "200": {
+            "description": "提醒设置",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserSettingsResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未登录",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "notifications"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReminderSettings"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "已更新提醒设置",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserSettingsResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未登录",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/push-subscriptions": {
+      "post": {
+        "tags": [
+          "notifications"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PushSubscriptionPayload"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "推送订阅已保存（用户主动授权后）",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PushSubscription"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未登录",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/push-subscriptions/{id}": {
+      "delete": {
+        "tags": [
+          "notifications"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "$ref": "#/components/schemas/Uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "已取消订阅"
+          },
+          "401": {
+            "description": "未登录",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "不存在",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/push-subscriptions/vapid-public-key": {
+      "get": {
+        "tags": [
+          "notifications"
+        ],
+        "responses": {
+          "200": {
+            "description": "VAPID 公钥（未配置时为空串）",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VapidPublicKey"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未登录",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
