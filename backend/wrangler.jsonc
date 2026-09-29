@@ -8,7 +8,7 @@
     {
       "binding": "DB",
       "database_name": "yso-db",
-      "database_id": "REPLACE_AFTER_D1_CREATE",
+      "database_id": "a3a5c86a-d7f7-46f7-b1d1-9440f6ec9322",
       "migrations_dir": "migrations"
     }
   ],
@@ -26,7 +26,8 @@
     "AI_PROVIDER": "mock",
     "AI_BASE_URL": "",
     "AI_MODEL": "",
-    "CORS_ORIGIN": "http://localhost:5173",
-    "DEMO_ENABLED": "true"
+    "CORS_ORIGIN": "http://localhost:5173,https://yso-internship-workbench-frontend.hddhp.workers.dev",
+    "DEMO_ENABLED": "true",
+    "VAPID_PUBLIC_KEY": "BKJ1cO9h909r82cgVUro8_CkYCQREM_Mo-ukIw47KpTcw8J8tNh8NpbOMTCDdsB95tQCHt_ho7rjmbHcvNFyaLE"
   }
 }

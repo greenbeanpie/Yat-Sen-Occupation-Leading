@@ -154,9 +154,11 @@ if (authenticated) {
   let databases = [];
   if (d1List.code === 0) {
     const start = d1List.output.indexOf("[");
-    if (start >= 0) {
+    // wrangler 的 npm notice 可能出现在 JSON 之后（stdout/stderr 合并），因此截到最后一个 ']'。
+    const end = d1List.output.lastIndexOf("]");
+    if (start >= 0 && end > start) {
       try {
-        databases = JSON.parse(d1List.output.slice(start));
+        databases = JSON.parse(d1List.output.slice(start, end + 1));
       } catch {
         databases = [];
       }

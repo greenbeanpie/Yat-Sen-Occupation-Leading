@@ -55,6 +55,11 @@ npm run dev:demo    # http://127.0.0.1:5174
 
 ## 检查与部署
 
+当前线上演示站（2026-09-30 部署）：
+
+- 前端工作台：<https://yso-internship-workbench-frontend.hddhp.workers.dev>
+- 后端 API：<https://yso-backend.hddhp.workers.dev>（前端通过 Service Binding 以同源 `/api/v1` 访问）
+
 部署前先跑只读预检（本地门禁 + 契约快照 + 两个 Worker 的 dry-run + Cloudflare 资源状态）：
 
 ```sh

@@ -71,13 +71,22 @@
 - **部署后冒烟**：`node backend/scripts/smoke-deploy.mjs <后端地址>`。
 - **生产同构验证**：本地用两个 Worker 的 wrangler dev 会话验证了静态资源、SPA 深链接、Service Binding 转发与完整业务流程。
 
-尚未执行（需要账号侧操作授权）：
+**已完成首次上线（2026-09-30）**：
 
-1. `node scripts/bootstrap-cloudflare.mjs --apply` 创建 D1 `yso-db` 与 R2 `yso-docs`，回填 `database_id`；
-2. `cd backend && npm run db:migrate:remote`；
-3. `wrangler secret put SESSION_SECRET`、`npm run generate:vapid` 后写入 VAPID 密钥；
-4. 先部署后端 Worker 再部署前端 Worker；
-5. 部署后跑冒烟脚本，并在真实环境补验证（见第七节）。
+1. 新建 D1 `yso-db` = `a3a5c86a-d7f7-46f7-b1d1-9440f6ec9322`（APAC）与私有 R2 `yso-docs`，并把真实 `database_id` 回填到 `backend/wrangler.jsonc`；
+2. `npm run db:migrate:remote` 应用 `0001_init.sql`（41 条语句）；
+3. 写入 `SESSION_SECRET`、`VAPID_PRIVATE_KEY`、`VAPID_SUBJECT` 三个 secret，`VAPID_PUBLIC_KEY` 放入 `vars`；
+4. 部署顺序：先 `yso-backend`，再 `yso-internship-workbench-frontend`（Service Binding 生效）。
+
+线上地址与实测：
+
+| 目标 | 地址 | 结果 |
+|---|---|---|
+| 后端 Worker | <https://yso-backend.hddhp.workers.dev> | 冒烟 9/9；`/api/v1/session` 返回演示身份 |
+| 前端 Worker | <https://yso-internship-workbench-frontend.hddhp.workers.dev> | 主流程 26/26、移动端与深链接 9/9、离线刷新 4/4 |
+
+线上主流程覆盖了真实 Cloudflare Workflows（岗位要求解析、匹配、计划、改写）、真实 D1 写入、
+前端 Worker 到后端 Worker 的 Service Binding、离线队列的 `applied → duplicate` 幂等回执与管理员发布流程。
 
 ## 六、本轮修复的缺陷
 
@@ -91,9 +100,10 @@
 
 ## 七、仍未完成或未验证的能力（不得按已完成汇报）
 
-- 真实 Cloudflare 部署：D1/R2 资源未创建、未执行远端迁移与密钥配置、两个 Worker 均未上线。
-- 真实模型 API：`AI_PROVIDER=openai` 下的格式错误、伪造引用、超时、限流与重试未验证。
-- 浏览器后台推送与定时提醒的真实送达；30 页 PDF 在 Workers CPU 限额下的实测。
+- 真实模型 API：`AI_PROVIDER=openai` 下的格式错误、伪造引用、超时、限流与重试未验证（线上仍为 `mock` 适配器）。
+- 浏览器后台推送的真实送达：订阅与失效清理已实现、VAPID 已配置，但未在支持推送的浏览器上验证后台消息与 cron 触发的提醒投递。
+- 30 页 PDF 在生产 Workers 上的 CPU/内存实测（本地 workerd 通过，免费额度下的限流未测）。
+- 线上仍以 `DEMO_ENABLED=true` 运行：任何访问者都能以演示身份（含演示管理员）登录，仅适合演示，不是生产认证。
 - 两个真实浏览器会话之间的同步冲突选择界面（后端集成测试覆盖协议本身，浏览器内只验证了离线队列与幂等）。
 - 通知权限被拒绝的浏览器路径：代码分支存在，但未做逐条验收。
 - 接口限流与审计日志脱敏的线上检查。

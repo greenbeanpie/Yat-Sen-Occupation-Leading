@@ -5,15 +5,23 @@
 
 ## 0. 现状与前置条件
 
-2026-09-29 本机核对结果：
+2026-09-30 部署结果（已完成首次上线）：
 
-- 已登录 Cloudflare（`zgpride87@outlook.com`，account `17a6817bca6612a9cb11d0395eeba0ac`）；
-- 账号内尚无 D1 数据库 `yso-db` 与 R2 桶 `yso-docs`，需先执行第 2 节；
-- 两个 Worker 均未部署，`backend/wrangler.jsonc` 的 `database_id` 仍是占位符 `REPLACE_AFTER_D1_CREATE`；
+- 账号 `17a6817bca6612a9cb11d0395eeba0ac`（`zgpride87@outlook.com`）；
+- D1 `yso-db` = `a3a5c86a-d7f7-46f7-b1d1-9440f6ec9322`（APAC），已应用 `0001_init.sql`；
+- R2 私有桶 `yso-docs` 已创建；`backend/wrangler.jsonc` 已回填真实 `database_id`；
+- 后端 Worker：<https://yso-backend.hddhp.workers.dev>；
+- 前端 Worker：<https://yso-internship-workbench-frontend.hddhp.workers.dev>（Service Binding 指向 `yso-backend`）；
+- Secrets：`SESSION_SECRET`、`VAPID_PRIVATE_KEY`、`VAPID_SUBJECT` 已写入后端 Worker；`VAPID_PUBLIC_KEY` 在 `vars` 中；
 - 本机 Node `v26.3.0`、wrangler `4.44.0`；CI 使用 Node 22。
 
+上线后实测：后端冒烟 9/9；线上前端主流程 26/26（含真实 Workflows、D1、Service Binding）；
+移动端与深链接 9/9；离线刷新与恢复同步 4/4。
+
+再次发布只需第 1、5、6 节；第 2～4 节仅在新账号或重建环境时执行。
+
 前置条件：Cloudflare 账号具备 Workers、D1、R2、Workflows 权限；本机执行过
-`cd backend && npx wrangler login`。浏览器推送还需要 VAPID 密钥（第 4 节）。
+`cd backend && npx wrangler login`。
 
 ## 1. 一键预检（只读）
 

@@ -41,8 +41,11 @@ function wranglerJson(args, openChar) {
   if (result.code !== 0) return { error: result.output.trim() };
   const start = result.output.indexOf(openChar);
   if (start < 0) return { error: `无法解析 wrangler 输出：${result.output.trim().slice(0, 200)}` };
+  // npm notice 可能排在 JSON 之后（stdout/stderr 合并），按配对字符截取有效片段。
+  const closeChar = openChar === "[" ? "]" : "}";
+  const end = result.output.lastIndexOf(closeChar);
   try {
-    return { value: JSON.parse(result.output.slice(start)) };
+    return { value: JSON.parse(result.output.slice(start, end > start ? end + 1 : undefined)) };
   } catch (error) {
     return { error: `无法解析 wrangler 输出：${error.message}` };
   }
