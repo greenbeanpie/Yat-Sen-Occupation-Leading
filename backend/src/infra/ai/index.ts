@@ -25,10 +25,17 @@ export class AiError extends Error {
 }
 
 export function getAiProvider(env: Env): AiProvider {
-  if (env.AI_PROVIDER === "openai" && env.AI_BASE_URL) {
-    return new OpenAiCompatProvider(env);
+  switch (env.AI_PROVIDER) {
+    case "mock":
+      return new MockProvider();
+    case "openai":
+      if (!env.AI_BASE_URL?.trim()) {
+        throw new AiError("AI_PROVIDER=openai 时必须配置 AI_BASE_URL", false);
+      }
+      return new OpenAiCompatProvider(env);
+    default:
+      throw new AiError(`不支持的 AI_PROVIDER：${env.AI_PROVIDER}`, false);
   }
-  return new MockProvider();
 }
 
 /**

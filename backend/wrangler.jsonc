@@ -2,7 +2,7 @@
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "yso-backend",
   "main": "src/index.ts",
-  "compatibility_date": "2025-10-11",
+  "compatibility_date": "2026-09-30",
   "compatibility_flags": ["nodejs_compat"],
   "d1_databases": [
     {
@@ -26,7 +26,7 @@
     "AI_PROVIDER": "mock",
     "AI_BASE_URL": "",
     "AI_MODEL": "",
-    "CORS_ORIGIN": "http://localhost:5173,https://yso-internship-workbench-frontend.hddhp.workers.dev",
+    "CORS_ORIGIN": "https://yso-internship-workbench-frontend.hddhp.workers.dev",
     "DEMO_ENABLED": "true",
     "VAPID_PUBLIC_KEY": "BKJ1cO9h909r82cgVUro8_CkYCQREM_Mo-ukIw47KpTcw8J8tNh8NpbOMTCDdsB95tQCHt_ho7rjmbHcvNFyaLE"
   }

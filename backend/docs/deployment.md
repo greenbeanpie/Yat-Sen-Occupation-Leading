@@ -5,7 +5,7 @@
 
 ## 0. 现状与前置条件
 
-2026-09-30 部署结果（已完成首次上线）：
+2026-09-30 部署结果与生产配置复核：
 
 - 账号 `17a6817bca6612a9cb11d0395eeba0ac`（`zgpride87@outlook.com`）；
 - D1 `yso-db` = `a3a5c86a-d7f7-46f7-b1d1-9440f6ec9322`（APAC），已应用 `0001_init.sql`；
@@ -14,6 +14,7 @@
 - 前端 Worker：<https://yso-internship-workbench-frontend.hddhp.workers.dev>（Service Binding 指向 `yso-backend`）；
 - Secrets：`SESSION_SECRET`、`VAPID_PRIVATE_KEY`、`VAPID_SUBJECT` 已写入后端 Worker；`VAPID_PUBLIC_KEY` 在 `vars` 中；
 - 本机 Node `v26.3.0`、wrangler `4.44.0`；CI 使用 Node 22。
+- `DEMO_ENABLED=true` 与 `AI_PROVIDER=mock` 按 `PLAN.md` 保留：这是正式托管的公开演示站，不是具备真实账号认证或真实模型服务的生产业务系统。
 
 上线后实测：后端冒烟 9/9；线上前端主流程 26/26（含真实 Workflows、D1、Service Binding）；
 移动端与深链接 9/9；离线刷新与恢复同步 4/4。
@@ -81,8 +82,8 @@ npm run db:migrate:remote
 | `VAPID_PRIVATE_KEY` | secret（推送必填） | `npm run generate:vapid` 输出的 privateKey |
 | `AI_API_KEY` | secret（`AI_PROVIDER=openai` 时必填） | 模型服务密钥；mock 模式不需要 |
 | `VAPID_PUBLIC_KEY` / `VAPID_SUBJECT` | `wrangler.jsonc` vars 或 secret | 公钥非敏感；subject 形如 `mailto:you@example.com` |
-| `AI_PROVIDER` / `AI_BASE_URL` / `AI_MODEL` | `wrangler.jsonc` vars | 默认 `mock`；切真实模型需三件套齐全 |
-| `CORS_ORIGIN` | `wrangler.jsonc` vars | 逗号分隔白名单，禁止 `*`；建议部署前端后改为前端 Worker 域名 |
+| `AI_PROVIDER` / `AI_BASE_URL` / `AI_MODEL` | `wrangler.jsonc` vars | 线上演示默认 `mock`；真实模型需配置服务地址和模型名，再设置密钥 |
+| `CORS_ORIGIN` | `wrangler.jsonc` vars | 逗号分隔白名单，禁止 `*`；线上仅放行前端 Worker 域名，本地开发来源单独放在 `.dev.vars` |
 | `DEMO_ENABLED` | `wrangler.jsonc` vars | 演示站保持 `true`；演示身份不可用于生产认证 |
 
 ```bash
@@ -94,6 +95,14 @@ npx wrangler secret list              # 只读核对已配置的密钥名
 ```
 
 `.dev.vars` 只服务本地开发，已被 `.gitignore` 忽略；不要提交任何密钥。
+
+### 本地自定义模型 API
+
+本项目只从后端 Worker 调用模型，浏览器不会接触模型密钥。可将 `backend/.dev.vars.example` 复制为 `backend/.dev.vars`，在本机设置 `AI_PROVIDER=openai`、本机可访问的 `AI_BASE_URL` 和 `AI_MODEL`；需要鉴权时再填写 `AI_API_KEY`。Vite 前端仍通过本地后端 Worker 发起业务请求。
+
+本机 Worker 可以访问本机网络中的自定义 API；部署在 Cloudflare 的 Worker 不能访问用户电脑上的 `127.0.0.1` 或 `localhost`。若要让线上演示使用真实模型，需把 `AI_BASE_URL` 设为 Cloudflare 可访问的 HTTPS API 地址、将 `AI_MODEL` 写入 `vars`，再用 `wrangler secret put AI_API_KEY` 写入密钥并重新部署。当前账号没有配置模型地址、模型名或 `AI_API_KEY`，所以线上继续使用 mock 演示适配器；没有把它标记为真实模型联调通过。
+
+如果 `AI_PROVIDER=openai` 但 `AI_BASE_URL` 为空，后端会让相关作业明确失败并提示配置缺失，不会静默切回 mock。
 
 ## 5. 部署
 
@@ -147,7 +156,7 @@ curl -X POST https://<worker-domain>/api/v1/session -H 'Content-Type: applicatio
 
 | 验收项 | 状态 | 说明 |
 |---|---|---|
-| PDF/DOCX 文本提取在实际 Cloudflare 环境运行通过 | ⏳ 待首次部署 | 本地真实 workerd（Miniflare）已通过（[spike 文档](spike-extraction.md)）；真实环境待复测 CPU/内存（R1） |
+| PDF/DOCX 文本提取在实际 Cloudflare 环境运行通过 | ⏳ 待实际负载验证 | 部署与常规线上流程已通过；30 页 PDF 的真实环境 CPU/内存仍待测（[spike 文档](spike-extraction.md)） |
 | 模型响应格式错误、伪造引用、超时、限流和重试得到正确处理 | ✅ 本地通过 | mock 供应商 + 引用核验 + OpenAI 适配器重试逻辑（单元/集成测试覆盖）；真实 API 联调待密钥 |
 | 两个真实客户端完成增量同步、幂等提交与冲突解决 | ✅ 本地通过 | 双会话交错编辑测试（test/sync.test.ts）；真实双设备待复测 |
 | 私有岗位隔离、管理员权限及未授权文件访问 | ✅ 本地通过 | 跨用户 404/403、角色检查、R2 内容仅本人可读 |
@@ -156,9 +165,9 @@ curl -X POST https://<worker-domain>/api/v1/session -H 'Content-Type: applicatio
 
 ## 9. 未完成项清单
 
-1. **首次真实部署与验证**（上表 ⏳ 项）——按第 1 → 6 节执行，并把结果回填本文件。
-2. **真实模型 API 联调**——`AI_PROVIDER=openai` + 三件套配置；当前 mock 供应商行为与真实 API 的差异需一轮联调（提示词对齐、JSON 稳定性）。
-3. **R1 CPU 风险复测**——30 页 PDF 在免费档 10ms CPU 限制下实测；若超限启用分页拆步预案（代码已按步骤化 Workflow 组织，拆分成本低）。
-4. **计划再生成（superseded）**——旧计划保留但「重新生成」入口未做管理端点；当前以多次生成 + 采纳最新实现。
-5. **限流**——未实现速率限制（演示范围外，Cloudflare WAF 可选做）。
-6. **`.dev.vars` 分发**——SESSION_SECRET 等由部署者自行生成，不入库。
+1. **真实模型 API 联调**——`AI_PROVIDER=openai` + 可访问 API 地址、模型名和密钥；当前线上默认 mock，真实提示词与模型响应仍未联调。
+2. **R1 CPU 风险复测**——30 页 PDF 在免费档 CPU 限制下实测；若超限启用分页拆步预案（代码已按步骤化 Workflow 组织，拆分成本低）。
+3. **计划再生成（superseded）**——旧计划保留但「重新生成」入口未做管理端点；当前以多次生成 + 采纳最新实现。
+4. **限流**——未实现速率限制（演示范围外，Cloudflare WAF 可选做）。
+5. **真实账号认证**——当前公开演示身份用于虚构数据体验；接入真实用户前须增加账号认证和用户生命周期管理。
+6. **`.dev.vars` 分发**——`SESSION_SECRET` 等由部署者自行生成，不入库；本仓库提供不含密钥的 `.dev.vars.example`。

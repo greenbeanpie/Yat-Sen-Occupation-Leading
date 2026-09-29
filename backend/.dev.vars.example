@@ -1,7 +1,15 @@
-# 复制为 .dev.vars（已被 .gitignore 忽略），本地 wrangler dev 使用
+# Copy to .dev.vars (ignored by Git); keep real keys in that file only.
 SESSION_SECRET=dev-only-session-secret-change-me
 AI_PROVIDER=mock
+AI_BASE_URL=
+AI_MODEL=
 AI_API_KEY=
 VAPID_PUBLIC_KEY=
 VAPID_PRIVATE_KEY=
 VAPID_SUBJECT=mailto:dev@example.com
+CORS_ORIGIN=http://localhost:5173
+
+# To use a local OpenAI-compatible API, set AI_PROVIDER=openai and configure:
+# AI_BASE_URL=http://127.0.0.1:11434/v1
+# AI_MODEL=your-local-model
+# AI_API_KEY= (optional for APIs without authentication)
