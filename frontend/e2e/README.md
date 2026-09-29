@@ -33,7 +33,10 @@ npx wrangler dev -c frontend/wrangler.jsonc -c backend/wrangler.jsonc --port 879
 # 终端 B
 cd frontend && npm run build
 WORKBENCH_URL=http://127.0.0.1:8790 npm run e2e
+WORKBENCH_URL=http://127.0.0.1:8790 npm run e2e:offline   # 离线编辑→刷新保留→恢复网络同步
 ```
+
+`e2e:offline` 需要带 Service Worker 的生产构建（见上一段命令），它验证：外壳由 Service Worker 提供、断网刷新后仍以本机缓存的演示身份进入工作台、待同步操作在恢复网络后清空。
 
 ## 演示模式（不需要后端）
 

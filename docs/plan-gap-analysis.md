@@ -18,6 +18,7 @@
 | 主流程联调（生产同构） | `npx wrangler dev -c frontend/wrangler.jsonc -c backend/wrangler.jsonc` + `WORKBENCH_URL=http://127.0.0.1:8790 npm run e2e` | 26/26 通过 |
 | 移动端与深链接 | `cd frontend && npm run e2e:responsive`（390×844） | 9/9 通过 |
 | 演示模式错误态 | `cd frontend && npm run e2e:demo` | 6/6 通过 |
+| 离线编辑后刷新保留内容 | `WORKBENCH_URL=http://127.0.0.1:8790 npm run e2e:offline` | 4/4 通过（外壳走 Service Worker、会话走本机缓存、恢复网络后队列清空） |
 | PWA 更新提示 | 两次生产构建 + `npm run preview` + 无头浏览器 | Service Worker 注册、提示出现、点击后生效，3/3 通过 |
 
 “生产同构”指：前端以构建产物由前端 Worker 提供静态资源，`/api/v1/*` 通过 Service Binding 转发到后端 Worker，本地 D1/R2/Workflows 真实运行。这是当前不接触真实 Cloudflare 账号时最接近生产的验证方式。
@@ -86,6 +87,7 @@
 4. PWA 更新提示只在已登录布局渲染，刷新后停在登录页时看不到提示。已提取 `UpdateBanner` 并在登录页与工作台同时渲染。
 5. 前端 Worker 缺少 `run_worker_first`，`/api/v1/*` 可能被 SPA 回退截获；已显式声明 API 前缀优先交给 Worker，并用本地同构验证确认。
 6. eslint 未忽略 wrangler 临时目录，`wrangler dev` 后会误报 lint 错误。已加入忽略列表。
+7. 离线刷新会直接回到登录页（`GET /session` 失败即视为未登录），本机缓存内容因此打不开。已改为缓存最近一次会话并在断网时回退使用，离线刷新后可继续编辑与同步。
 
 ## 七、仍未完成或未验证的能力（不得按已完成汇报）
 

@@ -22,6 +22,9 @@ import { SettingsPage } from './pages/SettingsPage';
 
 type Session = components['schemas']['SessionResponse'];
 
+/** 会话缓存键：离线刷新时用最近一次成功的身份继续打开工作台。 */
+const SESSION_CACHE_KEY = 'session:last';
+
 const navigation = [
   { to: '/', label: '工作台', icon: House },
   { to: '/profile', label: '画像与证据', icon: UserRound },
@@ -61,8 +64,22 @@ export default function App() {
   useEffect(() => {
     let active = true;
     get<Session>('/session')
-      .then((value) => active && setSession(value))
-      .catch((error: unknown) => active && setSessionError(error instanceof Error ? error.message : '无法连接服务端'))
+      .then(async (value) => {
+        if (!active) return;
+        setSession(value);
+        await platform.storage.write(SESSION_CACHE_KEY, value);
+      })
+      .catch(async (error: unknown) => {
+        // 断网时应继续显示本机数据，而不是把用户挡在登录页外。
+        const cached = await platform.storage.read<Session>(SESSION_CACHE_KEY);
+        if (!active) return;
+        if (cached?.authenticated) {
+          setSession(cached);
+          setSessionError('网络不可用，当前使用本机缓存的演示身份。');
+        } else {
+          setSessionError(error instanceof Error ? error.message : '无法连接服务端');
+        }
+      })
       .finally(() => active && setSessionLoading(false));
     return () => { active = false; };
   }, []);
@@ -140,12 +157,14 @@ export default function App() {
       const value = await post<Session>('/session', { userId });
       setSession(value);
       setSessionError('');
+      await platform.storage.write(SESSION_CACHE_KEY, value);
     }, '已进入演示工作台');
   }
 
   async function logout() {
     await run(async () => {
       await api('/session', { method: 'DELETE' });
+      await platform.storage.remove(SESSION_CACHE_KEY);
       // 退出后重新读取会话，登录页需要服务端返回的演示身份列表。
       setSession(await get<Session>('/session'));
       setSessionError('');

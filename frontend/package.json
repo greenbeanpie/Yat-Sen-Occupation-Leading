@@ -15,6 +15,7 @@
     "e2e": "node e2e/workbench-flow.mjs",
     "e2e:responsive": "node e2e/responsive.mjs",
     "e2e:demo": "node e2e/plan-states.mjs",
+    "e2e:offline": "node e2e/offline-reload.mjs",
     "deploy": "npm run build && wrangler deploy --config wrangler.jsonc"
   },
   "dependencies": {
