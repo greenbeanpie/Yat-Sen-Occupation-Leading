@@ -2524,6 +2524,29 @@
         "required": [
           "publicKey"
         ]
+      },
+      "DemoResetResponse": {
+        "type": "object",
+        "properties": {
+          "reset": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          },
+          "userId": {
+            "type": "string"
+          },
+          "deletedRows": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "reset",
+          "userId",
+          "deletedRows"
+        ]
       }
     },
     "parameters": {}
@@ -6179,6 +6202,45 @@
           },
           "401": {
             "description": "未登录",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/demo/reset": {
+      "post": {
+        "tags": [
+          "demo"
+        ],
+        "responses": {
+          "200": {
+            "description": "已清空当前演示身份的业务数据（公共岗位库不受影响）",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DemoResetResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未登录",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "非演示环境",
             "content": {
               "application/json": {
                 "schema": {

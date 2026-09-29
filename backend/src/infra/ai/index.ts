@@ -257,13 +257,49 @@ function mockGenerateMatch(payload: MatchTaskPayload): string {
   });
 }
 
-function mockGeneratePlan(_payload: unknown): string {
+interface PlanTaskPayload {
+  jobs?: { jobId?: string; title?: string; gaps?: string[] }[];
+  evidence?: { evidenceId?: string; skill?: string; experience?: string }[];
+}
+
+/** 计划任务带岗位、差距、证据与依赖，便于在没有密钥时也能验证 PLAN.md 2.5 的字段。 */
+function mockGeneratePlan(payload: unknown): string {
+  const input = (payload ?? {}) as PlanTaskPayload;
+  const job = input.jobs?.[0];
+  const gap = job?.gaps?.[0];
+  const evidence = input.evidence?.[0];
   return JSON.stringify({
     tasks: [
-      { title: "核对画像与经历", description: "检查解析与手动录入的内容是否准确", estimateHours: 1, deps: [] },
-      { title: "针对岗位补齐关键证据", description: "为岗位硬条件关联已确认经历", estimateHours: 2, deps: [] },
-      { title: "改写简历要点", description: "按岗位调整简历表述，逐条确认", estimateHours: 2, deps: [] },
-      { title: "准备面试问题清单", description: "围绕岗位要求准备问答", estimateHours: 3, deps: [] },
+      {
+        title: "核对画像与经历",
+        description: "检查解析与手动录入的内容是否准确",
+        estimateHours: 1,
+        jobId: job?.jobId,
+        dependsOn: [],
+      },
+      {
+        title: "针对岗位补齐关键证据",
+        description: "为岗位硬条件关联已确认经历",
+        estimateHours: 2,
+        jobId: job?.jobId,
+        gap,
+        evidenceId: evidence?.evidenceId,
+        dependsOn: [0],
+      },
+      {
+        title: "改写简历要点",
+        description: "按岗位调整简历表述，逐条确认",
+        estimateHours: 2,
+        jobId: job?.jobId,
+        dependsOn: [1],
+      },
+      {
+        title: "准备面试问题清单",
+        description: "围绕岗位要求准备问答",
+        estimateHours: 3,
+        jobId: job?.jobId,
+        dependsOn: [2],
+      },
     ],
   });
 }

@@ -18,6 +18,7 @@ import { assertFreshInputs, contextParts, loadRuleContext } from "../application
 import { EXPERIENCE_CFG, TASK_CFG } from "../application/configs";
 import { rowToJson, updateEntity } from "../application/entity-writer";
 import { canTransitionTask } from "../domain/state";
+import { changeLogStmt } from "../infra/db/helpers";
 import { nowIso, uuid } from "../shared/datetime";
 import { cancelRemindersFor, scheduleTaskReminder } from "../application/reminders";
 import type { AppEnv } from "../env";
@@ -204,7 +205,47 @@ export function registerPlanningRoutes(app: App): void {
       throw conflict("计划生成后画像或经历已变化，请重新生成", planToJson(plan));
     }
     const now = nowIso();
-    await c.env.DB.batch([c.env.DB.prepare(`UPDATE plans SET status = 'confirmed', updated_at = ?1 WHERE id = ?2`).bind(now, id)]);
+    // 确认新计划时，同一学生的其他已确认计划标记为 superseded：
+    // 旧计划的任务与实际工时不删除，只是不再生效（PLAN.md 2.5）。
+    const previous = await c.env.DB
+      .prepare(`SELECT id FROM plans WHERE user_id = ?1 AND id <> ?2 AND status = 'confirmed' AND deleted = 0`)
+      .bind(userId, id)
+      .all<{ id: string }>();
+    await c.env.DB.batch([
+      c.env.DB.prepare(`UPDATE plans SET status = 'confirmed', version = version + 1, updated_at = ?1 WHERE id = ?2`).bind(now, id),
+      ...previous.results.map((row) =>
+        c.env.DB
+          .prepare(`UPDATE plans SET status = 'superseded', version = version + 1, updated_at = ?1 WHERE id = ?2`)
+          .bind(now, row.id),
+      ),
+    ]);
+
+    // 变更日志：让增量同步的客户端也能看到计划被替代或被确认。
+    const changedIds = [id, ...previous.results.map((row) => row.id)];
+    const changed = await c.env.DB
+      .prepare(
+        `SELECT * FROM plans WHERE user_id = ?1 AND id IN (${changedIds.map((_, index) => `?${index + 2}`).join(", ")})`,
+      )
+      .bind(userId, ...changedIds)
+      .all<Record<string, unknown>>();
+    if (changed.results.length > 0) {
+      await c.env.DB.batch(
+        changed.results.map((row) =>
+          changeLogStmt(
+            c.env.DB,
+            {
+              userId,
+              entity: "plan",
+              entityId: row.id as string,
+              version: Number(row.version),
+              changeType: "upsert",
+              record: planToJson(row),
+            },
+            now,
+          ),
+        ),
+      );
+    }
     // 确认后为每个任务排到期提醒（到期日 09:00，用户时区）
     const user = c.get("user");
     const tasks = await c.env.DB

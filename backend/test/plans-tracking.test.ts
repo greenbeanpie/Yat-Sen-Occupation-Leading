@@ -100,7 +100,7 @@ async function setupPortfolio(): Promise<{ cookie: string; portfolioId: string; 
 
 describe("计划与任务", () => {
   it("生成草稿 → 确认采纳 → 任务更新（done + 实际工时保留）", async () => {
-    const { cookie, portfolioId } = await setupPortfolio();
+    const { cookie, portfolioId, jobId } = await setupPortfolio();
 
     const create = await requestAs(cookie, "/plans", {
       method: "POST",
@@ -118,8 +118,28 @@ describe("计划与任务", () => {
     expect(plan.status).toBe("draft");
 
     const detail = await requestAs(cookie, `/plans/${plan.id}`);
-    const detailBody = await detail.json<{ tasks: { id: string; version: number; scheduledDate: string | null; estimateHours: number | null }[] }>();
+    const detailBody = await detail.json<{
+      tasks: {
+        id: string;
+        version: number;
+        scheduledDate: string | null;
+        estimateHours: number | null;
+        jobId: string | null;
+        evidenceId: string | null;
+        gap: string | null;
+        deps: string[];
+      }[];
+    }>();
     expect(detailBody.tasks.length).toBeGreaterThan(0);
+
+    // PLAN.md 2.5：任务必须关联具体岗位与已确认证据，并带依赖关系
+    const tasks = detailBody.tasks;
+    expect(tasks.every((task) => task.jobId === jobId)).toBe(true);
+    expect(tasks.some((task) => task.evidenceId !== null)).toBe(true);
+    expect(tasks[0]!.deps).toEqual([]);
+    expect(tasks[1]!.deps).toEqual([tasks[0]!.id]);
+    const indexOf = (id: string) => tasks.findIndex((task) => task.id === id);
+    expect(tasks.every((task, index) => task.deps.every((dep) => indexOf(dep) < index))).toBe(true);
 
     // 确认采纳
     const confirm = await requestAs(cookie, `/plans/${plan.id}/confirm`, { method: "POST" });
@@ -150,6 +170,44 @@ describe("计划与任务", () => {
     const doneTask = afterBody.tasks.find((t) => t.id === task.id)!;
     expect(doneTask.status).toBe("done");
     expect(doneTask.actualHours).toBe(2.5);
+  });
+
+  it("确认新计划后旧计划被标记 superseded，旧任务与实际工时保留", async () => {
+    const { cookie, portfolioId } = await setupPortfolio();
+
+    const createPlan = async (): Promise<string> => {
+      const created = await requestAs(cookie, "/plans", {
+        method: "POST",
+        body: JSON.stringify({ portfolioId }),
+        headers: { "Content-Type": "application/json" },
+      });
+      const { operationId } = await created.json<{ operationId: string }>();
+      await runProcessor(runGeneratePlan, operationId);
+      const operation = await requestAs(cookie, `/operations/${operationId}`);
+      const { resultRef } = await operation.json<{ resultRef: string }>();
+      return resultRef;
+    };
+
+    const firstPlanId = await createPlan();
+    const firstConfirm = await requestAs(cookie, `/plans/${firstPlanId}/confirm`, { method: "POST" });
+    expect(firstConfirm.status).toBe(200);
+
+    const secondPlanId = await createPlan();
+    const secondConfirm = await requestAs(cookie, `/plans/${secondPlanId}/confirm`, { method: "POST" });
+    expect(secondConfirm.status).toBe(200);
+
+    const list = await requestAs(cookie, "/plans");
+    const items = (await list.json<{ items: { id: string; status: string }[] }>()).items;
+    expect(items.find((plan) => plan.id === secondPlanId)?.status).toBe("confirmed");
+    expect(items.find((plan) => plan.id === firstPlanId)?.status).toBe("superseded");
+
+    // 旧计划的任务不因重新规划消失
+    const firstDetail = await requestAs(cookie, `/plans/${firstPlanId}`);
+    expect((await firstDetail.json<{ tasks: unknown[] }>()).tasks.length).toBeGreaterThan(0);
+
+    // 已被替代的计划不能再确认
+    const again = await requestAs(cookie, `/plans/${firstPlanId}/confirm`, { method: "POST" });
+    expect(again.status).toBe(422);
   });
 
   it("任务延期产生调整建议（不自动覆盖），采纳才生效", async () => {
