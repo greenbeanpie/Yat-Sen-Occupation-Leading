@@ -51,4 +51,15 @@ export default tseslint.config(
       },
     },
   },
+  {
+    // 联调脚本本身运行在 Node，page.evaluate 里的回调在浏览器中执行。
+    files: ['e2e/**/*.mjs'],
+    languageOptions: {
+      globals: {
+        ...globals.node,
+        ...globals.browser,
+        ...globals.es2022,
+      },
+    },
+  },
 );

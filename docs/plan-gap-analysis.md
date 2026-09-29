@@ -13,8 +13,8 @@
 | 前端单元测试 | `cd frontend && npm test` | 2 个文件 / 6 项通过 |
 | 前端生产构建 | `cd frontend && npm run build` | 通过，生成 `dist/` 与 Workbox `sw.js` |
 | 前端部署配置 | `cd frontend && npx wrangler deploy --dry-run` | 通过，绑定 `env.BACKEND`(service) 与 `env.ASSETS`(assets) |
-| 端到端联调 | 无头 Chromium 驱动本地前端 + `wrangler dev` 后端 | 24/24 步骤通过 |
-| 移动端与深链接 | 390×844 视口逐页检查 + `/plan` 直接刷新 | 9/9 通过 |
+| 端到端联调 | `cd frontend && npm run e2e`（脚本见 [frontend/e2e](../frontend/e2e/README.md)） | 24/24 步骤通过 |
+| 移动端与深链接 | `cd frontend && npm run e2e:responsive`（390×844 视口 + `/plan` 直接刷新） | 9/9 通过 |
 
 端到端步骤覆盖：画像保存 → 新增经历 → 新增技能 → 建立并确认技能证据引用 → 粘贴私人 JD → 解析并确认岗位要求 → 查看岗位详情 → 生成匹配解释 → 生成求职组合 → 生成两周计划草稿 → 确认计划 → 更新任务状态与实际耗时 → 生成改写建议 → 创建投递 → 记录工时 → 效率统计 → 推进投递状态 → 断网离线写入 → 离线缓存回显 → 恢复网络同步 → 幂等重复提交 → 提醒设置 → 管理员岗位库。
 

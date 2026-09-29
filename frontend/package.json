@@ -11,6 +11,8 @@
     "preview": "vite preview --host 127.0.0.1",
     "generate:api": "openapi-typescript ../backend/openapi/openapi.json -o src/api/schema.ts",
     "test": "vitest run",
+    "e2e": "node e2e/workbench-flow.mjs",
+    "e2e:responsive": "node e2e/responsive.mjs",
     "deploy": "wrangler deploy --config wrangler.jsonc"
   },
   "dependencies": {
