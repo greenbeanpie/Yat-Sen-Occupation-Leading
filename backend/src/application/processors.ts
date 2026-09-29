@@ -1,5 +1,7 @@
 import type { Env } from "../env";
 import { processParseDocument } from "./parse-document";
+import { processGenerateMatch } from "./generate-match";
+import { processParseJobRequirements } from "./parse-job-requirements";
 
 /**
  * 异步作业处理器（backend_plan.md 7.3）。
@@ -16,14 +18,18 @@ export function runParseDocument(env: Env, operationId: string): Promise<Process
   return processParseDocument(env, operationId);
 }
 
-export async function runGenerateMatch(_env: Env, _operationId: string): Promise<ProcessorResult> {
-  return { status: "failed", error: "M3 里程碑实现" };
+export function runGenerateMatch(env: Env, operationId: string): Promise<ProcessorResult> {
+  return processGenerateMatch(env, operationId);
 }
 
-export async function runGeneratePlan(_env: Env, _operationId: string): Promise<ProcessorResult> {
-  return { status: "failed", error: "M4 里程碑实现" };
+export function runParseJobRequirements(env: Env, operationId: string): Promise<ProcessorResult> {
+  return processParseJobRequirements(env, operationId);
 }
 
-export async function runRewriteResume(_env: Env, _operationId: string): Promise<ProcessorResult> {
-  return { status: "failed", error: "M4 里程碑实现" };
+export function runGeneratePlan(_env: Env, _operationId: string): Promise<ProcessorResult> {
+  return Promise.resolve({ status: "failed", error: "M4 里程碑实现" });
+}
+
+export function runRewriteResume(_env: Env, _operationId: string): Promise<ProcessorResult> {
+  return Promise.resolve({ status: "failed", error: "M4 里程碑实现" });
 }

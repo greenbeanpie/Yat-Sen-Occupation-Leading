@@ -15,55 +15,14 @@ import {
 import { requireAuth } from "../middleware/auth";
 import { quoteRejected, conflict } from "../shared/errors";
 import { verifyQuote } from "../domain/quotes";
-import { createEntity, deleteEntity, issue, rowToJson, updateEntity, type EntityConfig } from "../application/entity-writer";
+import { createEntity, deleteEntity, issue, rowToJson, updateEntity } from "../application/entity-writer";
+import { PROFILE_CFG, EXPERIENCE_CFG, SKILL_CFG, EVIDENCE_CFG } from "../application/configs";
 import { getRow } from "../infra/db/helpers";
 import type { AppEnv } from "../env";
 
 type App = OpenAPIHono<AppEnv>;
 
-export const PROFILE_CFG: EntityConfig = {
-  entity: "profile",
-  table: "profiles",
-  fields: {
-    targetRoles: { json: true },
-    industries: { json: true },
-    graduationYear: { nullable: true },
-    degree: { nullable: true },
-    preferredLocations: { json: true },
-    weeklyTimeBudgetHours: { nullable: true },
-  },
-};
-
-export const EXPERIENCE_CFG: EntityConfig = {
-  entity: "experience",
-  table: "experiences",
-  fields: {
-    title: {},
-    organization: {},
-    kind: {},
-    startDate: { nullable: true },
-    endDate: { nullable: true },
-    description: {},
-    sourceDocumentId: { nullable: true },
-  },
-};
-
-export const SKILL_CFG: EntityConfig = {
-  entity: "skill",
-  table: "skills",
-  fields: { name: {} },
-};
-
-export const EVIDENCE_CFG: EntityConfig = {
-  entity: "evidence",
-  table: "experience_skills",
-  fields: {
-    skillId: {},
-    experienceId: {},
-    quote: {},
-    status: {},
-  },
-};
+export { PROFILE_CFG, EXPERIENCE_CFG, SKILL_CFG, EVIDENCE_CFG };
 
 const idParam = { name: "id", in: "params" as const, required: true, schema: UuidSchema };
 

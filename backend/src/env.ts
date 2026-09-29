@@ -9,6 +9,7 @@ export interface Env {
   DOCS: R2Bucket;
   // 测试环境可能未绑定 Workflow（业务处理器可直接调用，见 application/processors.ts）
   PARSE_DOCUMENT?: unknown;
+  PARSE_JOB_REQUIREMENTS?: unknown;
   GENERATE_MATCH?: unknown;
   GENERATE_PLAN?: unknown;
   REWRITE_RESUME?: unknown;

@@ -1,6 +1,12 @@
 import { WorkflowEntrypoint, type WorkflowEvent, type WorkflowStep } from "cloudflare:workers";
 import type { Env } from "../../env";
-import { runParseDocument, runGenerateMatch, runGeneratePlan, runRewriteResume } from "../../application/processors";
+import {
+  runParseDocument,
+  runGenerateMatch,
+  runGeneratePlan,
+  runRewriteResume,
+  runParseJobRequirements,
+} from "../../application/processors";
 
 /** Workflow 参数：仅传作业 ID，输入数据都在 D1（async_operations），保证重试幂等。 */
 export type OperationParams = { operationId: string };
@@ -32,6 +38,12 @@ function makeRunner(fn: (env: Env, operationId: string) => Promise<{ status: str
 export class ParseDocumentWorkflow extends WorkflowEntrypoint<Env, OperationParams> {
   async run(event: AnyEvent, step: AnyStep): Promise<void> {
     return makeRunner(runParseDocument)(this.env, event, step);
+  }
+}
+
+export class ParseJobRequirementsWorkflow extends WorkflowEntrypoint<Env, OperationParams> {
+  async run(event: AnyEvent, step: AnyStep): Promise<void> {
+    return makeRunner(runParseJobRequirements)(this.env, event, step);
   }
 }
 

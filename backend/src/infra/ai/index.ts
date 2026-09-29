@@ -110,6 +110,8 @@ export class MockProvider implements AiProvider {
     switch (payload?.task) {
       case "parse_document":
         return mockParseDocument(payload as unknown as ParseTaskPayload);
+      case "parse_job_requirements":
+        return mockParseRequirements(payload as unknown as RequirementsTaskPayload);
       case "generate_match":
         return mockGenerateMatch(payload as unknown as MatchTaskPayload);
       case "generate_plan":
@@ -197,6 +199,43 @@ function mockParseDocument(payload: ParseTaskPayload): string {
       return { name, quote: firstSentence(line) ?? name };
     }),
   });
+}
+
+interface RequirementsTaskPayload {
+  task: string;
+  jdText: string;
+}
+
+/** 从 JD 原文提取硬条件候选；quote 一律取自原文，保证引用核验可通过。 */
+function mockParseRequirements(payload: RequirementsTaskPayload): string {
+  const jd = payload.jdText ?? "";
+  const lines = jd.split(/[\n。；;]+/).map((l) => l.trim()).filter(Boolean);
+  const candidates: { kind: string; value: string; quote: string }[] = [];
+
+  const degreeRe = /(专科|本科|硕士|研究生|博士)/;
+  const degreeMap: Record<string, string> = { 专科: "associate", 本科: "bachelor", 硕士: "master", 研究生: "master", 博士: "phd" };
+  const yearRe = /(\d{4})\s*届/;
+  const knownSkills = ["JavaScript", "TypeScript", "Python", "React", "Vue", "Node.js", "SQL", "Java", "Go", "Docker", "Git"];
+
+  for (const line of lines) {
+    const quote = firstSentence(line, 4) ?? line.slice(0, 60);
+    if (candidates.some((c) => c.kind === "degree") === false) {
+      const d = line.match(degreeRe);
+      if (d && degreeMap[d[1] as string]) {
+        candidates.push({ kind: "degree", value: degreeMap[d[1] as string]!, quote });
+      }
+    }
+    const y = line.match(yearRe);
+    if (y && !candidates.some((c) => c.kind === "graduation_year")) {
+      candidates.push({ kind: "graduation_year", value: y[1] as string, quote });
+    }
+    for (const skill of knownSkills) {
+      if (line.includes(skill) && !candidates.some((c) => c.kind === "skill" && c.value === skill)) {
+        candidates.push({ kind: "skill", value: skill, quote });
+      }
+    }
+  }
+  return JSON.stringify({ requirements: candidates.slice(0, 15) });
 }
 
 interface MatchTaskPayload {

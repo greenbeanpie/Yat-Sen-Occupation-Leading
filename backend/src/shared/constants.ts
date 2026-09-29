@@ -23,8 +23,14 @@ export const SYNC_ENTITIES = [
 ] as const;
 export type SyncEntity = (typeof SYNC_ENTITIES)[number];
 
-/** 作业类型（PLAN.md 2.4：解析、解释、计划生成、简历改写）。 */
-export const OPERATION_TYPES = ["parse_document", "generate_match", "generate_plan", "rewrite_resume"] as const;
+/** 作业类型（PLAN.md 2.4：解析、解释、计划生成、简历改写；另含岗位要求解析）。 */
+export const OPERATION_TYPES = [
+  "parse_document",
+  "parse_job_requirements",
+  "generate_match",
+  "generate_plan",
+  "rewrite_resume",
+] as const;
 export type OperationType = (typeof OPERATION_TYPES)[number];
 
 export const APPLICATION_STATUSES = [

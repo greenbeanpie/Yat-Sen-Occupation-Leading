@@ -317,6 +317,7 @@ CREATE TABLE async_operations (
   status TEXT NOT NULL DEFAULT 'queued' CHECK (status IN ('queued','running','succeeded','failed')),
   input_json TEXT NOT NULL,
   input_fingerprint TEXT NOT NULL,
+  result_json TEXT,
   result_ref TEXT,
   error TEXT,
   retry_count INTEGER NOT NULL DEFAULT 0,

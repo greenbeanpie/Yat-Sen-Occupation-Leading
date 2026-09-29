@@ -101,7 +101,7 @@ export const SyncChangesResponseSchema = z
 export const OperationSchema = z
   .object({
     id: UuidSchema,
-    type: z.enum(["parse_document", "generate_match", "generate_plan", "rewrite_resume"]),
+    type: z.enum(["parse_document", "parse_job_requirements", "generate_match", "generate_plan", "rewrite_resume"]),
     status: z.enum(["queued", "running", "succeeded", "failed"]),
     error: z.string().nullish(),
     resultRef: UuidSchema.nullish(),

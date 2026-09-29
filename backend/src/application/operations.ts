@@ -39,6 +39,8 @@ function workflowBindingName(type: OperationType): string {
   switch (type) {
     case "parse_document":
       return "PARSE_DOCUMENT";
+    case "parse_job_requirements":
+      return "PARSE_JOB_REQUIREMENTS";
     case "generate_match":
       return "GENERATE_MATCH";
     case "generate_plan":
