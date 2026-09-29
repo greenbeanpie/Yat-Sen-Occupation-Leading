@@ -17,10 +17,15 @@ type AnyEvent = WorkflowEvent<OperationParams>;
 function makeRunner(fn: (env: Env, operationId: string) => Promise<{ status: string; error?: string }>) {
   return async (env: Env, event: AnyEvent, step: AnyStep): Promise<void> => {
     const { operationId } = event.payload;
-    await step.do("mark-running", async () => {
+    const acquired = await step.do("mark-running", async () => {
       const now = new Date().toISOString();
-      await env.DB.prepare(`UPDATE async_operations SET status = 'running', updated_at = ?1 WHERE id = ?2`).bind(now, operationId).run();
+      const result = await env.DB
+        .prepare(`UPDATE async_operations SET status = 'running', updated_at = ?1 WHERE id = ?2 AND status = 'queued'`)
+        .bind(now, operationId)
+        .run();
+      return Number(result.meta.changes ?? 0) === 1;
     });
+    if (!acquired) return;
     const result = await step.do("process", async () => fn(env, operationId));
     await step.do("finalize", async () => {
       const now = new Date().toISOString();

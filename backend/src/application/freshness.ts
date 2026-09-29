@@ -70,7 +70,9 @@ export async function assertFreshInputs(
     const server = new Map(ctx.experiences.map((e) => [e.id, e.version]));
     for (const ce of clientExperienceVersions) {
       const sv = server.get(ce.id);
-      if (sv !== undefined && ce.version > sv) {
+      // A client-only ID is an offline-created experience. It must reach the
+      // server through /sync before an analysis can use the server snapshot.
+      if (sv === undefined || ce.version > sv) {
         throw syncRequired("经历存在未同步的修改，请先完成同步");
       }
     }

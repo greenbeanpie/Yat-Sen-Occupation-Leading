@@ -30,6 +30,11 @@ export async function startOperation(
       await binding.create({ params: { operationId: id } });
     } catch (e) {
       logJson("warn", "workflow_dispatch_failed", { type, operationId: id, message: e instanceof Error ? e.message : "?" });
+      const error = e instanceof Error ? e.message : "workflow dispatch failed";
+      await env.DB
+        .prepare(`UPDATE async_operations SET status = 'failed', error = ?1, updated_at = ?2 WHERE id = ?3 AND status = 'queued'`)
+        .bind(error, nowIso(), id)
+        .run();
     }
   }
   return id;

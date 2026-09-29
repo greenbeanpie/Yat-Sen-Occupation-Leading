@@ -58,7 +58,7 @@ export const TASK_CFG: EntityConfig = {
     actualHours: { nullable: true },
     scheduledDate: { nullable: true },
     status: {},
-    deps: { json: true },
+    deps: { json: true, column: "deps_json" },
   },
 };
 
@@ -117,7 +117,7 @@ export const PORTFOLIO_CFG: EntityConfig = {
   table: "portfolios",
   fields: {
     timeBudgetHours: {},
-    items: { json: true },
-    notes: { json: true },
+    items: { json: true, column: "items_json" },
+    notes: { json: true, column: "notes_json" },
   },
 };

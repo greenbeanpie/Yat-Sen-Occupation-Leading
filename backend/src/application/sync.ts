@@ -1,10 +1,11 @@
 import type { Env } from "../env";
 import { SYNC_ENTITIES, type SyncEntity } from "../shared/constants";
-import { nowIso } from "../shared/datetime";
+import { nowIso, uuid } from "../shared/datetime";
 import { getRow } from "../infra/db/helpers";
 import {
   createEntity,
   deleteEntity,
+  rowToJson,
   updateEntity,
   type EntityConfig,
 } from "./entity-writer";
@@ -103,85 +104,180 @@ export async function applySyncOperation(env: Env, userId: string, op: SyncOpInp
     return { ...stored, status: "duplicate" };
   }
 
-  if (!(SYNC_ENTITIES as readonly string[]).includes(op.entity)) {
-    return { opId: op.opId, status: "rejected", error: "未知实体类型" };
-  }
+  const persist = async (result: SyncOpResult): Promise<SyncOpResult> => persistResult(env, userId, op, result);
+  if (!(SYNC_ENTITIES as readonly string[]).includes(op.entity)) return persist({ opId: op.opId, status: "rejected", error: "未知实体类型" });
   const entity = op.entity as SyncEntity;
   const registry = SYNC_REGISTRY[entity];
-  const finalize = async (result: SyncOpResult): Promise<SyncOpResult> => {
-    await env.DB
-      .prepare(`INSERT INTO sync_operations (id, user_id, op_id, request_json, result_json, created_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6)`)
-      .bind(crypto.randomUUID(), userId, op.opId, JSON.stringify(op), JSON.stringify(result), nowIso())
-      .run();
-    return result;
-  };
 
-  // 2) 删除：墓碑；实体不存在视为已达成（幂等）
+  // 2) 删除必须基于客户端见过的版本，避免旧设备删除新修改。
   if (op.action === "delete") {
-    if (!op.entityId) return finalize({ opId: op.opId, status: "rejected", error: "delete 操作需要 entityId" });
+    if (!op.entityId) return persist({ opId: op.opId, status: "rejected", error: "delete 操作需要 entityId" });
+    if (op.baseVersion == null) return persist({ opId: op.opId, status: "rejected", error: "删除操作必须提供 baseVersion" });
     const row = await getRow(env.DB, registry.cfg.table, op.entityId, userId);
-    if (!row) return finalize({ opId: op.opId, status: "applied" });
+    if (!row) {
+      return persist(op.baseVersion === 0
+        ? { opId: op.opId, status: "applied", version: 0, record: { id: op.entityId, deleted: true } }
+        : { opId: op.opId, status: "conflict", record: { id: op.entityId, deleted: true }, error: "实体不存在或已被删除" });
+    }
+    const serverVersion = Number(row.version);
+    if (op.baseVersion !== serverVersion) {
+      return persist({ opId: op.opId, status: "conflict", version: serverVersion, record: serializeRow(registry.cfg, row), error: "版本冲突" });
+    }
+    if (Number(row.deleted) === 1) {
+      return persist({ opId: op.opId, status: "applied", version: serverVersion, record: serializeRow(registry.cfg, row) });
+    }
+    const success: SyncOpResult = {
+      opId: op.opId,
+      status: "applied",
+      version: serverVersion + 1,
+      record: { id: op.entityId, version: serverVersion + 1, deleted: true },
+    };
     try {
-      await deleteEntity(env, userId, registry.cfg, op.entityId);
-      return finalize({ opId: op.opId, status: "applied" });
-    } catch {
-      return finalize({ opId: op.opId, status: "rejected", error: "删除失败" });
+      await deleteEntity(env, userId, registry.cfg, op.entityId, op.baseVersion, {
+        returnOnConflict: true,
+        completionStatements: (result) => [conditionalReceiptStmt(env, userId, op, { ...success, version: result.version, record: result.record }, registry.cfg)],
+      });
+      return await readReceipt(env, userId, op.opId);
+    } catch (error) {
+      const prior = await readReceiptOrNull(env, userId, op.opId);
+      if (prior) return { ...prior, status: "duplicate" };
+      throw error;
     }
   }
 
   // 3) upsert
   if (!op.entityId) {
     // 在线创建走各自路由；离线创建必须带客户端生成的 entityId
-    return finalize({ opId: op.opId, status: "rejected", error: "upsert 操作需要 entityId（离线新建由客户端生成 UUID）" });
+    return persist({ opId: op.opId, status: "rejected", error: "upsert 操作需要 entityId（离线新建由客户端生成 UUID）" });
   }
 
   const validation = validatePayload(entity, op.payload);
   if (!validation.ok) {
-    return finalize({ opId: op.opId, status: "rejected", details: validation.details, error: "参数校验失败" });
+    return persist({ opId: op.opId, status: "rejected", details: validation.details, error: "参数校验失败" });
   }
 
+  if (op.baseVersion == null) return persist({ opId: op.opId, status: "rejected", error: "更新操作必须提供 baseVersion" });
   const row = await getRow(env.DB, registry.cfg.table, op.entityId, userId);
   if (!row) {
-    if ((op.baseVersion ?? 0) === 0) {
+    if (op.baseVersion === 0) {
       // 离线新建：客户端生成 UUID + baseVersion 0
-      const { record, version } = await createEntity(env, userId, registry.cfg, validation.data, undefined, op.entityId);
-      return finalize({ opId: op.opId, status: "applied", version, record });
+      try {
+        await createEntity(env, userId, registry.cfg, validation.data, undefined, op.entityId, {
+          completionStatements: (result) => [receiptStmt(env, userId, op, { opId: op.opId, status: "applied", version: result.version, record: result.record })],
+        });
+        return await readReceipt(env, userId, op.opId);
+      } catch (error) {
+        const prior = await readReceiptOrNull(env, userId, op.opId);
+        if (prior) return { ...prior, status: "duplicate" };
+        const latest = await getRow(env.DB, registry.cfg.table, op.entityId, userId);
+        if (latest) {
+          return persist({ opId: op.opId, status: "conflict", version: Number(latest.version), record: serializeRow(registry.cfg, latest), error: "实体已存在" });
+        }
+        throw error;
+      }
     }
-    return finalize({ opId: op.opId, status: "conflict", record: { id: op.entityId, deleted: true }, error: "实体不存在或已被删除" });
+    return persist({ opId: op.opId, status: "conflict", record: { id: op.entityId, deleted: true }, error: "实体不存在或已被删除" });
   }
 
   if (Number(row.deleted) === 1) {
     // 远端已删除：冲突处理，不得静默覆盖（PLAN.md 2.6）
-    return finalize({ opId: op.opId, status: "conflict", record: { id: op.entityId, deleted: true }, error: "实体已在远端删除" });
+    return persist({ opId: op.opId, status: "conflict", version: Number(row.version), record: serializeRow(registry.cfg, row), error: "实体已在远端删除" });
   }
 
   const serverVersion = Number(row.version);
-  if (op.baseVersion == null) {
-    return finalize({ opId: op.opId, status: "rejected", error: "更新操作必须提供 baseVersion" });
-  }
   if (op.baseVersion !== serverVersion) {
-    return finalize({ opId: op.opId, status: "conflict", version: serverVersion, error: "版本冲突", record: { ...serializeRow(registry.cfg, row) } });
+    return persist({ opId: op.opId, status: "conflict", version: serverVersion, error: "版本冲突", record: serializeRow(registry.cfg, row) });
   }
 
+  const success: SyncOpResult = { opId: op.opId, status: "applied", version: serverVersion + 1 };
   try {
-    const { record, version } = await updateEntity(env, userId, registry.cfg, op.entityId, baseVersionOrNull(op.baseVersion), validation.data);
-    return finalize({ opId: op.opId, status: "applied", version, record });
-  } catch (e) {
-    if (e instanceof Error && e.message.includes("409")) {
-      return finalize({ opId: op.opId, status: "conflict", error: "版本冲突" });
-    }
-    return finalize({ opId: op.opId, status: "rejected", error: e instanceof Error ? e.message : "写入失败" });
+    await updateEntity(env, userId, registry.cfg, op.entityId, op.baseVersion, validation.data, {
+      returnOnConflict: true,
+      completionStatements: (result) => [conditionalReceiptStmt(env, userId, op, { ...success, version: result.version, record: result.record }, registry.cfg)],
+    });
+    return await readReceipt(env, userId, op.opId);
+  } catch (error) {
+    const prior = await readReceiptOrNull(env, userId, op.opId);
+    if (prior) return { ...prior, status: "duplicate" };
+    throw error;
   }
 }
 
-function baseVersionOrNull(v: number | null | undefined): number | null | undefined {
-  return v;
+async function persistResult(env: Env, userId: string, op: SyncOpInput, result: SyncOpResult): Promise<SyncOpResult> {
+  try {
+    await env.DB.batch([receiptStmt(env, userId, op, result)]);
+    return result;
+  } catch (error) {
+    const prior = await readReceiptOrNull(env, userId, op.opId);
+    if (prior) return { ...prior, status: "duplicate" };
+    throw error;
+  }
+}
+
+function receiptStmt(env: Env, userId: string, op: SyncOpInput, result: SyncOpResult): D1PreparedStatement {
+  return env.DB
+    .prepare(`INSERT INTO sync_operations (id, user_id, op_id, request_json, result_json, created_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6)`)
+    .bind(uuid(), userId, op.opId, JSON.stringify(op), JSON.stringify(result), nowIso());
+}
+
+/** Build a receipt whose result follows the CAS and is committed with that write. */
+function conditionalReceiptStmt(
+  env: Env,
+  userId: string,
+  op: SyncOpInput,
+  success: SyncOpResult,
+  cfg: EntityConfig,
+): D1PreparedStatement {
+  const recordExpr = sqlRecordObject(cfg);
+  const currentRecord = `(SELECT ${recordExpr} FROM ${cfg.table} WHERE id = ?8 AND user_id = ?9 LIMIT 1)`;
+  const conflictResult = `json_object(
+    'opId', ?7,
+    'status', 'conflict',
+    'version', (SELECT version FROM ${cfg.table} WHERE id = ?8 AND user_id = ?9 LIMIT 1),
+    'error', '版本冲突',
+    'record', COALESCE(${currentRecord}, json_object('id', ?8, 'deleted', json('true')))
+  )`;
+  return env.DB
+    .prepare(
+      `INSERT INTO sync_operations (id, user_id, op_id, request_json, result_json, created_at)
+       VALUES (?1, ?2, ?3, ?4, CASE WHEN changes() = 1 THEN ?5 ELSE ${conflictResult} END, ?6)`,
+    )
+    .bind(uuid(), userId, op.opId, JSON.stringify(op), JSON.stringify(success), nowIso(), op.opId, op.entityId, userId);
+}
+
+function sqlRecordObject(cfg: EntityConfig): string {
+  const pairs = [
+    "'id'", `${cfg.table}.id`,
+    "'version'", `${cfg.table}.version`,
+    "'deleted'", `(${cfg.table}.deleted = 1)`,
+    "'createdAt'", `${cfg.table}.created_at`,
+    "'updatedAt'", `${cfg.table}.updated_at`,
+    "'userId'", `${cfg.table}.user_id`,
+  ];
+  for (const [field, spec] of Object.entries(cfg.fields)) {
+    const column = spec.column ?? field.replace(/[A-Z]/g, (m) => `_${m.toLowerCase()}`);
+    const expression = spec.json ? `json(COALESCE(${cfg.table}.${column}, '[]'))` : `${cfg.table}.${column}`;
+    pairs.push(`'${field.replace(/'/g, "''")}'`, expression);
+  }
+  return `json_object(${pairs.join(", ")})`;
+}
+
+async function readReceipt(env: Env, userId: string, opId: string): Promise<SyncOpResult> {
+  const receipt = await readReceiptOrNull(env, userId, opId);
+  if (!receipt) throw new Error("同步操作回执未写入");
+  return receipt;
+}
+
+async function readReceiptOrNull(env: Env, userId: string, opId: string): Promise<SyncOpResult | null> {
+  const existing = await env.DB
+    .prepare(`SELECT result_json FROM sync_operations WHERE user_id = ?1 AND op_id = ?2`)
+    .bind(userId, opId)
+    .first<{ result_json: string }>();
+  return existing ? JSON.parse(existing.result_json) as SyncOpResult : null;
 }
 
 function serializeRow(cfg: EntityConfig, row: Record<string, unknown>): Record<string, unknown> {
-  void cfg;
-  // 轻量序列化：仅用于冲突提示
-  return { ...row, deleted: Number(row.deleted) === 1 };
+  return rowToJson(cfg, row);
 }
 
 /** 批量同步：顺序应用，逐条返回回执。 */

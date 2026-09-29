@@ -60,13 +60,27 @@ export interface ChangeEntry {
 }
 
 /** 变更日志行（增量同步游标），与业务写入同一 batch 原子提交。 */
-export function changeLogStmt(db: D1Database, e: ChangeEntry): D1PreparedStatement {
+export function changeLogStmt(db: D1Database, e: ChangeEntry, changedAt = nowIso()): D1PreparedStatement {
   return db
     .prepare(
       `INSERT INTO change_log (user_id, entity, entity_id, version, change_type, record_json, changed_at)
        VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)`,
     )
-    .bind(e.userId, e.entity, e.entityId, e.version, e.changeType, JSON.stringify(e.record), nowIso());
+    .bind(e.userId, e.entity, e.entityId, e.version, e.changeType, JSON.stringify(e.record), changedAt);
+}
+
+/**
+ * Append a change only when the immediately preceding conditional mutation
+ * changed one row. Used in D1.batch so optimistic writes and their sync cursor
+ * entry commit or roll back together.
+ */
+export function conditionalChangeLogStmt(db: D1Database, e: ChangeEntry, changedAt = nowIso()): D1PreparedStatement {
+  return db
+    .prepare(
+      `INSERT INTO change_log (user_id, entity, entity_id, version, change_type, record_json, changed_at)
+       SELECT ?1, ?2, ?3, ?4, ?5, ?6, ?7 WHERE changes() = 1`,
+    )
+    .bind(e.userId, e.entity, e.entityId, e.version, e.changeType, JSON.stringify(e.record), changedAt);
 }
 
 /** fingerprint 用于“旧输入不得覆盖新数据”核验（backend_plan.md 7.3）。 */

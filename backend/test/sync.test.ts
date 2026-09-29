@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { loginAs, requestAs, STUDENT, STUDENT2 } from "./helpers";
+import { getMf, loginAs, requestAs, STUDENT, STUDENT2 } from "./helpers";
 
 describe("离线同步协议", () => {
   it("离线新建（客户端 UUID + baseVersion 0）→ applied；重复提交同 opId → duplicate", async () => {
@@ -36,6 +36,29 @@ describe("离线同步协议", () => {
     const bundle = await requestAs(cookie, "/evidence");
     const bundleBody = await bundle.json<{ experiences: { id: string }[] }>();
     expect(bundleBody.experiences.filter((e) => e.id === offlineId).length).toBe(1);
+  });
+
+  it("同步 JSON 字段映射到数据库的 *_json 列并返回规范字段", async () => {
+    const cookie = await loginAs(STUDENT);
+    const portfolioId = crypto.randomUUID();
+    const jobId = crypto.randomUUID();
+    const initial = { timeBudgetHours: 8, items: [{ jobId, pinned: false, score: 70, selected: true }], notes: { source: "offline" } };
+    const created = await requestAs(cookie, "/sync/operations", {
+      method: "POST",
+      body: JSON.stringify({ operations: [{ opId: "portfolio-create", entity: "portfolio", entityId: portfolioId, baseVersion: 0, action: "upsert", payload: initial }] }),
+      headers: { "Content-Type": "application/json" },
+    });
+    const createdResult = (await created.json<{ results: { status: string; record?: { items: unknown[]; notes: unknown } }[] }>()).results[0]!;
+    expect(createdResult.status).toBe("applied");
+    expect(createdResult.record).toMatchObject({ items: initial.items, notes: initial.notes });
+
+    const updated = await requestAs(cookie, "/sync/operations", {
+      method: "POST",
+      body: JSON.stringify({ operations: [{ opId: "portfolio-update", entity: "portfolio", entityId: portfolioId, baseVersion: 1, action: "upsert", payload: { ...initial, timeBudgetHours: 10 } }] }),
+      headers: { "Content-Type": "application/json" },
+    });
+    const updatedResult = (await updated.json<{ results: { status: string; version: number; record?: { items: unknown[]; notes: unknown; timeBudgetHours: number } }[] }>()).results[0]!;
+    expect(updatedResult).toMatchObject({ status: "applied", version: 2, record: { items: initial.items, notes: initial.notes, timeBudgetHours: 10 } });
   });
 
   it("版本冲突：旧 baseVersion → conflict + 服务器记录；正确版本 → applied", async () => {
@@ -143,6 +166,111 @@ describe("离线同步协议", () => {
     const changes = await requestAs(cookie, "/sync/changes?since=0");
     const changesBody = await changes.json<{ changes: { entityId: string; changeType: string }[] }>();
     expect(changesBody.changes.some((ch) => ch.entityId === exp.id && ch.changeType === "delete")).toBe(true);
+  });
+
+  it("删除必须携带当前 baseVersion，缺失或过期版本不会写墓碑", async () => {
+    const cookie = await loginAs(STUDENT);
+    const create = await requestAs(cookie, "/evidence/experiences", {
+      method: "POST",
+      body: JSON.stringify({ title: "删除版本检查", description: "内容。" }),
+      headers: { "Content-Type": "application/json" },
+    });
+    const exp = await create.json<{ id: string; version: number }>();
+
+    const missing = await requestAs(cookie, "/sync/operations", {
+      method: "POST",
+      body: JSON.stringify({ operations: [{ opId: "delete-no-version", entity: "experience", entityId: exp.id, action: "delete" }] }),
+      headers: { "Content-Type": "application/json" },
+    });
+    expect((await missing.json<{ results: { status: string; error: string }[] }>()).results[0]).toMatchObject({ status: "rejected", error: "删除操作必须提供 baseVersion" });
+
+    const stale = await requestAs(cookie, "/sync/operations", {
+      method: "POST",
+      body: JSON.stringify({ operations: [{ opId: "delete-stale-version", entity: "experience", entityId: exp.id, baseVersion: exp.version - 1, action: "delete" }] }),
+      headers: { "Content-Type": "application/json" },
+    });
+    expect((await stale.json<{ results: { status: string; version?: number }[] }>()).results[0]).toMatchObject({ status: "conflict", version: exp.version });
+
+    const fresh = await requestAs(cookie, "/sync/operations", {
+      method: "POST",
+      body: JSON.stringify({ operations: [{ opId: "delete-fresh-version", entity: "experience", entityId: exp.id, baseVersion: exp.version, action: "delete" }] }),
+      headers: { "Content-Type": "application/json" },
+    });
+    expect((await fresh.json<{ results: { status: string; version?: number }[] }>()).results[0]).toMatchObject({ status: "applied", version: exp.version + 1 });
+  });
+
+  it("并发离线更新只有一个 CAS 成功，实体、日志和两份回执保持一致", async () => {
+    const cookie = await loginAs(STUDENT);
+    const create = await requestAs(cookie, "/evidence/experiences", {
+      method: "POST",
+      body: JSON.stringify({ title: "并发起点", description: "内容。" }),
+      headers: { "Content-Type": "application/json" },
+    });
+    const exp = await create.json<{ id: string; version: number }>();
+    const operations = ["concurrent-a", "concurrent-b"].map((opId, index) => ({
+      opId,
+      entity: "experience",
+      entityId: exp.id,
+      baseVersion: exp.version,
+      action: "upsert",
+      payload: { title: `并发修改${index}`, description: "内容。" },
+    }));
+    const responses = await Promise.all(operations.map((op) => requestAs(cookie, "/sync/operations", {
+      method: "POST",
+      body: JSON.stringify({ operations: [op] }),
+      headers: { "Content-Type": "application/json" },
+    })));
+    const results = await Promise.all(responses.map(async (response) => (await response.json<{ results: { status: string; version?: number; record?: { title?: string; version?: number } }[] }>()).results[0]!));
+    const statuses = results.map((result) => result.status);
+    expect(statuses.sort()).toEqual(["applied", "conflict"]);
+    const applied = results.find((result) => result.status === "applied")!;
+    const conflict = results.find((result) => result.status === "conflict")!;
+    expect(conflict.version).toBe(exp.version + 1);
+    expect(conflict.record).toMatchObject({ version: exp.version + 1, title: applied.record?.title });
+
+    const { mf } = await getMf();
+    const db = await mf.getD1Database("DB");
+    const row = await db.prepare(`SELECT version FROM experiences WHERE id = ?1`).bind(exp.id).first<{ version: number }>();
+    const logs = await db.prepare(`SELECT COUNT(*) AS count FROM change_log WHERE entity_id = ?1 AND version = ?2`).bind(exp.id, exp.version + 1).first<{ count: number }>();
+    const receipts = await db.prepare(`SELECT COUNT(*) AS count FROM sync_operations WHERE op_id IN ('concurrent-a', 'concurrent-b')`).first<{ count: number }>();
+    expect(Number(row?.version)).toBe(exp.version + 1);
+    expect(Number(logs?.count)).toBe(1);
+    expect(Number(receipts?.count)).toBe(2);
+  });
+
+  it("变更日志写入失败时回滚实体和回执，可安全重试同一操作", async () => {
+    const cookie = await loginAs(STUDENT);
+    const create = await requestAs(cookie, "/evidence/experiences", {
+      method: "POST",
+      body: JSON.stringify({ title: "原始标题", description: "内容。" }),
+      headers: { "Content-Type": "application/json" },
+    });
+    const exp = await create.json<{ id: string; version: number }>();
+    const { mf } = await getMf();
+    const db = await mf.getD1Database("DB");
+    await db.prepare(`CREATE TRIGGER fail_experience_log BEFORE INSERT ON change_log WHEN NEW.entity = 'experience' BEGIN SELECT RAISE(ABORT, 'change log failed'); END`).run();
+
+    const operation = { opId: "atomic-retry", entity: "experience", entityId: exp.id, baseVersion: exp.version, action: "upsert", payload: { title: "新标题", description: "内容。" } };
+    const failed = await requestAs(cookie, "/sync/operations", {
+      method: "POST",
+      body: JSON.stringify({ operations: [operation] }),
+      headers: { "Content-Type": "application/json" },
+    });
+    expect((await failed.json<{ results: { status: string }[] }>()).results[0]?.status).toBe("rejected");
+    const row = await db.prepare(`SELECT title, version FROM experiences WHERE id = ?1`).bind(exp.id).first<{ title: string; version: number }>();
+    const log = await db.prepare(`SELECT COUNT(*) AS count FROM change_log WHERE entity_id = ?1 AND version = ?2`).bind(exp.id, exp.version + 1).first<{ count: number }>();
+    const receipt = await db.prepare(`SELECT COUNT(*) AS count FROM sync_operations WHERE op_id = ?1`).bind(operation.opId).first<{ count: number }>();
+    expect(row).toMatchObject({ title: "原始标题", version: exp.version });
+    expect(Number(log?.count)).toBe(0);
+    expect(Number(receipt?.count)).toBe(0);
+
+    await db.prepare(`DROP TRIGGER fail_experience_log`).run();
+    const retried = await requestAs(cookie, "/sync/operations", {
+      method: "POST",
+      body: JSON.stringify({ operations: [operation] }),
+      headers: { "Content-Type": "application/json" },
+    });
+    expect((await retried.json<{ results: { status: string }[] }>()).results[0]?.status).toBe("applied");
   });
 
   it("用户隔离：看不到别人的变更", async () => {

@@ -112,6 +112,14 @@ describe("匹配分析", () => {
     const jobId = await setupMatchedJob();
     const cookie = await loginAs(STUDENT);
 
+    const localExperience = await requestAs(cookie, "/matches", {
+      method: "POST",
+      body: JSON.stringify({ jobId, clientExperienceVersions: [{ id: crypto.randomUUID(), version: 1 }] }),
+      headers: { "Content-Type": "application/json" },
+    });
+    expect(localExperience.status).toBe(409);
+    expect((await localExperience.json<{ error: { code: string } }>()).error.code).toBe("sync_required");
+
     // 画像未同步拦截：客户端声明落后于服务端的版本
     const putProfile = await requestAs(cookie, "/profile", {
       method: "PUT",
