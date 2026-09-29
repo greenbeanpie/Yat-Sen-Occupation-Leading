@@ -18,6 +18,7 @@ coverage/
 .env
 .env.*
 !.env.example
+!frontend/.env.demo
 .DS_Store
 Thumbs.db
 *.log

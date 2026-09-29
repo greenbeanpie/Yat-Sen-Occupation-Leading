@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react';
 import { Bell, BellOff, CloudDownload, RefreshCw, Trash2, WifiOff } from 'lucide-react';
 import { del, get, post, put } from '../api/client';
+import { dataSource } from '../api/transport';
 import type { components } from '../api/schema';
 import { Badge, DataRows, JsonPreview, Loading, PageHead, Panel, ResourceNotice, useResource } from '../components';
 import type { ActionContext } from '../components';
-import { cacheKey, cacheValue, clearOrphanedOperations, db, listUserConflicts, orphanedOperationCount, queueOperation, removeQueuedOperation, synchronizeUser, type SyncConflict } from '../offline';
+import { cacheKey, clearOrphanedOperations, db, listUserConflicts, orphanedOperationCount, queueOperation, removeQueuedOperation, synchronizeUser, type SyncConflict } from '../offline';
+import { platform } from '../platform';
 
 type Settings = components['schemas']['UserSettingsResponse'];
 type NotificationList = components['schemas']['NotificationListResponse'];
@@ -26,11 +28,13 @@ export function SettingsPage({ context, pending }: { context: ActionContext; pen
   const [installAvailable, setInstallAvailable] = useState(false);
   const [lastSyncedAt, setLastSyncedAt] = useState('');
   const [orphanCount, setOrphanCount] = useState(0);
+  const [resetting, setResetting] = useState(false);
+  const [resetMessage, setResetMessage] = useState<{ kind: 'success' | 'error'; text: string } | null>(null);
 
   useEffect(() => {
     void listUserConflicts(context.userId).then(setConflicts);
-    void db.cache.get(cacheKey(context.userId, 'pushSubscriptionId')).then((row) => setPushId(String(row?.value ?? '')));
-    void db.cache.get(cacheKey(context.userId, 'lastSync')).then((row) => setLastSyncedAt(String(row?.value ?? '')));
+    void platform.storage.read<string>(cacheKey(context.userId, 'pushSubscriptionId')).then((value) => setPushId(value ? String(value) : ''));
+    void platform.storage.read<string>(cacheKey(context.userId, 'lastSync')).then((value) => setLastSyncedAt(value ? String(value) : ''));
     void orphanedOperationCount().then(setOrphanCount);
     const handler = () => setInstallAvailable(true);
     window.addEventListener('beforeinstallprompt', handler);
@@ -96,12 +100,12 @@ export function SettingsPage({ context, pending }: { context: ActionContext; pen
   async function subscribePush() {
     setPushMessage('');
     try {
-      if (!('Notification' in window) || !('serviceWorker' in navigator)) {
+      if (platform.notifications.permission() === 'unsupported' || !('serviceWorker' in navigator)) {
         throw new Error('当前浏览器不支持通知推送；站内提醒仍可使用。');
       }
       const { publicKey } = await get<components['schemas']['VapidPublicKey']>('/push-subscriptions/vapid-public-key');
       if (!publicKey) throw new Error('服务端未配置 VAPID 公钥；站内提醒仍可使用。');
-      const permission = await Notification.requestPermission();
+      const permission = await platform.notifications.requestPermission();
       if (permission !== 'granted') throw new Error('通知权限未获准；站内提醒仍可使用。');
       const registration = await navigator.serviceWorker.ready;
       const subscription = await registration.pushManager.subscribe({
@@ -110,7 +114,7 @@ export function SettingsPage({ context, pending }: { context: ActionContext; pen
       });
       const saved = await post<PushSubscription>('/push-subscriptions', subscription.toJSON());
       setPushId(saved.id);
-      await cacheValue(cacheKey(context.userId, 'pushSubscriptionId'), saved.id);
+      await platform.storage.write(cacheKey(context.userId, 'pushSubscriptionId'), saved.id);
       setPushMessage('浏览器推送已订阅。实际送达取决于浏览器和服务端推送配置。');
     } catch (error) {
       setPushMessage(error instanceof Error ? error.message : '订阅失败。');
@@ -123,7 +127,7 @@ export function SettingsPage({ context, pending }: { context: ActionContext; pen
       const registration = await navigator.serviceWorker?.getRegistration();
       const subscription = await registration?.pushManager.getSubscription();
       await subscription?.unsubscribe();
-      await db.cache.delete(cacheKey(context.userId, 'pushSubscriptionId'));
+      await platform.storage.remove(cacheKey(context.userId, 'pushSubscriptionId'));
       setPushId('');
       setPushMessage('已取消浏览器推送订阅。');
     } catch (error) {
@@ -147,6 +151,28 @@ export function SettingsPage({ context, pending }: { context: ActionContext; pen
     if (!window.confirm('这些操作来自旧版未按账号隔离的本机队列，无法安全确定所属账号。清除后不能恢复。')) return;
     await clearOrphanedOperations();
     setOrphanCount(0);
+  }
+
+  /** 服务端清空当前身份的业务数据，同时丢弃本机缓存，避免界面继续显示旧数据。 */
+  async function resetDemoData() {
+    if (!window.confirm('清空当前演示身份的业务数据？本机缓存和待同步操作也会一并清除，且无法恢复。')) return;
+    setResetting(true);
+    setResetMessage(null);
+    try {
+      const result = await post<components['schemas']['DemoResetResponse']>('/demo/reset');
+      await db.queue.where('userId').equals(context.userId).delete();
+      await db.conflicts.where('userId').equals(context.userId).delete();
+      await db.cache.where('key').startsWith(`${context.userId}:`).delete();
+      setConflicts([]);
+      setLastSyncedAt('');
+      setPushId('');
+      setResetMessage({ kind: 'success', text: `已清空服务端 ${result.deletedRows} 条记录，并同步清理本机缓存。` });
+      context.run(async () => undefined, '演示数据已重置');
+    } catch (error) {
+      setResetMessage({ kind: 'error', text: error instanceof Error ? error.message : '重置失败。' });
+    } finally {
+      setResetting(false);
+    }
   }
 
   return <>
@@ -210,9 +236,18 @@ export function SettingsPage({ context, pending }: { context: ActionContext; pen
 
     <Panel title="安装与演示数据">
       <div className="install-row"><CloudDownload size={18}/><div><b>将工作台安装到设备</b><p>使用浏览器菜单中的“安装应用”。当前浏览器是否提供安装条件由其决定。</p></div></div>
-      <div className="install-row"><WifiOff size={18}/><div><b>演示数据重置</b><p>当前 OpenAPI 没有重置演示数据接口。可退出并切换演示身份；本机队列可在此清理。</p></div></div>
+      <div className="install-row"><WifiOff size={18}/><div><b>演示数据重置</b><p>清空当前演示身份的画像、经历、私人岗位、投递、计划与同步记录；公共岗位库和其他演示身份不受影响。</p></div></div>
+      <div className="button-row">
+        <button className="btn small danger" disabled={context.busy || resetting} onClick={() => void resetDemoData()}>
+          <Trash2 size={14}/>{resetting ? '正在重置…' : '重置我的演示数据'}
+        </button>
+      </div>
+      {resetMessage && <p className={resetMessage.kind === 'error' ? 'inline-error' : 'success-note'} role="status">{resetMessage.text}</p>}
       {installAvailable && <p className="success-note">浏览器已满足部分安装条件；请从浏览器菜单完成安装。</p>}
-      <p className="muted">工作台使用虚构演示身份。浏览器推送需本地 VAPID 配置，Cloudflare 上线后还需 HTTPS。</p>
+      <p className="muted">
+        当前数据源：{dataSource === 'demo' ? '内置演示适配器（不请求后端）' : '后端 /api/v1'}。
+        工作台使用虚构演示身份。浏览器推送需本地 VAPID 配置，Cloudflare 上线后还需 HTTPS。
+      </p>
     </Panel>
   </>;
 }

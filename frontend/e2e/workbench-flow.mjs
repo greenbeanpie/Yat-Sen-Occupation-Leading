@@ -258,6 +258,16 @@ await step('任务：更新状态与实际耗时（PATCH /tasks/{id}）', async 
   return `${call.status}`;
 });
 
+await step('计划：任务卡显示关联岗位、已确认证据与依赖任务', async () => {
+  const target = panel('两周任务与排期');
+  await target.getByText(/关联岗位：/).first().waitFor({ state: 'visible', timeout: 20000 });
+  const text = await target.innerText();
+  for (const keyword of ['关联岗位：', '已确认证据：', '依赖任务：']) {
+    if (!text.includes(keyword)) throw new Error(`任务卡缺少「${keyword}」`);
+  }
+  return '任务卡包含岗位、证据与依赖关系';
+});
+
 await step('改写：生成逐条建议（POST /rewrites）', async () => {
   const target = panel('简历改写建议');
   await target.getByRole('button', { name: '生成改写' }).first().click();
@@ -415,6 +425,27 @@ await step('管理员：切换身份后维护公共岗位', async () => {
   await waitForCall('GET', /^\/admin\/jobs$/);
   const text = await panel('公共岗位').innerText();
   return text.split('\n').slice(0, 2).join(' / ');
+});
+
+await step('设置：重置演示数据（POST /demo/reset）并清空本机缓存', async () => {
+  await page.locator('.who button.icon-btn').click();
+  await page.getByRole('heading', { name: '进入实习工作台' }).waitFor({ state: 'visible', timeout: 20000 });
+  await page.getByRole('button', { name: /演示学生/ }).first().click();
+  await goNav('设置与同步');
+  await waitForText(page, '同步、提醒与离线状态');
+  page.once('dialog', (dialog) => void dialog.accept());
+  await page.getByRole('button', { name: '重置我的演示数据' }).click();
+  const call = await waitForCall('POST', /^\/demo\/reset$/);
+  await page.getByText(/已清空服务端/).first().waitFor({ state: 'visible', timeout: 20000 });
+  await goNav('画像与证据');
+  await waitForText(page, '你的求职画像');
+  const value = await page.locator('form.form-grid').first().getByLabel('目标岗位（逗号分隔）').inputValue();
+  if (value.trim() !== '') throw new Error(`重置后画像仍有内容：${value}`);
+  const jobs = await page.evaluate(async () => {
+    const response = await fetch('/api/v1/jobs?scope=mine', { credentials: 'include' });
+    return (await response.json()).items.length;
+  });
+  return `${call.status}；画像已清空，私人岗位剩余 ${jobs}`;
 });
 
 await page.screenshot({ path: `${ARTIFACTS}final-admin.png`, fullPage: false });

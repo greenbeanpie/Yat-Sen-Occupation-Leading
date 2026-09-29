@@ -199,6 +199,8 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 .check-row { display: flex; align-items: flex-start; gap: 9px; margin: 13px 0; color: #566174; font-size: 11px; line-height: 1.6; }
 .check-row input { width: 15px; height: 15px; flex: 0 0 15px; margin: 0; accent-color: var(--blue); }
 .upload-box { min-height: 114px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 7px; margin: 0 0 12px; padding: 15px; color: #6175a5; background: #f8f9fd; border: 1px dashed #cbd4e4; border-radius: 12px; cursor: pointer; text-align: center; }
+.upload-box[type="button"], button.upload-box { width: 100%; font: inherit; }
+button.upload-box:disabled { color: #9aa3b4; background: #f3f5f9; cursor: progress; }
 .upload-box b { color: #4a566d; font-size: 11px; }
 .upload-box small { color: #929aaa; font-size: 9px; }
 .upload-box input { max-width: 210px; color: #7d8593; font-size: 9px; }
@@ -228,6 +230,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 .warning-note { padding: 9px 10px; color: #885d1f; background: #fff7e6; border-radius: 8px; font-size: 10px; line-height: 1.6; }
 .toast { position: sticky; z-index: 10; top: 75px; display: flex; align-items: center; gap: 8px; width: fit-content; max-width: 100%; margin: 0 auto 12px; padding: 9px 13px; color: #2f7658; background: #eff9f3; border: 1px solid #d6eee0; border-radius: 9px; box-shadow: var(--shadow); font-size: 11px; }
 .toast.error { color: #9b5350; background: #fff2f1; border-color: #f0d8d7; }
+.update-banner { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 0 0 12px; padding: 9px 13px; color: #33507f; background: #eef3fd; border: 1px solid #cfdcf5; border-radius: 9px; font-size: 11px; font-weight: 600; }
 .busy-line { display: flex; align-items: center; gap: 7px; margin: 0 0 10px; color: #8290a9; font-size: 10px; }
 .inline-loading { display: flex; align-items: center; gap: 7px; padding: 13px 0; color: #8992a2; font-size: 10px; }
 .visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; }
@@ -304,6 +307,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 .task-heading p { margin: 5px 0; color: #778192; font-size: 10px; line-height: 1.6; }
 .task-date { flex: 0 0 auto; color: #5971a7; font-size: 10px; font-weight: 700; }
 .task-hours { display: flex; gap: 13px; margin: 8px 0; color: #8d95a2; font-size: 9px; }
+.task-links { display: flex; flex-wrap: wrap; gap: 6px 14px; margin: 6px 0 2px; color: #6b7688; font-size: 9px; line-height: 1.6; }
 .suggestions { margin-top: 20px; padding-top: 13px; border-top: 1px solid #edf0f5; }
 .suggestions > h3 { margin-top: 0; }
 .suggestion-card { padding: 10px; background: #fafbfd; border: 1px solid #edf0f4; border-radius: 8px; }

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { CheckCheck, FileText } from 'lucide-react';
 import { get, patch, pollOperation, post } from '../api/client';
 import type { components } from '../api/schema';
@@ -20,6 +20,8 @@ export function PlanningPage({ context }: { context: ActionContext }) {
   const portfolios = useResource<{ items: Portfolio[] }>('/portfolios', context.refresh, context.userId);
   const profile = useResource<Profile>('/profile', context.refresh, context.userId);
   const evidence = useResource<EvidenceBundle>('/evidence', context.refresh, context.userId);
+  const publicJobs = useResource<components['schemas']['JobListResponse']>('/jobs?scope=public', context.refresh, context.userId);
+  const privateJobs = useResource<components['schemas']['JobListResponse']>('/jobs?scope=mine', context.refresh, context.userId);
   const [selectedPlanId, setSelectedPlanId] = useState('');
   const [operation, setOperation] = useState('');
   const [error, setError] = useState('');
@@ -28,6 +30,10 @@ export function PlanningPage({ context }: { context: ActionContext }) {
 
   const selectedPlan = plans.data?.items.find((plan) => plan.id === selectedPlanId) ?? plans.data?.items[0];
   const portfolioOptions = portfolios.data?.items ?? [];
+  // 计划任务要显示关联岗位名称，而不是只显示 UUID。
+  const jobTitles = useMemo(() => new Map(
+    [...(publicJobs.data?.items ?? []), ...(privateJobs.data?.items ?? [])].map((job) => [job.id, job.title]),
+  ), [publicJobs.data, privateJobs.data]);
 
   async function generatePlan(values: Record<string, string>): Promise<boolean> {
     setError('');
@@ -102,12 +108,12 @@ export function PlanningPage({ context }: { context: ActionContext }) {
       </Panel>
     </div>
 
-    {selectedPlan && <PlanDetailView key={selectedPlan.id} plan={selectedPlan} context={context}/>}
+    {selectedPlan && <PlanDetailView key={selectedPlan.id} plan={selectedPlan} context={context} jobTitles={jobTitles}/>}
     {!selectedPlan && plans.data?.items.length === 0 && <Panel title="任务和排期"><div className="empty">生成计划后，任务会显示在这里。</div></Panel>}
   </>;
 }
 
-function PlanDetailView({ plan, context }: { plan: Plan; context: ActionContext }) {
+function PlanDetailView({ plan, context, jobTitles }: { plan: Plan; context: ActionContext; jobTitles: Map<string, string> }) {
   const resource = useResource<PlanDetail>(`/plans/${plan.id}`, context.refresh, context.userId);
   const suggestions = useResource<{ items: Suggestion[] }>(`/plans/${plan.id}/suggestions`, context.refresh, context.userId);
   const detail = resource.data;
@@ -121,7 +127,7 @@ function PlanDetailView({ plan, context }: { plan: Plan; context: ActionContext 
     <ResourceNotice error={resource.error}/>
     {resource.loading && !detail && <Loading/>}
     <DataRows items={tasks} empty={plan.status === 'draft' ? '草稿还没有任务，模型可能未返回可用结果。' : '计划中没有任务。'}>
-      {(task) => <TaskCard task={task} planId={plan.id} confirmed={plan.status === 'confirmed'} context={context}/>}
+      {(task) => <TaskCard task={task} planId={plan.id} confirmed={plan.status === 'confirmed'} context={context} jobTitles={jobTitles} siblings={tasks}/>}
     </DataRows>
     <section className="suggestions">
       <h3>计划调整建议</h3>
@@ -141,7 +147,23 @@ function PlanDetailView({ plan, context }: { plan: Plan; context: ActionContext 
   </Panel>;
 }
 
-function TaskCard({ task, planId, confirmed, context }: { task: PlanTask; planId: string; confirmed: boolean; context: ActionContext }) {
+function TaskCard({
+  task,
+  planId,
+  confirmed,
+  context,
+  jobTitles,
+  siblings,
+}: {
+  task: PlanTask;
+  planId: string;
+  confirmed: boolean;
+  context: ActionContext;
+  jobTitles: Map<string, string>;
+  siblings: PlanTask[];
+}) {
+  const jobLabel = task.jobId ? jobTitles.get(task.jobId) ?? `岗位 ${task.jobId.slice(0, 8)}` : null;
+  const dependencyLabels = task.deps.map((dep) => siblings.find((row) => row.id === dep)?.title ?? `任务 ${dep.slice(0, 8)}`);
   async function update(values: Record<string, string>) {
     const payload = {
       title: values.title.trim(),
@@ -170,7 +192,12 @@ function TaskCard({ task, planId, confirmed, context }: { task: PlanTask; planId
       <div><div className="row-title">{task.title}<Badge value={task.status}/></div><p>{task.description}</p></div>
       <div className="task-date">{task.scheduledDate ? new Date(`${task.scheduledDate}T00:00:00`).toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' }) : '未排期'}</div>
     </div>
-    {(task.gap || task.jobId) && <small>{task.gap || `关联岗位 ${task.jobId}`}</small>}
+    <div className="task-links">
+      {jobLabel && <span>关联岗位：{jobLabel}</span>}
+      {task.gap && <span>岗位差距：{task.gap}</span>}
+      {task.evidenceId && <span>已确认证据：{task.evidenceId.slice(0, 8)}</span>}
+      {dependencyLabels.length > 0 && <span>依赖任务：{dependencyLabels.join('、')}</span>}
+    </div>
     <div className="task-hours"><span>预计 {task.estimateHours ?? '未估算'} 小时</span><span>实际 {task.actualHours ?? '未记录'} 小时</span></div>
     <ActionForm
       compact

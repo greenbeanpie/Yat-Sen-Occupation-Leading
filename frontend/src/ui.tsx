@@ -6,9 +6,12 @@ import {
   RefreshCw, Settings, Shield, UserRound, X,
 } from 'lucide-react';
 import { ApiError, get, post, api } from './api/client';
+import { dataSource } from './api/transport';
 import type { components } from './api/schema';
 import { ActionContext, Modal, PageHead, Panel, useResource } from './components';
 import { queueCount, synchronizeUser } from './offline';
+import { platform } from './platform';
+import { registerServiceWorker } from './pwa';
 import { ProfilePage } from './pages/ProfilePage';
 import { JobsPage } from './pages/JobsPage';
 import { MatchingPage } from './pages/MatchingPage';
@@ -40,9 +43,20 @@ export default function App() {
   const [conflict, setConflict] = useState<{ message: string; server?: unknown } | null>(null);
   const [pending, setPending] = useState(0);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [pendingUpdate, setPendingUpdate] = useState<((reloadPage?: boolean) => Promise<void>) | null>(null);
   const location = useLocation();
 
   const reload = useCallback(() => setRefresh((current) => current + 1), []);
+
+  useEffect(() => {
+    let update: ((reloadPage?: boolean) => Promise<void>) | null = null;
+    update = registerServiceWorker({
+      onNeedRefresh: () => setPendingUpdate(() => update),
+      onOfflineReady: () => setMessage({ kind: 'success', text: '应用外壳已缓存，可以离线打开工作台。' }),
+      onError: (error) => console.warn('Service Worker 注册失败', error),
+    });
+    return () => setPendingUpdate(null);
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -68,7 +82,7 @@ export default function App() {
     let active = true;
     let synchronizing = false;
     const syncWhenOnline = async () => {
-      if (!navigator.onLine || synchronizing) return;
+      if (!platform.network.isOnline() || synchronizing) return;
       synchronizing = true;
       try {
         const result = await synchronizeUser(userId);
@@ -84,12 +98,14 @@ export default function App() {
     const onVisibility = () => {
       if (document.visibilityState === 'visible') void syncWhenOnline();
     };
+    const stopNetworkWatch = platform.network.subscribe((online) => {
+      if (online) void syncWhenOnline();
+    });
     void syncWhenOnline();
-    window.addEventListener('online', syncWhenOnline);
     document.addEventListener('visibilitychange', onVisibility);
     return () => {
       active = false;
-      window.removeEventListener('online', syncWhenOnline);
+      stopNetworkWatch();
       document.removeEventListener('visibilitychange', onVisibility);
     };
   }, [session?.authenticated, session?.user?.id]);
@@ -139,7 +155,10 @@ export default function App() {
 
   if (sessionLoading) return <div className="app-loading"><LoaderCircle className="spin"/>正在连接工作台…</div>;
   if (!session?.authenticated) {
-    return <LoginScreen session={session} error={sessionError} busy={busy} onLogin={login}/>;
+    return <>
+      {pendingUpdate && <UpdateBanner onUpdate={() => void pendingUpdate(true)}/>}
+      <LoginScreen session={session} error={sessionError} busy={busy} onLogin={login}/>
+    </>;
   }
 
   const user = session.user ?? undefined;
@@ -169,7 +188,7 @@ export default function App() {
             <span><b>{user?.displayName ?? '演示用户'}</b><small>{isAdmin ? '管理员身份' : '学生身份'}</small></span>
             <button className="icon-btn" title="退出登录" onClick={() => void logout()}><LogOut size={16}/></button>
           </div>
-          <div className="api-indicator"><span className="dot"/>后端会话已连接</div>
+          <div className="api-indicator"><span className="dot"/>{dataSource === 'demo' ? '内置演示数据源' : '后端会话已连接'}</div>
         </div>
       </aside>
       {mobileOpen && <button className="sidebar-scrim" aria-label="关闭菜单" onClick={() => setMobileOpen(false)}/>}
@@ -186,6 +205,7 @@ export default function App() {
         </header>
 
         <div className="content" aria-live="polite">
+          {pendingUpdate && <UpdateBanner onUpdate={() => void pendingUpdate(true)}/>}
           {message && <div className={`toast ${message.kind}`} role="status"><CheckCheck size={16}/>{message.text}</div>}
           {busy && <div className="busy-line"><LoaderCircle className="spin" size={15}/>正在处理…</div>}
           <Routes>
@@ -211,6 +231,13 @@ export default function App() {
       />}
     </div>
   );
+}
+
+function UpdateBanner({ onUpdate }: { onUpdate: () => void }) {
+  return <div className="update-banner" role="status">
+    <span>工作台有新版本可用</span>
+    <button className="btn small primary" onClick={onUpdate}>立即更新</button>
+  </div>;
 }
 
 function MobileNavigation() {

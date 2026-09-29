@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite --host 127.0.0.1",
+    "dev:demo": "vite --mode demo --host 127.0.0.1 --port 5174",
     "build": "tsc -b && vite build",
     "typecheck": "tsc -b --pretty",
     "lint": "eslint .",
@@ -13,7 +14,8 @@
     "test": "vitest run",
     "e2e": "node e2e/workbench-flow.mjs",
     "e2e:responsive": "node e2e/responsive.mjs",
-    "deploy": "wrangler deploy --config wrangler.jsonc"
+    "e2e:demo": "node e2e/plan-states.mjs",
+    "deploy": "npm run build && wrangler deploy --config wrangler.jsonc"
   },
   "dependencies": {
     "@vitejs/plugin-react": "^4.7.0",

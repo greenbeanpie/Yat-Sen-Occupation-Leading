@@ -1,4 +1,5 @@
 import type { paths } from './schema';
+import { transport } from './transport';
 
 export type ApiPath = keyof paths;
 export type JsonRecord = Record<string, unknown>;
@@ -46,7 +47,7 @@ export async function api<T = unknown>(path: string, init: RequestInit = {}): Pr
 
   let response: Response;
   try {
-    response = await fetch(`${BASE}${path}`, {
+    response = await transport(`${BASE}${path}`, {
       ...init,
       headers,
       // The development proxy keeps API requests same-origin so the backend's

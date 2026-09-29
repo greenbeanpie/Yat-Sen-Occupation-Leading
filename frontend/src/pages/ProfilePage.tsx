@@ -5,6 +5,7 @@ import type { components } from '../api/schema';
 import { ActionForm, Badge, DataRows, JsonPreview, Loading, PageHead, Panel, ResourceNotice, useResource } from '../components';
 import type { ActionContext } from '../components';
 import { cacheKey, cacheValue, readCached, withOfflineQueue } from '../offline';
+import { platform } from '../platform';
 
 type Profile = components['schemas']['Profile'];
 type Experience = components['schemas']['Experience'];
@@ -20,6 +21,8 @@ const EXPERIENCE_KINDS = [
   { value: 'other', label: '其他' },
 ];
 
+const RESUME_ACCEPT = '.pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+
 export function ProfilePage({ context }: { context: ActionContext }) {
   const profileResource = useResource<Profile>('/profile', context.refresh, context.userId);
   const evidenceResource = useResource<EvidenceBundle>('/evidence', context.refresh, context.userId);
@@ -29,6 +32,11 @@ export function ProfilePage({ context }: { context: ActionContext }) {
   const [confirmedByStudent, setConfirmedByStudent] = useState(false);
   const profile = profileResource.data;
   const evidence = evidenceResource.data;
+
+  async function chooseResume() {
+    const picked = await platform.files.pickFile({ accept: RESUME_ACCEPT });
+    if (picked) setFile(picked);
+  }
 
   async function saveProfile(values: Record<string, string>) {
     if (!profile) return false;
@@ -117,16 +125,11 @@ export function ProfilePage({ context }: { context: ActionContext }) {
       </Panel>
 
       <Panel title="简历导入" description="有文本层的 PDF 或 DOCX；任意文件只展示服务端真实解析结果">
-        <label className="upload-box">
+        <button type="button" className="upload-box" disabled={context.busy} onClick={() => void chooseResume()}>
           <FileUp size={22}/>
           <b>{file?.name ?? '选择 PDF 或 DOCX 简历'}</b>
           <small>单文件最大 10 MB；扫描件和加密文件需手动录入</small>
-          <input
-            type="file"
-            accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-            onChange={(event) => setFile(event.target.files?.[0] ?? null)}
-          />
-        </label>
+        </button>
         <button className="btn primary" disabled={!file || context.busy} onClick={() => void submitResume()}>
           <Upload size={16}/>上传并解析
         </button>

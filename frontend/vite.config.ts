@@ -6,7 +6,9 @@ export default defineConfig({
   plugins: [
     react(),
     VitePWA({
-      registerType: 'autoUpdate',
+      // 由 src/pwa.ts 手动注册，才能在界面上给出“新版本已就绪”的提示。
+      registerType: 'prompt',
+      injectRegister: null,
       includeAssets: ['favicon.svg', 'icons/workbench.svg'],
       manifest: {
         name: '实习决策与执行工作台',
