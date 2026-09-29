@@ -86,5 +86,6 @@ wrangler.jsonc vars：`AI_PROVIDER`、`AI_BASE_URL`、`AI_MODEL`、`CORS_ORIGIN`
 
 ## 分工与验收
 
+- **前端对接文档：[docs/frontend-integration.md](docs/frontend-integration.md)**（接入基础、异步作业、离线同步协议、冲突处理、联调自检清单）
 - 组员验收对照表与风险清单见 [backend_plan.md](../backend_plan.md) 八/九/十节；
 - 真实环境验证进度见 [docs/deployment.md](docs/deployment.md) 与 [docs/spike-extraction.md](docs/spike-extraction.md)。
