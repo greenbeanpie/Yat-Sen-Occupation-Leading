@@ -33,6 +33,8 @@ export interface SessionUser {
   timezone: string;
   notifyTaskDue: boolean;
   notifyInterview: boolean;
+  /** 演示身份（userId 直登）为 true；真实注册账号为 false。 */
+  demo: boolean;
 }
 
 export interface OperationRef {

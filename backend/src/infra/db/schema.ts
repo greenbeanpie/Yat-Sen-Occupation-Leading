@@ -1,6 +1,7 @@
 /**
- * D1 schema v1 —— 唯一事实来源。
- * `npm run gen:migrations` 由此生成 migrations/0001_init.sql 供 wrangler 使用；测试直接 import 本文件执行。
+ * D1 schema（唯一事实来源）。0002 起采用增量迁移：本文件描述当前结构，
+ * `migrations/0001_init.sql` 是已部署库的历史基线，其后结构变化写在 0002+ 增量里；
+ * 测试直接 import 本文件执行，全新数据库按 0001+0002… 顺序应用即可得到同一终态。
  * D1 默认不强制外键，引用完整性由应用层校验 + db.batch() 事务保证（backend_plan.md R4）。
  * 所有可同步实体带 id/user_id/version/deleted/created_at/updated_at（backend_plan.md 五）。
  */
@@ -10,12 +11,17 @@ CREATE TABLE users (
   role TEXT NOT NULL CHECK (role IN ('student','admin')),
   display_name TEXT NOT NULL,
   timezone TEXT NOT NULL DEFAULT 'Asia/Shanghai',
+  username TEXT,
+  password_hash TEXT,
+  is_demo INTEGER NOT NULL DEFAULT 0,
   notify_task_due INTEGER NOT NULL DEFAULT 1,
   notify_interview INTEGER NOT NULL DEFAULT 1,
   deleted INTEGER NOT NULL DEFAULT 0,
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL
 );
+
+CREATE UNIQUE INDEX idx_users_username ON users (username) WHERE username IS NOT NULL;
 
 CREATE TABLE profiles (
   id TEXT PRIMARY KEY,

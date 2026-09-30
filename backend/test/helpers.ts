@@ -88,7 +88,7 @@ export async function resetDb(): Promise<void> {
     seeds.map(([id, role, name]) =>
       db
         .prepare(
-          `INSERT OR IGNORE INTO users (id, role, display_name, timezone, created_at, updated_at) VALUES (?1, ?2, ?3, 'Asia/Shanghai', ?4, ?4)`,
+          `INSERT OR IGNORE INTO users (id, role, display_name, timezone, is_demo, created_at, updated_at) VALUES (?1, ?2, ?3, 'Asia/Shanghai', 1, ?4, ?4)`,
         )
         .bind(id, role, name, now),
     ),

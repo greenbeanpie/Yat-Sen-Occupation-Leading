@@ -24,8 +24,8 @@ export async function ensureDemoUsers(db: D1Database): Promise<void> {
   const stmts = SEED_USERS.map((u) =>
     db
       .prepare(
-        `INSERT OR IGNORE INTO users (id, role, display_name, timezone, created_at, updated_at)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?5)`,
+        `INSERT OR IGNORE INTO users (id, role, display_name, timezone, is_demo, created_at, updated_at)
+         VALUES (?1, ?2, ?3, ?4, 1, ?5, ?5)`,
       )
       .bind(u.id, u.role, u.name, DEFAULT_TIMEZONE, now),
   );

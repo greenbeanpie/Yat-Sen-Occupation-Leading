@@ -73,6 +73,7 @@ export async function resolveUser(c: Context<AppEnv>): Promise<SessionUser | nul
     timezone: row.timezone as string,
     notifyTaskDue: Number(row.notify_task_due) === 1,
     notifyInterview: Number(row.notify_interview) === 1,
+    demo: Number(row.is_demo ?? 0) === 1,
   };
 }
 
