@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { getPage } from '../api/client';
 import { readTicketPage, ticketAccessScope, TicketSessionChanged, type TicketSession } from './tickets-access';
+import type { UserRole } from '../roles';
 
 vi.mock('../api/client', () => ({ getPage: vi.fn() }));
 const expected = { userId: 'actor', role: 'admin' as const };
@@ -11,7 +12,8 @@ beforeEach(() => { api.mockReset(); });
 
 describe('live ticket authorization boundaries', () => {
   it('isolates all three roles for the same user in the resource identity', () => {
-    expect(new Set(['student', 'admin', 'super_admin'].map(role => ticketAccessScope('actor', role as typeof expected.role))).size).toBe(3);
+    const roles: UserRole[] = ['student', 'admin', 'super_admin'];
+    expect(new Set(roles.map(role => ticketAccessScope('actor', role))).size).toBe(3);
   });
 
   it('checks a no-store session before and after accepting a ticket page', async () => {
@@ -32,6 +34,17 @@ describe('live ticket authorization boundaries', () => {
     const accept = vi.fn();
     await expect(readTicketPage('/tickets?cursor=next', expected, () => true).then(accept)).rejects.toBeInstanceOf(TicketSessionChanged);
     expect(accept).not.toHaveBeenCalled();
+  });
+
+  it('also discovers mid-request demotion when the ticket endpoint rejects access', async () => {
+    api.mockResolvedValueOnce(session()).mockRejectedValueOnce(new Error('工单不存在')).mockResolvedValueOnce(session('student'));
+    await expect(readTicketPage('/tickets/private/detail', expected, () => true)).rejects.toMatchObject({ session: session('student') });
+    expect(api.mock.calls.map(call => call[0])).toEqual(['/session', '/tickets/private/detail', '/session']);
+  });
+
+  it('preserves an endpoint error when post-error authorization is unchanged', async () => {
+    api.mockResolvedValueOnce(session()).mockRejectedValueOnce(new Error('工单不存在')).mockResolvedValueOnce(session());
+    await expect(readTicketPage('/tickets/missing', expected, () => true)).rejects.toThrow('工单不存在');
   });
 
   it.each<TicketSession>([

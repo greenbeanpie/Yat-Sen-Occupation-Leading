@@ -45,7 +45,14 @@ export async function readTicketPage<T>(
   init?: RequestInit,
 ): Promise<T> {
   await verifyTicketAccess(expected, isCurrent, init);
-  const data = await getPage<T>(path, { ...init, cache: 'no-store' });
+  let data: T;
+  try {
+    data = await getPage<T>(path, { ...init, cache: 'no-store' });
+  } catch (error) {
+    // A 403/404 may itself be the first symptom of a mid-request demotion.
+    await verifyTicketAccess(expected, isCurrent, init);
+    throw error;
+  }
   await verifyTicketAccess(expected, isCurrent, init);
   return data;
 }
