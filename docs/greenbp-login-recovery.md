@@ -9,13 +9,15 @@ The failed first comparison was a utility bug: WRANGLER_LOG=error suppresses --j
 After the compatible backend deployment is confirmed, the user runs:
 
 ```powershell
-Set-Location 'C:\Users\hmz\AppData\Local\Temp\yso-login-recovery\backend'
+Set-Location 'C:\Users\hmz\Documents\SYSU-data\Yat-Sen-Occupation-Leading\backend'
 node --import tsx scripts/recover-greenbp.mjs --upgrade-kdf
 ```
 
 Confirm `UPGRADE greenbp`, check boolean comparison, then `APPLY UPGRADE greenbp`. A mismatch refuses the upgrade. The same password is retained; no plaintext file is created by upgrade. Sensitive SQL is confined to the ignored, Windows-user-only recovery directory. Both session deletion and password update require the reviewed exact user ID, original hash, unchanged updated_at and unchanged admin/non-demo identity. There is no automatic write retry. A failed/uncertain submit requires metadata review. The user logs in manually and deletes that run's sensitive SQL directory after success. `--compare` remains read-only; `--reset` is only for a user-confirmed mismatch and uses scrypt now.
 
 The earlier diagnostic notes below describe the deployed pre-fix state; local Node comparison alone does not establish hosted PBKDF2 support.
+
+Release validation: runtime commit `e6b0a49316506aad1a83c76677b5b447aee0d6e1` was pushed with all already-merged UI commits preserved. CI run [36755247181](https://github.com/greenbeanpie/Yat-Sen-Occupation-Leading/actions/runs/36755247181) completed successfully. Local backend typecheck and 116 tests passed; full preflight passed 15/15. Only the existing backend was deployed, version `10d2093d-2591-4a19-8a5e-77a1e0ba976e`; frontend/UI deployment was not performed. Backend and same-origin frontend API smoke passed 14/14 each. A synthetic nonexistent account request exercised native scrypt and returned expected 401 without a session cookie. No real credential was decrypted, compared or changed by the agent; final operator upgrade/login remains pending. No schema migration, new resources or secrets were needed.
 
 This utility does not fix an established application bug. The user reports the application's username/password error after entering username `greenbp`; a Cloudflare challenge is not assumed to explain that error. No real password, DPAPI plaintext, bootstrap SQL or production salt/digest was read by the agent. No real-credential login, password generation, reset or deployment was performed for this diagnosis.
 
