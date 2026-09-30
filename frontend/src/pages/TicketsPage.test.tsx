@@ -5,6 +5,7 @@ import type { ActionContext } from '../components';
 import { TicketsPage, TicketStatusBadge } from './TicketsPage';
 import { TicketConversation, TicketDetailPage } from './TicketDetailPage';
 import { useTicketDetail, useTicketList, type TicketDetail } from './tickets-data';
+import type { TicketAccess } from './tickets-access';
 
 vi.mock('./tickets-data', async () => ({
   ...await vi.importActual('./tickets-data'),
@@ -17,8 +18,9 @@ const ticket: TicketDetail = { id: 'ticket-1', subject: '无法打开岗位页�
   { id: 'message-1', body: '<script>alert("test")</script>\n第二行', authorName: '用户 <img>', isStaff: false, createdAt: '2026-09-30T10:00:00Z' },
   { id: 'message-2', body: '请提供复现步骤', authorName: '支持管理员', isStaff: true, createdAt: '2026-09-30T10:10:00Z' },
 ] };
-const detailState = (data: TicketDetail | null = ticket) => ({ data, loading: false, loadingOlder: false, error: '', loadOlder: async () => undefined, replace: () => undefined });
-const renderDetail = (staff: boolean) => renderToStaticMarkup(<StaticRouter location="/tickets/ticket-1"><Routes><Route path="/tickets/:id" element={<TicketDetailPage context={context} staff={staff}/>}/></Routes></StaticRouter>);
+const detailState = (data: TicketDetail | null = ticket) => ({ data, loading: false, loadingOlder: false, error: '', loadOlder: async () => undefined, replace: async () => true });
+const accessFor = (staff = false): TicketAccess => ({ userId: 'actor', role: staff ? 'admin' : 'student', onSessionChange: () => undefined });
+const renderDetail = (staff: boolean) => renderToStaticMarkup(<StaticRouter location="/tickets/ticket-1"><Routes><Route path="/tickets/:id" element={<TicketDetailPage context={context} access={accessFor(staff)}/>}/></Routes></StaticRouter>);
 
 beforeEach(() => {
   vi.mocked(useTicketDetail).mockReturnValue(detailState());
@@ -80,7 +82,7 @@ describe('ticket presentation and privacy', () => {
   });
 
   it('shows explicit loading, empty, and paginated list states', () => {
-    const render = () => renderToStaticMarkup(<StaticRouter location="/tickets"><TicketsPage context={context} staff={false}/></StaticRouter>);
+    const render = () => renderToStaticMarkup(<StaticRouter location="/tickets"><TicketsPage context={context} access={accessFor()}/></StaticRouter>);
     expect(render()).toContain('还没有工单');
     vi.mocked(useTicketList).mockReturnValue({ data: null, loading: true, loadingMore: false, error: '', loadMore: async () => undefined });
     expect(render()).toContain('正在加载');

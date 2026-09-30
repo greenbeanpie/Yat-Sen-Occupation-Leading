@@ -74,7 +74,7 @@ export function registerUserManagementRoutes(app: App): void {
         AND (?3='student' OR (username IS NOT NULL AND trim(username)<>'' AND password_hash IS NOT NULL AND password_hash<>''))
         AND (COALESCE(access_role,role)<>'super_admin' OR disabled=1 OR ?3='super_admin' OR ${activeSupers}>1)`)
         .bind(c.get('user').id, id, role, now, auditId),
-      c.env.DB.prepare(`UPDATE users SET access_role=?2,updated_at=?3 WHERE id=?1 AND EXISTS (SELECT 1 FROM account_role_audit WHERE id=?4 AND target_user_id=?1)`)
+      c.env.DB.prepare(`UPDATE users SET access_role=?2,role=CASE WHEN ?2='student' THEN 'student' ELSE 'admin' END,updated_at=?3 WHERE id=?1 AND EXISTS (SELECT 1 FROM account_role_audit WHERE id=?4 AND target_user_id=?1)`)
         .bind(id, role, now, auditId),
     ]);
     if (results[1]!.meta.changes !== 1) throw conflict('操作未生效：权限已变化、账户没有登录凭据或必须保留最后一位可登录的超级管理员', null);

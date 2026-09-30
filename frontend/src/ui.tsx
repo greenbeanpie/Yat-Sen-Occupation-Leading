@@ -27,6 +27,7 @@ import { SettingsPage } from './pages/SettingsPage';
 import { canAccessAdmin, canAccessTickets, roleLabel } from './roles';
 import { TicketsPage } from './pages/TicketsPage';
 import { TicketDetailPage } from './pages/TicketDetailPage';
+import { ticketAccessScope } from './pages/tickets-access';
 
 type Session = components['schemas']['SessionResponse'];
 
@@ -356,6 +357,13 @@ export default function App() {
     setSessionError(message);
   }
 
+  const onTicketSessionChange = useCallback((value: Session) => {
+    setSession(value);
+    setSessionError(value.authenticated ? '' : '会话已失效，请重新登录。');
+    if (value.authenticated) void platform.storage.write(SESSION_CACHE_KEY, value);
+    else void platform.storage.remove(SESSION_CACHE_KEY);
+  }, []);
+
   if (sessionLoading) return <div className="app-loading"><LoaderCircle className="spin"/>正在连接工作台…</div>;
   if (!session?.authenticated) {
     return <>
@@ -437,8 +445,8 @@ export default function App() {
             <Route path="/plan" element={<PlanningPage context={actionContext}/>}/>
             <Route path="/applications" element={<TrackingPage context={actionContext}/>}/>
             <Route path="/admin" element={isAdmin && user ? <AdminPage context={actionContext} user={user} onRefreshSession={refreshAccountSession}/> : <Navigate to="/" replace/>}/>
-            <Route path="/tickets" element={ticketsEnabled ? <TicketsPage key={user?.id} context={actionContext} staff={isAdmin}/> : <Navigate to="/" replace/>}/>
-            <Route path="/tickets/:id" element={ticketsEnabled ? <TicketDetailPage context={actionContext} staff={isAdmin}/> : <Navigate to="/" replace/>}/>
+            <Route path="/tickets" element={ticketsEnabled && user ? <TicketsPage key={ticketAccessScope(user.id, user.role)} context={actionContext} access={{ userId: user.id, role: user.role, onSessionChange: onTicketSessionChange }}/> : <Navigate to="/" replace/>}/>
+            <Route path="/tickets/:id" element={ticketsEnabled && user ? <TicketDetailPage key={ticketAccessScope(user.id, user.role)} context={actionContext} access={{ userId: user.id, role: user.role, onSessionChange: onTicketSessionChange }}/> : <Navigate to="/" replace/>}/>
             <Route path="/settings" element={<SettingsPage context={actionContext} pending={pending} demo={Boolean(user?.demo) || getActiveDataSource() !== 'http'} onRefreshSession={refreshAccountSession} onSessionEnded={accountSessionEnded}/>}/>
             <Route path="*" element={<Navigate to="/" replace/>}/>
           </Routes>

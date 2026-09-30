@@ -46,8 +46,10 @@ describe('three account levels', () => {
     const before = await owner.db.prepare('SELECT username,password_hash FROM users WHERE id=?1').bind(user.id).first();
     expect((await change(owner.cookie, user.id, 'admin')).status).toBe(204);
     expect((await request(user.cookie, '/admin/jobs')).status).toBe(200);
+    expect(await owner.db.prepare('SELECT role,access_role FROM users WHERE id=?1').bind(user.id).first()).toEqual({ role: 'admin', access_role: 'admin' });
     expect((await change(owner.cookie, user.id, 'student')).status).toBe(204);
     expect((await request(user.cookie, '/admin/jobs')).status).toBe(403);
+    expect(await owner.db.prepare('SELECT role,access_role FROM users WHERE id=?1').bind(user.id).first()).toEqual({ role: 'student', access_role: 'student' });
     expect(await owner.db.prepare('SELECT username,password_hash FROM users WHERE id=?1').bind(user.id).first()).toEqual(before);
   });
   it('requires usable login credentials for promotions and preserves the only login-capable super admin', async () => {
@@ -61,9 +63,10 @@ describe('three account levels', () => {
   });
   it('records role changes atomically without credentials', async () => {
     const owner = await account('super_admin'), user = await account('student');
-    expect((await change(owner.cookie,user.id,'admin')).status).toBe(204);
+    expect((await change(owner.cookie,user.id,'super_admin')).status).toBe(204);
+    expect(await owner.db.prepare('SELECT role,access_role FROM users WHERE id=?1').bind(user.id).first()).toEqual({ role: 'admin', access_role: 'super_admin' });
     const audit = await owner.db.prepare('SELECT actor_id,target_user_id,previous_role,new_role FROM account_role_audit').all();
-    expect(audit.results).toEqual([{ actor_id: owner.id, target_user_id: user.id, previous_role: 'student', new_role: 'admin' }]);
+    expect(audit.results).toEqual([{ actor_id: owner.id, target_user_id: user.id, previous_role: 'student', new_role: 'super_admin' }]);
   });
   it('revokes disabled-user sessions permanently and prevents self-disable', async () => {
     const owner = await account('super_admin'), user = await account('student');

@@ -4,16 +4,19 @@ import { ApiError, patch, post } from '../api/client';
 import { InlineError, Loading, PageHead, Panel, ResourceNotice, type ActionContext } from '../components';
 import { TicketStatusBadge } from './TicketsPage';
 import { ticketStatuses, useTicketDetail, type TicketDetail, type TicketStatus } from './tickets-data';
+import { isAdministrativeRole } from '../roles';
+import { ticketAccessScope, type TicketAccess } from './tickets-access';
 
-export function TicketDetailPage({ context, staff }: { context: ActionContext; staff: boolean }) {
+export function TicketDetailPage({ context, access }: { context: ActionContext; access: TicketAccess }) {
   const { id = '' } = useParams();
   // Keying the body also clears unsent drafts when navigating between accounts/tickets.
-  return <TicketThread key={`${context.userId}:${id}`} id={id} context={context} staff={staff}/>;
+  return <TicketThread key={`${ticketAccessScope(access.userId, access.role)}:${id}`} id={id} context={context} access={access}/>;
 }
 
-function TicketThread({ id, context, staff }: { id: string; context: ActionContext; staff: boolean }) {
+function TicketThread({ id, context, access }: { id: string; context: ActionContext; access: TicketAccess }) {
   const [refresh, setRefresh] = useState(0);
-  const resource = useTicketDetail(context.userId, id, context.refresh + refresh);
+  const resource = useTicketDetail(access, id, context.refresh + refresh);
+  const staff = isAdministrativeRole(access.role);
   const [body, setBody] = useState('');
   const [status, setStatus] = useState<TicketStatus>('pending');
   const [saving, setSaving] = useState(false);
@@ -34,7 +37,7 @@ function TicketThread({ id, context, staff }: { id: string; context: ActionConte
         ? await patch<TicketDetail>(`/tickets/${encodeURIComponent(id)}/status`, { status })
         : await post<TicketDetail>(`/tickets/${encodeURIComponent(id)}/messages`, { body: body.trim() });
       if (!mounted.current) return;
-      resource.replace(updated);
+      if (!await resource.replace(updated)) return;
       if (!statusChange) setBody('');
       setMessage(statusChange ? '工单状态已更新' : '回复已发送');
     } catch (value) {

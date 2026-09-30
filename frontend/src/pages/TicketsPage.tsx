@@ -4,15 +4,18 @@ import { Plus } from 'lucide-react';
 import { post } from '../api/client';
 import { DataRows, InlineError, Modal, PageHead, Panel, ResourceNotice, type ActionContext } from '../components';
 import { ticketStatusLabel, useTicketList, type TicketDetail, type TicketStatus } from './tickets-data';
+import { isAdministrativeRole } from '../roles';
+import type { TicketAccess } from './tickets-access';
 
 export function TicketStatusBadge({ status }: { status: TicketStatus }) {
   const color = status === 'resolved' ? 'good' : status === 'closed' ? 'neutral' : 'warn';
   return <span className={`badge ${color}`}>{ticketStatusLabel(status)}</span>;
 }
 
-export function TicketsPage({ context, staff }: { context: ActionContext; staff: boolean }) {
+export function TicketsPage({ context, access }: { context: ActionContext; access: TicketAccess }) {
   const [refresh, setRefresh] = useState(0);
-  const list = useTicketList(context.userId, context.refresh + refresh);
+  const list = useTicketList(access, context.refresh + refresh);
+  const staff = isAdministrativeRole(access.role);
   const [creating, setCreating] = useState(false);
   const navigate = useNavigate();
   return <>
