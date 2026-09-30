@@ -14,18 +14,46 @@
  */
 
 export { createDemoTransport, DEMO_BASE_PATH, DEMO_STORAGE_KEY, type DemoTransportHandle } from './demo-transport';
-export { createBrowserStorage, createMemoryStorage, DemoStore } from './demo-store';
+export { createBrowserStorage, createMemoryStorage, createSessionStorage, DemoStore } from './demo-store';
 export { DEMO_USER_IDS, EXAMPLE_RESUME_FILENAME, EXAMPLE_RESUME_TEXT, isExampleResume } from './demo-seed';
 export { DemoApiError, type DemoControls, type DemoFailure, type DemoTransport, type DemoTransportOptions } from './demo-types';
 
 import { createDemoTransport, type DemoTransportHandle } from './demo-transport';
+import { GUEST_DATA_STORAGE_PREFIX } from '../guest-mode';
+import { buildDemoDatabase } from './demo-seed';
 
 let shared: DemoTransportHandle | null = null;
+let guestShared: { userId: string; transport: DemoTransportHandle } | null = null;
 
 /** 应用共用的演示数据源单例；同一标签页内共享同一份演示会话。 */
 export function demoTransport(): DemoTransportHandle {
   shared ??= createDemoTransport();
   return shared;
+}
+
+/** Isolated student demo for one tab; its backing store is sessionStorage. */
+export function guestDemoTransport(userId: string): DemoTransportHandle {
+  if (guestShared?.userId !== userId) {
+    guestShared = {
+      userId,
+      transport: createDemoTransport({
+        sessionOnly: true,
+        storageKey: `${GUEST_DATA_STORAGE_PREFIX}${userId}`,
+        seed: (now) => buildDemoDatabase(now, userId),
+      }),
+    };
+  }
+  return guestShared.transport;
+}
+
+/** Synchronously removes tab-scoped guest data and releases its adapter. */
+export function clearGuestDemoData(userId: string): void {
+  try {
+    globalThis.sessionStorage?.removeItem(`${GUEST_DATA_STORAGE_PREFIX}${userId}`);
+  } catch {
+    // sessionStorage is also cleared by the browser when its tab closes.
+  }
+  if (guestShared?.userId === userId) guestShared = null;
 }
 
 /** 恢复初始虚构数据（等价于演示设置页的“重置演示数据”）。 */

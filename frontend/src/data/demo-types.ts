@@ -31,6 +31,10 @@ export interface DemoTransportOptions {
   persist?: boolean;
   /** localStorage 键名，默认 `yso.workbench.demo.v1`。 */
   storageKey?: string;
+  /** Use tab-scoped sessionStorage so data disappears when the tab closes. */
+  sessionOnly?: boolean;
+  /** Custom seed for an isolated guest identity. */
+  seed?: (now: Date) => DemoDatabase;
   /** 可注入的时钟，便于测试。 */
   now?: () => Date;
   /** 启动后先失败的请求数（模拟网络/服务端故障）。 */

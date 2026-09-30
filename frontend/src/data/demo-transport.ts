@@ -1,4 +1,4 @@
-import { createBrowserStorage, createMemoryStorage, DemoStore } from './demo-store';
+import { createBrowserStorage, createMemoryStorage, createSessionStorage, DemoStore } from './demo-store';
 import { handleDemoRequest } from './demo-api';
 import { DemoApiError, type DemoControls, type DemoFailure, type DemoTransport, type DemoTransportOptions } from './demo-types';
 
@@ -25,9 +25,12 @@ export interface DemoTransportHandle extends DemoTransport {
  * 版本冲突（409 + server 记录）、离线同步去重与墓碑、冲突回执。
  */
 export function createDemoTransport(options: DemoTransportOptions = {}): DemoTransportHandle {
-  const storage =
-    options.persist === false ? createMemoryStorage() : createBrowserStorage(options.storageKey ?? DEMO_STORAGE_KEY);
-  const store = new DemoStore(storage, options.now ?? (() => new Date()));
+  const storage = options.sessionOnly
+    ? createSessionStorage(options.storageKey ?? DEMO_STORAGE_KEY)
+    : options.persist === false
+      ? createMemoryStorage()
+      : createBrowserStorage(options.storageKey ?? DEMO_STORAGE_KEY);
+  const store = new DemoStore(storage, options.now ?? (() => new Date()), options.seed);
   let latency = Math.max(0, options.latencyMs ?? 120);
   let jitter = Math.max(0, options.latencyJitterMs ?? 80);
   let pendingFailures = Math.max(0, options.failNextRequests ?? 0);

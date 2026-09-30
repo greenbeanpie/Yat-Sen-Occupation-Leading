@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Bell, BellOff, CloudDownload, RefreshCw, Trash2, WifiOff } from 'lucide-react';
 import { del, get, post, put } from '../api/client';
-import { dataSource } from '../api/transport';
+import { getActiveDataSource } from '../api/transport';
 import type { components } from '../api/schema';
 import { Badge, DataRows, JsonPreview, Loading, PageHead, Panel, ResourceNotice, useResource } from '../components';
 import type { ActionContext } from '../components';
@@ -245,7 +245,7 @@ export function SettingsPage({ context, pending }: { context: ActionContext; pen
       {resetMessage && <p className={resetMessage.kind === 'error' ? 'inline-error' : 'success-note'} role="status">{resetMessage.text}</p>}
       {installAvailable && <p className="success-note">浏览器已满足部分安装条件；请从浏览器菜单完成安装。</p>}
       <p className="muted">
-        当前数据源：{dataSource === 'demo' ? '内置演示适配器（不请求后端）' : '后端 /api/v1'}。
+        当前数据源：{getActiveDataSource() === 'guest' ? '游客临时演示适配器（本标签页，结束即清除）' : getActiveDataSource() === 'demo' ? '内置演示适配器（不请求后端）' : '后端 /api/v1'}。
         工作台使用虚构演示身份。浏览器推送需本地 VAPID 配置，Cloudflare 上线后还需 HTTPS。
       </p>
     </Panel>

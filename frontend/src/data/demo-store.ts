@@ -47,6 +47,37 @@ export function createBrowserStorage(key: string): DemoStorage {
   };
 }
 
+/** Guest data exists only in the current tab and is discarded when that tab closes. */
+export function createSessionStorage(key: string): DemoStorage {
+  let memoryValue: string | null = null;
+  return {
+    read: () => {
+      try {
+        return globalThis.sessionStorage?.getItem(key) ?? memoryValue;
+      } catch {
+        return memoryValue;
+      }
+    },
+    write: (value) => {
+      try {
+        const storage = globalThis.sessionStorage;
+        if (storage) storage.setItem(key, value);
+        else memoryValue = value;
+      } catch {
+        memoryValue = value;
+      }
+    },
+    clear: () => {
+      memoryValue = null;
+      try {
+        globalThis.sessionStorage?.removeItem(key);
+      } catch {
+        /* The in-memory DemoStore snapshot remains usable for this page. */
+      }
+    },
+  };
+}
+
 /**
  * 演示数据库：每次读写都从存储层取最新快照再写回，因此多个标签页共享同一份
  * 演示数据（这也是演示版本冲突的正常前提）。数据量很小，整体序列化足够快。

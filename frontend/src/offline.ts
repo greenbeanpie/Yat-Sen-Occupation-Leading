@@ -1,6 +1,7 @@
 import Dexie, { type Table } from 'dexie';
 import { get, post } from './api/client';
 import type { components } from './api/schema';
+import { isGuestUserId } from './guest-mode';
 
 export type SyncEntity =
   | 'profile'
@@ -75,21 +76,30 @@ export function cacheKey(userId: string, key: string): string {
   return `${userId}:${key}`;
 }
 
+function isGuestCacheKey(key: string): boolean {
+  return isGuestUserId(key.split(':', 1)[0] ?? '');
+}
+
 export function isNetworkError(error: unknown): boolean {
   return error instanceof TypeError || (error instanceof Error && error.name === 'NetworkError');
 }
 
 export async function cacheValue<T>(key: string, value: T): Promise<void> {
+  if (isGuestCacheKey(key)) return;
   await db.cache.put({ key, value, updatedAt: new Date().toISOString() });
 }
 
 export async function readCached<T>(key: string): Promise<T | undefined> {
+  if (isGuestCacheKey(key)) return undefined;
   return (await db.cache.get(key))?.value as T | undefined;
 }
 
 export async function queueOperation(
   operation: Omit<QueuedOperation, 'opId' | 'createdAt'> & { opId?: string },
 ): Promise<QueuedOperation> {
+  if (isGuestUserId(operation.userId)) {
+    throw new Error('游客数据只保存在当前标签页，无法加入持久化离线队列。');
+  }
   const row: QueuedOperation = {
     ...operation,
     opId: operation.opId ?? crypto.randomUUID(),
@@ -105,11 +115,23 @@ export async function removeQueuedOperation(opId: string): Promise<void> {
 }
 
 export async function queueCount(userId: string): Promise<number> {
+  if (isGuestUserId(userId)) return 0;
   return db.queue.where('userId').equals(userId).count();
 }
 
 export async function listUserConflicts(userId: string): Promise<SyncConflict[]> {
+  if (isGuestUserId(userId)) return [];
   return db.conflicts.where('userId').equals(userId).toArray();
+}
+
+/** Removes any older guest cache/queue rows when ending an ephemeral session. */
+export async function clearGuestOfflineData(userId: string): Promise<void> {
+  if (!isGuestUserId(userId)) return;
+  await Promise.all([
+    db.queue.where('userId').equals(userId).delete(),
+    db.conflicts.where('userId').equals(userId).delete(),
+    db.cache.where('key').startsWith(`${userId}:`).delete(),
+  ]);
 }
 
 export async function orphanedOperationCount(): Promise<number> {
@@ -148,6 +170,9 @@ export interface SyncSummary {
 }
 
 export async function synchronizeUser(userId: string): Promise<SyncSummary> {
+  if (isGuestUserId(userId)) {
+    return { submitted: 0, pending: 0, conflicts: 0, cursor: 0, lastSyncedAt: '' };
+  }
   const queue = await db.queue.where('userId').equals(userId).toArray();
   let submitted = 0;
   for (let offset = 0; offset < queue.length; offset += 100) {

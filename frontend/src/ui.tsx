@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { NavLink, Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import {
   Activity, BriefcaseBusiness, CalendarDays, ChartNoAxesCombined, CheckCheck,
@@ -6,7 +6,8 @@ import {
   RefreshCw, Settings, Shield, UserRound, X,
 } from 'lucide-react';
 import { ApiError, get, post, api } from './api/client';
-import { dataSource } from './api/transport';
+import { beginGuestSession, dataSource, endGuestSession, getActiveDataSource } from './api/transport';
+import { currentGuestUserId, isGuestUserId } from './guest-mode';
 import type { components } from './api/schema';
 import { ActionContext, Modal, PageHead, Panel, useResource } from './components';
 import { queueCount, synchronizeUser } from './offline';
@@ -40,6 +41,8 @@ export default function App() {
   const [session, setSession] = useState<Session | null>(null);
   const [sessionLoading, setSessionLoading] = useState(true);
   const [sessionError, setSessionError] = useState('');
+  const [guestMode, setGuestMode] = useState(getActiveDataSource() === 'guest');
+  const sessionLoadId = useRef(0);
   const [refresh, setRefresh] = useState(0);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<{ kind: 'success' | 'error'; text: string } | null>(null);
@@ -63,16 +66,31 @@ export default function App() {
 
   useEffect(() => {
     let active = true;
+    const loadId = ++sessionLoadId.current;
+    const guestAtStart = getActiveDataSource() === 'guest';
     get<Session>('/session')
       .then(async (value) => {
-        if (!active) return;
+        if (!active || loadId !== sessionLoadId.current) return;
+        const expectedGuestUserId = guestAtStart ? currentGuestUserId() : null;
+        if (guestAtStart && (!value.authenticated || !value.user || value.user.id !== expectedGuestUserId || !isGuestUserId(value.user.id))) {
+          throw new Error('游客临时会话已失效，请重新进入游客体验。');
+        }
         setSession(value);
-        await platform.storage.write(SESSION_CACHE_KEY, value);
+        if (getActiveDataSource() !== 'guest') {
+          await platform.storage.write(SESSION_CACHE_KEY, value);
+        }
       })
       .catch(async (error: unknown) => {
         // 断网时应继续显示本机数据，而不是把用户挡在登录页外。
-        const cached = await platform.storage.read<Session>(SESSION_CACHE_KEY);
-        if (!active) return;
+        const cached = guestAtStart ? null : await platform.storage.read<Session>(SESSION_CACHE_KEY);
+        if (!active || loadId !== sessionLoadId.current) return;
+        if (guestAtStart) {
+          await endGuestSession();
+          setGuestMode(false);
+          setSession(null);
+          setSessionError(error instanceof Error ? error.message : '游客体验无法启动，请重试。');
+          return;
+        }
         if (cached?.authenticated) {
           setSession(cached);
           setSessionError('网络不可用，当前使用本机缓存的演示身份。');
@@ -80,9 +98,41 @@ export default function App() {
           setSessionError(error instanceof Error ? error.message : '无法连接服务端');
         }
       })
-      .finally(() => active && setSessionLoading(false));
+      .finally(() => active && loadId === sessionLoadId.current && setSessionLoading(false));
     return () => { active = false; };
   }, []);
+
+  useEffect(() => {
+    if (!guestMode) return;
+    const clearGuestOnPageHide = () => {
+      // endGuestSession drops sessionStorage synchronously before IndexedDB cleanup.
+      void endGuestSession();
+    };
+    const leaveGuestAfterRestore = (event: PageTransitionEvent) => {
+      if (!event.persisted) return;
+      const loadId = ++sessionLoadId.current;
+      setGuestMode(false);
+      setSession(null);
+      setSessionLoading(true);
+      setSessionError('游客体验已结束，临时数据已清除。');
+      get<Session>('/session')
+        .then((value) => {
+          if (loadId === sessionLoadId.current) setSession(value);
+        })
+        .catch((error: unknown) => {
+          if (loadId === sessionLoadId.current) setSessionError(error instanceof Error ? error.message : '无法连接服务端');
+        })
+        .finally(() => {
+          if (loadId === sessionLoadId.current) setSessionLoading(false);
+        });
+    };
+    window.addEventListener('pagehide', clearGuestOnPageHide);
+    window.addEventListener('pageshow', leaveGuestAfterRestore);
+    return () => {
+      window.removeEventListener('pagehide', clearGuestOnPageHide);
+      window.removeEventListener('pageshow', leaveGuestAfterRestore);
+    };
+  }, [guestMode]);
 
   useEffect(() => {
     const userId = session?.user?.id;
@@ -157,11 +207,52 @@ export default function App() {
       const value = await post<Session>('/session', { userId });
       setSession(value);
       setSessionError('');
-      await platform.storage.write(SESSION_CACHE_KEY, value);
+      if (getActiveDataSource() !== 'guest') await platform.storage.write(SESSION_CACHE_KEY, value);
     }, '已进入演示工作台');
   }
 
+  async function continueAsGuest() {
+    setBusy(true);
+    setSessionLoading(true);
+    setSessionError('');
+    try {
+      const userId = beginGuestSession();
+      sessionLoadId.current += 1;
+      setSession(null);
+      setGuestMode(true);
+      await platform.storage.remove(SESSION_CACHE_KEY);
+      const value = await get<Session>('/session');
+      if (!value.authenticated || !value.user || !isGuestUserId(value.user.id) || value.user.id !== userId) {
+        throw new Error('游客临时会话无法启动，请重试。');
+      }
+      setSession(value);
+      setSessionLoading(false);
+    } catch (error) {
+      await endGuestSession();
+      setGuestMode(false);
+      setSession(null);
+      setSessionLoading(false);
+      setSessionError(error instanceof Error ? error.message : '游客体验无法启动，请重试。');
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function logout() {
+    if (getActiveDataSource() === 'guest') {
+      setSession(null);
+      setGuestMode(false);
+      await endGuestSession();
+      try {
+        setSession(await get<Session>('/session'));
+        setSessionError('');
+      } catch (error) {
+        setSessionError(error instanceof Error ? error.message : '无法连接服务端');
+      }
+      setRefresh((current) => current + 1);
+      setMessage({ kind: 'success', text: '游客数据已清除' });
+      return;
+    }
     await run(async () => {
       await api('/session', { method: 'DELETE' });
       await platform.storage.remove(SESSION_CACHE_KEY);
@@ -176,12 +267,13 @@ export default function App() {
   if (!session?.authenticated) {
     return <>
       {pendingUpdate && <UpdateBanner onUpdate={() => void pendingUpdate(true)}/>}
-      <LoginScreen session={session} error={sessionError} busy={busy} onLogin={login}/>
+      <LoginScreen session={session} error={sessionError} busy={busy} onLogin={login} onGuest={continueAsGuest}/>
     </>;
   }
 
   const user = session.user ?? undefined;
   const isAdmin = user?.role === 'admin';
+  const activeDataSource = getActiveDataSource();
   const actionContext: ActionContext = { userId: user?.id ?? '', refresh, busy, run };
 
   return (
@@ -192,7 +284,7 @@ export default function App() {
           <span><b>实习工作台</b><small>DECISION & ACTION</small></span>
           <button className="icon-btn mobile-close" aria-label="关闭菜单" onClick={() => setMobileOpen(false)}><X size={18}/></button>
         </div>
-        <div className="demo-banner">演示站 · 虚构数据</div>
+        <div className="demo-banner">{activeDataSource === 'guest' ? '游客体验 · 临时虚构数据' : '演示站 · 虚构数据'}</div>
         <nav aria-label="主导航">
           {navigation.filter((item) => !item.admin || isAdmin).map(({ to, label, icon: Icon }) => (
             <NavLink key={to} end={to === '/'} to={to} className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
@@ -205,9 +297,9 @@ export default function App() {
           <div className="who">
             <span className="avatar">{user?.displayName.slice(0, 1) ?? '演'}</span>
             <span><b>{user?.displayName ?? '演示用户'}</b><small>{isAdmin ? '管理员身份' : '学生身份'}</small></span>
-            <button className="icon-btn" title="退出登录" onClick={() => void logout()}><LogOut size={16}/></button>
+            <button className="icon-btn" title={activeDataSource === 'guest' ? '结束游客体验并清除数据' : '退出登录'} onClick={() => void logout()}><LogOut size={16}/></button>
           </div>
-          <div className="api-indicator"><span className="dot"/>{dataSource === 'demo' ? '内置演示数据源' : '后端会话已连接'}</div>
+          <div className="api-indicator"><span className="dot"/>{activeDataSource === 'guest' ? '本标签页临时数据 · 退出或关闭即清除' : dataSource === 'demo' ? '内置演示数据源' : '后端会话已连接'}</div>
         </div>
       </aside>
       {mobileOpen && <button className="sidebar-scrim" aria-label="关闭菜单" onClick={() => setMobileOpen(false)}/>}
@@ -273,11 +365,13 @@ function LoginScreen({
   error,
   busy,
   onLogin,
+  onGuest,
 }: {
   session: Session | null;
   error: string;
   busy: boolean;
   onLogin: (id: string) => Promise<void>;
+  onGuest: () => Promise<void>;
 }) {
   const users = session?.demoUsers ?? [];
   return (
@@ -286,7 +380,7 @@ function LoginScreen({
         <div className="brand-mark">实</div>
         <span className="eyebrow">演示站 · 虚构数据</span>
         <h1>进入实习工作台</h1>
-        <p>选择由服务端提供的演示身份。身份和权限以服务端会话为准。</p>
+        <p>登录可选择演示身份；游客体验使用独立的本机虚构数据，不会写入服务端。</p>
         {error && <div className="alert"><Activity size={17}/><span>{error}</span></div>}
         {users.length > 0 ? (
           <div className="login-users">
@@ -301,7 +395,10 @@ function LoginScreen({
             <span>{error ? '无法连接演示服务，请启动后端并刷新。' : '服务端未提供演示身份。'}</span>
           </div>
         )}
-        <small className="muted">本环境使用演示账号，不提供真实注册或简历投递。</small>
+        <button className="guest-choice" disabled={busy} onClick={() => void onGuest()}>
+          游客访问（完整学生端体验）<ChevronRight size={18}/>
+        </button>
+        <small className="muted">退出游客体验或关闭此标签页后，游客会话和数据会清除。演示身份选择不是账号密码认证。</small>
       </section>
     </main>
   );

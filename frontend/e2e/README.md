@@ -44,6 +44,7 @@ WORKBENCH_URL=http://127.0.0.1:8790 npm run e2e:offline   # 离线编辑→刷�
 cd frontend
 npm run dev:demo        # 5174 端口，使用内置演示适配器
 npm run e2e:demo        # 无头浏览器验收计划要求的状态分支
+npm run e2e:guest       # 登录页默认、游客隔离与离开清除
 ```
 
 演示适配器与 HTTP 适配器实现同一个 fetch 形状接口（见 `src/api/transport.ts`），因此页面、轮询和离线队列不需要区分数据源；它可模拟请求延迟、故障、`202 + operationId` 异步作业、409 版本冲突与离线同步去重。

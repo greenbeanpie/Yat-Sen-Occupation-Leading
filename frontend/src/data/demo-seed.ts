@@ -81,11 +81,20 @@ const PUBLIC_JOB_IDS = {
   userResearch: '30000000-0000-4000-8000-000000000004',
 } as const;
 
-export function buildDemoDatabase(now: Date): DemoDatabase {
+export function buildDemoDatabase(now: Date, guestUserId?: string): DemoDatabase {
   const stamp = now.toISOString();
-  const student = DEMO_USER_IDS.student;
+  const student = guestUserId ?? DEMO_USER_IDS.student;
 
-  const users: DemoUser[] = [
+  const users: DemoUser[] = guestUserId ? [
+    {
+      id: guestUserId,
+      role: 'student',
+      displayName: '游客（临时体验）',
+      timezone: 'Asia/Shanghai',
+      notifyTaskDue: true,
+      notifyInterview: true,
+    },
+  ] : [
     {
       id: DEMO_USER_IDS.student,
       role: 'student',
@@ -289,7 +298,7 @@ export function buildDemoDatabase(now: Date): DemoDatabase {
   return {
     schema: 1,
     seededAt: stamp,
-    sessionUserId: null,
+    sessionUserId: guestUserId ?? null,
     users,
     profiles: [profile],
     experiences,
