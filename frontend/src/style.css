@@ -168,6 +168,8 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 .panel h3 { margin: 18px 0 10px; color: var(--ink); font-size: 13px; }
 .panel h4 { margin: 16px 0 9px; color: var(--ink); font-size: 12px; }
 .two-col { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; align-items: start; }
+.content, .modal { overflow-wrap: anywhere; }
+.panel, .panel-head > div, .detail-title h3 { min-width: 0; }
 .two-col > .panel { min-width: 0; }
 .stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 13px; margin: 0 0 18px; }
 .stat-card { min-height: 105px; display: flex; flex-direction: column; align-items: flex-start; gap: 7px; padding: 15px 17px; background: var(--theme-surface, #fff); border: 1px solid var(--theme-line, #e9ecf1); border-radius: 14px; box-shadow: var(--shadow); }
@@ -263,11 +265,12 @@ button.upload-box:disabled { color: var(--muted); background: var(--theme-surfac
 .job-card, .admin-job { display: flex; justify-content: space-between; align-items: flex-start; gap: 14px; }
 .job-card .row-main { flex: 1; }
 .search-bar { display: flex; gap: 8px; margin: 0 0 13px; }
-.search-bar input { flex: 1; }
+.search-bar input { flex: 1; min-width: 0; }
 .private-job-card { flex-direction: column; }
 .private-job-card .row-main { width: 100%; }
 .detail-title { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .detail-title h3 { margin: 0; font-size: 17px; }
+.detail-title .badge { flex-shrink: 0; white-space: nowrap; }
 .requirement-list { display: grid; gap: 8px; padding: 0; list-style: none; }
 .requirement-list li { display: grid; grid-template-columns: 100px 1fr; gap: 4px 10px; padding: 9px; background: var(--theme-surface, #f8f9fc); border-radius: 8px; font-size: 10px; }
 .requirement-list li > b { color: var(--link); }
@@ -431,8 +434,8 @@ button.upload-box:disabled { color: var(--muted); background: var(--theme-surfac
 }
 
 @media (max-width: 700px) {
-  .sidebar { width: min(290px, 84vw); transform: translateX(-102%); transition: transform .22s ease; box-shadow: 10px 0 40px rgb(25 35 54 / 13%); }
-  .sidebar.open { transform: translateX(0); }
+  .sidebar { width: min(290px, 84vw); visibility: hidden; transform: translateX(-102%); transition: transform .22s ease; box-shadow: 10px 0 40px rgb(25 35 54 / 13%); }
+  .sidebar.open { visibility: visible; transform: translateX(0); }
   .sidebar-scrim { position: fixed; z-index: 25; inset: 0; display: block; width: 100%; height: 100%; background: rgb(27 35 50 / 25%); border: 0; }
   .mobile-close, .menu-btn { display: inline-grid; }
   .mobile-close { margin-left: auto; }
@@ -459,6 +462,7 @@ button.upload-box:disabled { color: var(--muted); background: var(--theme-surfac
   .next-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
   .quick { min-height: 112px; padding: 11px; }
   .form-grid, .form-grid.compact { grid-template-columns: minmax(0, 1fr); gap: 9px; }
+  .field input, .field textarea, .field select, .search-bar input, .inline-field select, .interview-form .field input, .interview-result input, .interview-result select { min-width: 0; font-size: 16px; }
   .field:has(textarea) { grid-column: auto; }
   .match-controls { align-items: stretch; flex-direction: column; }
   .score-grid { gap: 6px; }
@@ -472,6 +476,7 @@ button.upload-box:disabled { color: var(--muted); background: var(--theme-surfac
   .portfolio-row .button-row { margin-top: 0; }
   .interview-form { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .interview-form > button { grid-column: 1 / -1; }
+  .interview-form .field:has(input[type="datetime-local"]) { grid-column: 1 / -1; }
   .interview-result { grid-template-columns: minmax(0, .75fr) 1fr; }
   .interview-result button { grid-column: 1 / -1; }
   .mobile-bottom-nav { position: fixed; z-index: 20; inset: auto 0 0; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); padding: 6px 5px calc(6px + env(safe-area-inset-bottom)); background: var(--mobile-nav); border-top: 1px solid var(--theme-line, #e5e9ef); box-shadow: 0 -5px 20px rgb(29 40 61 / 5%); backdrop-filter: blur(14px); }

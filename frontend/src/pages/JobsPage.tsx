@@ -52,15 +52,15 @@ export function JobsPage({ context }: { context: ActionContext }) {
       description="查看公开岗位或粘贴私人 JD。列表项中的硬条件和原文引用由服务端岗位详情提供。"
       action={<button className="btn primary" onClick={() => setCreating(true)}><Plus size={16}/>添加私人 JD</button>}
     />
-    <Panel title="公共岗位库" description={`${publicItems.length} 条可见岗位`}>
+    <Panel title="公共岗位库" description={publicJobs.loading && !publicJobs.data ? '正在读取岗位…' : `${publicItems.length} 条可见岗位`}>
       <form className="search-bar" onSubmit={(event) => { event.preventDefault(); setSearch(query.trim()); }}>
         <label className="visually-hidden" htmlFor="job-search">搜索岗位</label>
         <input id="job-search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="按岗位名称或 JD 搜索"/>
         <button className="btn secondary">搜索</button>
       </form>
       <ResourceNotice error={publicJobs.error}/>
-      {publicJobs.loading && !publicJobs.data && <Loading/>}
-      <DataRows items={publicItems} empty="公共岗位库暂时没有匹配结果。">
+
+      <DataRows items={publicItems} loading={publicJobs.loading} empty="公共岗位库暂时没有匹配结果。">
         {(job) => <div className="job-card">
           <div className="row-main">
             <div className="row-title">{job.title}<Badge value={job.status}/></div>
@@ -77,7 +77,7 @@ export function JobsPage({ context }: { context: ActionContext }) {
 
     <Panel title="私人岗位" description="只对当前演示账号可见；粘贴原始 JD，可选填写来源链接和截止日期">
       <ResourceNotice error={privateJobs.error}/>
-      <DataRows items={privateItems} empty="你还没有添加私人岗位。">
+      <DataRows items={privateItems} loading={privateJobs.loading} empty="你还没有添加私人岗位。">
         {(job) => <PrivateJobCard job={job} context={context} onOpen={() => setSelected(job.id)}/>}
       </DataRows>
     </Panel>

@@ -149,8 +149,8 @@ export function ProfilePage({ context }: { context: ActionContext }) {
     <div className="two-col">
       <Panel title="经历" description="编辑时带上服务端版本；离线新增和修改会在同步中心排队">
         <ResourceNotice error={evidenceResource.error}/>
-        {evidenceResource.loading && !evidence && <Loading/>}
-        <DataRows items={evidence?.experiences ?? []} empty="还没有经历。手动补充经历后，才能将技能和岗位差距与原文关联。">
+
+        <DataRows items={evidence?.experiences ?? []} loading={evidenceResource.loading} empty="还没有经历。手动补充经历后，才能将技能和岗位差距与原文关联。">
           {(experience) => <ExperienceCard experience={experience} context={context} bundle={evidence!}/>}
         </DataRows>
         <ActionForm
@@ -162,7 +162,7 @@ export function ProfilePage({ context }: { context: ActionContext }) {
       </Panel>
 
       <Panel title="技能证据" description="引用必须命中经历原文；状态不会根据模型推断自动变成已确认">
-        <DataRows items={evidence?.skills ?? []} empty="还没有技能。先添加技能，再关联一条经历引用。">
+        <DataRows items={evidence?.skills ?? []} loading={evidenceResource.loading} empty="还没有技能。先添加技能，再关联一条经历引用。">
           {(skill) => <div className="row-main"><div className="row-title">{skill.name}<Badge value="已记录"/></div><small>技能 ID：{skill.id}</small></div>}
         </DataRows>
         <ActionForm

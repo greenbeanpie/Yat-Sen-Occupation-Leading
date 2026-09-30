@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { CalendarPlus, MessageSquareText, Trash2 } from 'lucide-react';
 import { del, get, patch, post } from '../api/client';
 import type { components } from '../api/schema';
-import { ActionForm, Badge, DataRows, InlineError, Loading, PageHead, Panel, ResourceNotice, useResource } from '../components';
+import { ActionForm, Badge, DataRows, InlineError, PageHead, Panel, ResourceNotice, useResource } from '../components';
 import type { ActionContext } from '../components';
 import { cacheKey, cacheValue, readCached, withOfflineQueue } from '../offline';
 
@@ -78,8 +78,8 @@ export function TrackingPage({ context }: { context: ActionContext }) {
     <div className="two-col">
       <Panel title="投递记录" description="状态变化由服务端状态机校验并保留历史">
         <ResourceNotice error={applications.error}/>
-        {applications.loading && !applications.data && <Loading/>}
-        <DataRows items={items} empty="目前没有投递记录。可以先添加职位，之后持续记录状态和反馈。">
+
+        <DataRows items={items} loading={applications.loading} empty="目前没有投递记录。可以先添加职位，之后持续记录状态和反馈。">
           {(application) => <ApplicationCard application={application} context={context}/>}
         </DataRows>
       </Panel>
@@ -116,7 +116,7 @@ export function TrackingPage({ context }: { context: ActionContext }) {
 
     <Panel title="实际工时" description={`${range.from} 至 ${range.to}`}>
       <ResourceNotice error={timeEntries.error}/>
-      <DataRows items={entries} empty="所选时间段还没有工时记录。">
+      <DataRows items={entries} loading={timeEntries.loading} empty="所选时间段还没有工时记录。">
         {(entry) => <div className="time-entry-row">
           <div><b>{entry.spentOn}</b><span>{entry.minutes} 分钟</span><small>{entry.note || '未填写说明'}</small></div>
           <button className="btn small danger" disabled={context.busy} onClick={() => void context.run(() => del(`/time-entries/${entry.id}`), '工时记录已删除')}><Trash2 size={14}/>删除</button>

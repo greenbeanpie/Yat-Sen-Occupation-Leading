@@ -141,11 +141,11 @@ export function ResourceNotice({ error }: { error: string }) {
 
 export function Badge({ value }: { value: string | null | undefined }) {
   const label = value || '未知';
-  const cls = /confirmed|published|done|offered|succeeded|submitted|met/.test(label)
+  const cls = /^(confirmed|published|done|offered|succeeded|submitted|met)$/.test(label)
     ? 'good'
-    : /pending|draft|unknown|running|queued|preparing/.test(label)
+    : /^(pending|draft|unknown|running|queued|preparing)$/.test(label)
       ? 'warn'
-      : /rejected|failed|unmet|archived|cancelled/.test(label)
+      : /^(rejected|failed|unmet|archived|cancelled)$/.test(label)
         ? 'bad'
         : 'neutral';
   return <span className={`badge ${cls}`}>{label}</span>;
@@ -274,13 +274,15 @@ export function JsonPreview({ value }: { value: unknown }) {
 export function DataRows<T>({
   items,
   empty,
+  loading = false,
   children,
 }: {
   items: T[];
   empty: ReactNode;
+  loading?: boolean;
   children: (item: T) => ReactNode;
 }) {
-  if (items.length === 0) return <EmptyState>{empty}</EmptyState>;
+  if (items.length === 0) return loading ? <Loading/> : <EmptyState>{empty}</EmptyState>;
   return <div className="data-list">{items.map((item, index) => {
     const id = item && typeof item === 'object' && 'id' in item ? item.id : undefined;
     return <div className="data-row" key={typeof id === 'string' ? id : index}>{children(item)}</div>;

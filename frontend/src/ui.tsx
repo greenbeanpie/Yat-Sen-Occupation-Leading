@@ -56,6 +56,29 @@ export default function App() {
   const [pendingUpdate, setPendingUpdate] = useState<((reloadPage?: boolean) => Promise<void>) | null>(null);
   const location = useLocation();
 
+  useEffect(() => {
+    if (!mobileOpen) return;
+    const mobile = window.matchMedia('(max-width: 700px)');
+    if (!mobile.matches) { setMobileOpen(false); return; }
+    const resized = () => { if (!mobile.matches) setMobileOpen(false); };
+    mobile.addEventListener('change', resized);
+    const sidebar = document.querySelector<HTMLElement>('.sidebar');
+    const previous = document.activeElement as HTMLElement | null;
+    const controls = () => Array.from(sidebar?.querySelectorAll<HTMLElement>('a[href], button:not(:disabled)') ?? []).filter(element => element.getClientRects().length && getComputedStyle(element).visibility !== 'hidden');
+    controls()[0]?.focus();
+    const keydown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') { event.preventDefault(); setMobileOpen(false); }
+      if (event.key !== 'Tab') return;
+      const items = controls();
+      const first = items[0]; const last = items[items.length - 1];
+      if (!first) return;
+      if (event.shiftKey && (document.activeElement === first || !sidebar?.contains(document.activeElement))) { event.preventDefault(); last.focus(); }
+      else if (!event.shiftKey && (document.activeElement === last || !sidebar?.contains(document.activeElement))) { event.preventDefault(); first.focus(); }
+    };
+    document.addEventListener('keydown', keydown);
+    return () => { mobile.removeEventListener('change', resized); document.removeEventListener('keydown', keydown); if (previous?.isConnected) previous.focus(); };
+  }, [mobileOpen]);
+
   const reload = useCallback(() => setRefresh((current) => current + 1), []);
 
   useEffect(() => {
@@ -354,7 +377,7 @@ export default function App() {
 
   return (
     <div className="app-shell">
-      <aside className={`sidebar ${mobileOpen ? 'open' : ''}`}>
+      <aside id="workbench-navigation" className={`sidebar ${mobileOpen ? 'open' : ''}`}>
         <div className="brand">
           <div className="brand-mark">实</div>
           <span><b>实习工作台</b><small>DECISION & ACTION</small></span>
@@ -387,7 +410,7 @@ export default function App() {
 
       <main className="main">
         <header className="topbar">
-          <button className="icon-btn menu-btn" aria-label="打开菜单" onClick={() => setMobileOpen(true)}><Menu size={20}/></button>
+          <button className="icon-btn menu-btn" aria-label="打开菜单" aria-expanded={mobileOpen} aria-controls="workbench-navigation" onClick={() => setMobileOpen(true)}><Menu size={20}/></button>
           <div className="breadcrumbs">工作台 <span>/</span> {navigation.find((item) => item.to === location.pathname)?.label ?? '页面'}</div>
           <div className="top-actions">
             <span className="sync-pill"><Cloud size={15}/>{pending ? `${pending} 项待同步` : '已同步'}</span>

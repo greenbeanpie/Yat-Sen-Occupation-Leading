@@ -98,7 +98,7 @@ export function MatchingPage({ context }: { context: ActionContext }) {
     </Panel>
 
     <Panel title="最近分析" description="从每个岗位详情读取最新快照">
-      {jobs.length ? <div className="match-history-grid">{jobs.map((job) => <RecentMatch key={job.id} job={job} onOpen={(snapshot) => setMatch(snapshot)}/>)}</div> : <div className="empty">请先添加或浏览岗位。</div>}
+      {jobs.length ? <div className="match-history-grid">{jobs.map((job) => <RecentMatch key={job.id} job={job} onOpen={(snapshot) => setMatch(snapshot)}/>)}</div> : jobsResource.loading || privateResource.loading ? <Loading/> : <div className="empty">请先添加或浏览岗位。</div>}
     </Panel>
 
     <Panel title="求职组合" description="用每周可投入时间筛选岗位；固定、移除或替换后重新计算，不会自动增加预算">
@@ -110,7 +110,7 @@ export function MatchingPage({ context }: { context: ActionContext }) {
       />
       {selectedPortfolio && <>
         <div className="portfolio-summary"><b>组合预算：{selectedPortfolio.timeBudgetHours} 小时</b><span>{selectedPortfolio.items.filter((item) => item.selected).length} 个岗位入选</span></div>
-        <DataRows items={selectedPortfolioJobs} empty="当前组合没有岗位。先为岗位生成匹配分析。">
+        <DataRows items={selectedPortfolioJobs} loading={portfolios.loading} empty="当前组合没有岗位。先为岗位生成匹配分析。">
           {(item) => <div className="portfolio-row">
             <div className="row-main">
               <div className="row-title">{item.job?.title ?? item.jobId}<Badge value={item.selected ? 'selected' : item.excludedReason ?? 'excluded'}/></div>

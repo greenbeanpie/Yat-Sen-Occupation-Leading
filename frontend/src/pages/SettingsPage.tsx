@@ -219,7 +219,7 @@ export function SettingsPage({ context, pending, demo, onRefreshSession, onSessi
     <div className="two-col">
       <Panel title="站内提醒" description={`${notifications.data?.unreadCount ?? '—'} 条未读`}>
         <ResourceNotice error={notifications.error}/>
-        <DataRows items={notifications.data?.items ?? []} empty="暂无已发送的站内提醒。">
+        <DataRows items={notifications.data?.items ?? []} loading={notifications.loading} empty="暂无已发送的站内提醒。">
           {(notice) => <article className="notification-row">
             <div className="row-title">{notice.title}<Badge value={notice.readAt ? '已读' : notice.kind}/></div>
             <p>{notice.body}</p><small>{new Date(notice.fireAt).toLocaleString('zh-CN')}</small>
@@ -230,7 +230,7 @@ export function SettingsPage({ context, pending, demo, onRefreshSession, onSessi
 
       <Panel title="增量变更" description="用于显示最近从服务端同步的记录版本">
         <ResourceNotice error={changes.error}/>
-        <DataRows items={changes.data?.changes ?? []} empty="尚无同步变更记录。">
+        <DataRows items={changes.data?.changes ?? []} loading={changes.loading} empty="尚无同步变更记录。">
           {(change) => <div className="row-main"><div className="row-title">{change.entity} · {change.changeType}<small>版本 {change.version} · {new Date(change.changedAt).toLocaleString('zh-CN')}</small></div></div>}
         </DataRows>
       </Panel>

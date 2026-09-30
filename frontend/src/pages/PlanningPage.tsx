@@ -89,8 +89,8 @@ export function PlanningPage({ context }: { context: ActionContext }) {
     <div className="two-col">
       <Panel title="计划版本" description="新计划不会自动替换已经确认的计划">
         <ResourceNotice error={plans.error}/>
-        {plans.loading && !plans.data && <Loading/>}
-        <DataRows items={plans.data?.items ?? []} empty="还没有计划。选择组合后生成一份草稿。">
+
+        <DataRows items={plans.data?.items ?? []} loading={plans.loading} empty="还没有计划。选择组合后生成一份草稿。">
           {(plan) => <button className={`plan-select ${selectedPlan?.id === plan.id ? 'selected' : ''}`} onClick={() => setSelectedPlanId(plan.id)}>
             <span><b>两周计划</b><small>{new Date(plan.updatedAt).toLocaleString('zh-CN')}</small></span>
             <Badge value={plan.status}/>

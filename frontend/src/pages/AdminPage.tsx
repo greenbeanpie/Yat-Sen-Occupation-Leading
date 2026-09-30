@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react';
 import { FileSearch, Pencil, Plus, Send, Archive } from 'lucide-react';
 import { get, pollOperation, post, put } from '../api/client';
 import type { components } from '../api/schema';
-import { ActionForm, Badge, DataRows, InlineError, JsonPreview, Loading, Modal, PageHead, Panel, ResourceNotice, useResource } from '../components';
+import { ActionForm, Badge, DataRows, InlineError, JsonPreview, Modal, PageHead, Panel, ResourceNotice, useResource } from '../components';
 import type { ActionContext } from '../components';
 
 type Job = components['schemas']['Job'];
@@ -30,8 +30,8 @@ export function AdminPage({ context, user }: { context: ActionContext; user?: Ad
     />
     <Panel title="公共岗位" description="支持编辑 JD、解析并确认要求、发布、下架或归档">
       <ResourceNotice error={jobs.error}/>
-      {jobs.loading && !jobs.data && <Loading/>}
-      <DataRows items={jobs.data?.items ?? []} empty="公共岗位库尚无记录。">
+
+      <DataRows items={jobs.data?.items ?? []} loading={jobs.loading} empty="公共岗位库尚无记录。">
         {(job) => <AdminJobCard job={job} context={context} onEdit={() => setEditing(job)}/>}
       </DataRows>
     </Panel>
