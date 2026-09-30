@@ -46,7 +46,7 @@ describe('operator recovery and bootstrap compatibility (synthetic local fixture
     for (const change of [{ id: STUDENT }, { role: 'student' }, { deleted: 1 }, { is_demo: 1 }, { canonical_count: 2 }]) expect(() => assertTarget({ ...row, ...change })).toThrow();
     expect(() => buildResetSql(row, "bad'; DROP TABLE users;--", '2026-09-30T00:00:00.000Z')).toThrow();
   });
-  it('runs real Windows DPAPI roundtrip with only a synthetic fixture and parses Wrangler JSON', () => {
+  it.skipIf(process.platform !== 'win32')('runs real Windows DPAPI roundtrip with only a synthetic fixture and parses Wrangler JSON', () => {
     const protectedResult = spawnSync('powershell.exe', ['-NoProfile','-NonInteractive','-Command', "[Reflection.Assembly]::LoadWithPartialName('System.Security') | Out-Null; [Convert]::ToBase64String([Security.Cryptography.ProtectedData]::Protect([Text.Encoding]::UTF8.GetBytes([Console]::In.ReadToEnd()),$null,[Security.Cryptography.DataProtectionScope]::CurrentUser))"], {input:fixturePassword,encoding:'utf8',windowsHide:true});
     expect(protectedResult.status).toBe(0);
     expect(decryptDpapi(protectedResult.stdout.trim())).toBe(fixturePassword);
