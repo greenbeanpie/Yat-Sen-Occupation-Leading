@@ -7,6 +7,7 @@ import { OpenAPIHono } from "@hono/zod-openapi";
 import { cors } from "hono/cors";
 import { errorBody, AppError } from "./shared/errors";
 import { registerSessionRoutes } from "./routes/session";
+import { registerAccountRoutes } from "./routes/account";
 import { registerProfileRoutes } from "./routes/profile";
 import { registerDocumentRoutes } from "./routes/documents";
 import { registerOperationRoutes } from "./routes/operations";
@@ -99,6 +100,7 @@ export function createApp(): App {
 
   registerHealthRoutes(app);
   registerSessionRoutes(app);
+  registerAccountRoutes(app);
   registerInvitationRoutes(app);
   registerProfileRoutes(app);
   registerDocumentRoutes(app);

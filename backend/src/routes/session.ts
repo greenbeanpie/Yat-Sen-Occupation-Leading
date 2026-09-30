@@ -195,10 +195,13 @@ export function registerSessionRoutes(app: App): void {
     if (!(await verifyPassword(password, row.password_hash as string))) throw unauthorized("用户名或密码不正确");
     if ((row.password_hash as string).startsWith("pbkdf2-sha256$100000$")) {
       // Upgrade only after successful verification, without replacing a concurrent credential change.
-      await c.env.DB.prepare(`UPDATE users SET password_hash = ?1 WHERE id = ?2 AND password_hash = ?3`)
-        .bind(await hashPassword(password), row.id, row.password_hash).run();
+      const upgraded = await hashPassword(password);
+      const result = await c.env.DB.prepare(`UPDATE users SET password_hash = ?1 WHERE id = ?2 AND password_hash = ?3`)
+        .bind(upgraded, row.id, row.password_hash).run();
+      if (result.meta.changes !== 1) throw unauthorized('密码已变化，请重新登录');
+      row.password_hash = upgraded;
     }
-    await issueSessionCookie(c, row.id as string);
+    await issueSessionCookie(c, row.id as string, row.password_hash as string);
     return c.json(
       { authenticated: true, user: userPayload(row), capabilities: capabilitiesOf(c.env) },
       200 as const,

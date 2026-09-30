@@ -37,7 +37,7 @@ const navigation = [
   { to: '/plan', label: '计划与改写', icon: CalendarDays },
   { to: '/applications', label: '投递跟踪', icon: ClipboardList },
   { to: '/admin', label: '管理员岗位', icon: Shield, admin: true },
-  { to: '/settings', label: '设置与同步', icon: Settings },
+  { to: '/settings', label: '账户与设置', icon: Settings },
 ];
 
 export default function App() {
@@ -315,6 +315,19 @@ export default function App() {
     }, '已退出');
   }
 
+  async function refreshAccountSession() {
+    const value = await get<Session>('/session');
+    if (!value.authenticated) { await accountSessionEnded('会话已失效，请重新登录。'); return; }
+    setSession(value);
+    await platform.storage.write(SESSION_CACHE_KEY, value);
+  }
+
+  async function accountSessionEnded(message: string) {
+    setSession(null);
+    await platform.storage.remove(SESSION_CACHE_KEY);
+    setSessionError(message);
+  }
+
   if (sessionLoading) return <div className="app-loading"><LoaderCircle className="spin"/>正在连接工作台…</div>;
   if (!session?.authenticated) {
     return <>
@@ -394,7 +407,7 @@ export default function App() {
             <Route path="/plan" element={<PlanningPage context={actionContext}/>}/>
             <Route path="/applications" element={<TrackingPage context={actionContext}/>}/>
             <Route path="/admin" element={isAdmin ? <AdminPage context={actionContext} user={user}/> : <Navigate to="/" replace/>}/>
-            <Route path="/settings" element={<SettingsPage context={actionContext} pending={pending}/>}/>
+            <Route path="/settings" element={<SettingsPage context={actionContext} pending={pending} demo={Boolean(user?.demo) || getActiveDataSource() !== 'http'} onRefreshSession={refreshAccountSession} onSessionEnded={accountSessionEnded}/>}/>
             <Route path="*" element={<Navigate to="/" replace/>}/>
           </Routes>
         </div>

@@ -38,13 +38,16 @@ async function readSession(c: Context<AppEnv>): Promise<SessionPayload | null> {
   } catch { return null; }
 }
 /** Both credential and demo login issue revocable server-backed sessions. */
-export async function issueSessionCookie(c: Context<AppEnv>, userId: string): Promise<void> {
+export async function issueSessionCookie(c: Context<AppEnv>, userId: string, passwordHash?: string): Promise<void> {
   const signingKey = await key(c, "sign");
   const iat = Math.floor(Date.now() / 1000);
   const payload: SessionPayload = { uid: userId, jti: crypto.randomUUID(), iat, exp: iat + SESSION_TTL_SECONDS };
   const body = encode(encoder.encode(JSON.stringify(payload)));
   const signature = encode(new Uint8Array(await crypto.subtle.sign("HMAC", signingKey, encoder.encode(body))));
-  await c.env.DB.prepare(`INSERT INTO sessions (id, user_id, expires_at) VALUES (?1, ?2, ?3)`).bind(payload.jti, userId, payload.exp).run();
+  const result = passwordHash === undefined
+    ? await c.env.DB.prepare(`INSERT INTO sessions (id, user_id, expires_at) VALUES (?1, ?2, ?3)`).bind(payload.jti, userId, payload.exp).run()
+    : await c.env.DB.prepare(`INSERT INTO sessions (id, user_id, expires_at) SELECT ?1, ?2, ?3 FROM users WHERE id=?2 AND password_hash=?4 AND deleted=0 AND is_demo=0`).bind(payload.jti, userId, payload.exp, passwordHash).run();
+  if (result.meta.changes !== 1) throw unauthorized('密码已变化，请重新登录');
   setCookie(c, COOKIE_NAME, `${body}.${signature}`, { httpOnly: true, sameSite: "Lax", path: "/", secure: true, maxAge: SESSION_TTL_SECONDS });
 }
 export async function clearSessionCookie(c: Context<AppEnv>): Promise<void> {
