@@ -12,4 +12,6 @@ Local checks: backend typecheck and 109 tests; frontend typecheck, lint, 42 test
 
 The user subsequently approved pushing main, updating the existing backend/frontend Workers and enabling the existing frontend `workers.dev` entry. Frontend custom domain and Service Binding are retained. The exact workers.dev frontend origin is added to the backend CORS allowlist. This entry shares production D1/R2 and keeps authentication/authorization; no WAF/challenge policy is changed. Real user password changes must be performed by the user; automated password tests use local synthetic fixtures only.
 
+Production acceptance found that asset-first routing bypassed security headers in the frontend Worker handler. `public/_headers` applies the same existing CSP, nosniff, referrer and HSTS policies to static assets. Preview URLs are explicitly disabled to limit public entry points to the approved workers.dev route and existing custom domain.
+
 Release commit, CI and deployed version/verification evidence will be recorded after the release completes.
