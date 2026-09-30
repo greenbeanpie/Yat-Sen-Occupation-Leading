@@ -1,6 +1,7 @@
 // 端到端联调：需要先启动 backend（npm run dev）与 frontend（npm run dev）。
 // 运行：node e2e/workbench-flow.mjs
-import { mkdir } from 'node:fs/promises';
+import { mkdir, writeFile } from 'node:fs/promises';
+import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { BASE_URL, chromiumExecutable, loadPlaywright } from './playwright-runtime.mjs';
 
@@ -152,6 +153,62 @@ await step('证据：建立技能与经历原文的引用并确认', async () =>
   const confirmed = await waitForCall('PUT', /^\/evidence\/links\//);
   await target.getByText('confirmed').first().waitFor({ state: 'visible', timeout: 15000 });
   return `${created.status} 创建 / ${confirmed.status} 确认`;
+});
+
+// ------------------------------------------------------- 简历导入（documents 流水线）
+function buildMinimalPdf(textLines) {
+  const escapePdf = (s) => s.replace(/\\/g, '\\\\').replace(/\(/g, '\\(').replace(/\)/g, '\\)');
+  const contentText = textLines
+    .map((line, i) => `BT /F1 12 Tf 72 ${720 - i * 20} Td (${escapePdf(line)}) Tj ET`)
+    .join('\n');
+  const objects = [
+    '<< /Type /Catalog /Pages 2 0 R >>',
+    '<< /Type /Pages /Kids [3 0 R] /Count 1 >>',
+    '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>',
+    `<< /Length ${contentText.length} >>\nstream\n${contentText}\nendstream`,
+    '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>',
+  ];
+  let pdf = '%PDF-1.4\n';
+  const offsets = [];
+  objects.forEach((obj, i) => {
+    offsets.push(pdf.length);
+    pdf += `${i + 1} 0 obj\n${obj}\nendobj\n`;
+  });
+  const xrefStart = pdf.length;
+  pdf += `xref\n0 ${objects.length + 1}\n0000000000 65535 f \n`;
+  for (const off of offsets) pdf += `${String(off).padStart(10, '0')} 00000 n \n`;
+  pdf += `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xrefStart}\n%%EOF\n`;
+  return Buffer.from(pdf, 'latin1');
+}
+
+const resumePdfPath = path.join(ARTIFACTS, `resume-${RUN}.pdf`);
+await writeFile(resumePdfPath, buildMinimalPdf([
+  'Resume',
+  `Data Analysis Candidate ${RUN}`,
+  'Skilled in SQL and Python data cleaning, built dashboards for weekly reports.',
+]));
+
+await step('简历：上传 PDF 并等待解析草稿（POST /documents）', async () => {
+  await goNav('画像与证据');
+  await waitForText(page, '简历导入');
+  const [chooser] = await Promise.all([
+    page.waitForEvent('filechooser', { timeout: 15000 }),
+    page.getByRole('button', { name: /选择 PDF 或 DOCX 简历/ }).click(),
+  ]);
+  await chooser.setFiles(resumePdfPath);
+  await page.getByRole('button', { name: '上传并解析' }).click();
+  const upload = await waitForCall('POST', /^\/documents$/);
+  await waitForCall('POST', /^\/documents\/[^/]+\/parse$/);
+  await waitForCall('GET', /^\/documents\/[^/]+\/draft$/);
+  await waitForText(page, '解析草稿');
+  return `${upload.status}，草稿已就绪`;
+});
+
+await step('简历：确认解析结果写入画像（POST /documents/{id}/confirm）', async () => {
+  await page.getByLabel('我已核对以上内容，确认写入画像').check();
+  await page.getByRole('button', { name: '确认解析结果' }).click();
+  const call = await waitForCall('POST', /^\/documents\/[^/]+\/confirm$/);
+  return `${call.status} confirm`;
 });
 
 // ------------------------------------------------------- 岗位
