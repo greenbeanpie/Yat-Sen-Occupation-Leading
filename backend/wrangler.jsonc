@@ -26,7 +26,7 @@
     "AI_PROVIDER": "mock",
     "AI_BASE_URL": "",
     "AI_MODEL": "",
-    "CORS_ORIGIN": "https://intern.greenbp.dpdns.org",
+    "CORS_ORIGIN": "https://intern.greenbp.dpdns.org,https://greenbp-intern-workbench.hddhp.workers.dev",
     "DEMO_ENABLED": "true",
     "VAPID_PUBLIC_KEY": "BKJ1cO9h909r82cgVUro8_CkYCQREM_Mo-ukIw47KpTcw8J8tNh8NpbOMTCDdsB95tQCHt_ho7rjmbHcvNFyaLE"
   }

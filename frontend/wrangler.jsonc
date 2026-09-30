@@ -3,7 +3,7 @@
   "name": "greenbp-intern-workbench",
   "main": "src/worker.ts",
   "compatibility_date": "2026-09-29",
-  "workers_dev": false,
+  "workers_dev": true,
   "routes": [{ "pattern": "intern.greenbp.dpdns.org", "custom_domain": true }],
   "assets": {
     "directory": "./dist",

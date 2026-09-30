@@ -177,8 +177,8 @@ export function SettingsPage({ context, pending, demo, onRefreshSession, onSessi
   }
 
   return <>
-    <AccountSettings demo={demo} onRefreshSession={onRefreshSession} onSessionEnded={onSessionEnded}/>
     <PageHead kicker="设置与数据" title="同步、提醒与离线状态" description="应用外壳由 Service Worker 缓存；简历文件和 API 响应不做全量缓存。离线编辑保存在本机，恢复网络后提交。"/>
+    <AccountSettings demo={demo} onRefreshSession={onRefreshSession} onSessionEnded={onSessionEnded}/>
     <div className="two-col">
       <Panel title="离线同步" description="每次操作有唯一 ID 和基础版本，重复提交不会重复写入">
         <div className="sync-overview">

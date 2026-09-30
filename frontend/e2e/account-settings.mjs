@@ -59,6 +59,11 @@ try {
     await page.getByLabel('确认新密码', { exact: true }).fill(next);
   }
   await fillPassword('Fixture-Wrong-Password-123!');
+  mkdirSync('e2e/.artifacts', { recursive: true });
+  for (const theme of ['light', 'dark']) {
+    await page.locator('.theme-select select').selectOption(theme);
+    await page.screenshot({ path: `e2e/.artifacts/account-${theme}.png`, fullPage: true });
+  }
   await page.getByRole('button', { name: '确认修改密码', exact: true }).click();
   await page.getByRole('status').filter({ hasText: '原密码不正确' }).waitFor();
   assert.equal(await page.getByLabel('原密码', { exact: true }).inputValue(), '');

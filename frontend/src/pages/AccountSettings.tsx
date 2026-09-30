@@ -54,7 +54,7 @@ export function AccountSettings({ demo, onRefreshSession, onSessionEnded }: {
           <div className="button-row"><button className="btn primary" disabled={busy || !name.trim()}>保存昵称</button><button type="button" className="btn secondary" disabled={busy} onClick={() => { setName(account.displayName); setMessage(''); }}>取消昵称修改</button></div>
         </form>
         {!editingPassword ? <button className="btn secondary" disabled={busy || !account.username} onClick={() => { setEditingPassword(true); setMessage(''); }}>修改密码</button> : <form className="form-grid" onSubmit={event => void submit(event, true)}>
-          <p className="muted">新密码须为 12–128 位，包含大小写字母、数字和符号，且不同于原密码。修改成功后包括当前设备在内的所有会话都会退出。</p>
+          <p className="muted form-notice">新密码须为 12–128 位，包含大小写字母、数字和符号，且不同于原密码。修改成功后包括当前设备在内的所有会话都会退出。</p>
           <label className="field"><span>原密码</span><input type="password" autoComplete="current-password" required maxLength={128} disabled={busy} value={currentPassword} onChange={event => setCurrentPassword(event.target.value)} /></label>
           <label className="field"><span>新密码</span><input type="password" autoComplete="new-password" required minLength={12} maxLength={128} disabled={busy} value={newPassword} onChange={event => setNewPassword(event.target.value)} /></label>
           <label className="field"><span>确认新密码</span><input type="password" autoComplete="new-password" required maxLength={128} disabled={busy} value={confirm} onChange={event => setConfirm(event.target.value)} /></label>
