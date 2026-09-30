@@ -58,13 +58,19 @@ npm run generate:api
 
 可同步实体统一带：`id`（UUID）、`userId`、`version`（整数乐观锁，**每次写 +1**）、`deleted`（墓碑布尔）、`createdAt`、`updatedAt`。任何更新请求都必须携带读到的 `version` 作为 `baseVersion`。
 
-## 2. 会话与演示身份
+## 2. 会话与账号
 
 ```
-GET    /session     当前身份；未登录时附带可用演示身份列表与能力位
-POST   /session     {userId} 登录（服务端签发 Cookie）
-DELETE /session     登出（204）
+GET    /session              当前身份；未登录时附带可用演示身份列表与能力位
+POST   /session              {userId} 演示身份登录（服务端签发 Cookie；DEMO_ENABLED=false 时 404）
+POST   /session/register     {username, password, displayName?} 注册并自动登录（200，同 SessionResponse）
+POST   /session/login        {username, password} 账号密码登录（200；口令错误与未知用户名同为 401 "用户名或密码不正确"）
+DELETE /session              登出（204）
 ```
+
+- 用户名：`^[a-zA-Z0-9_-]{3,32}$`，全局唯一（重复注册 → 422 `invalid_request`，`details[0].field = "username"`）；口令至少 8 位、至多 128 位。
+- 服务端以 PBKDF2-SHA256（10 万次迭代 + 随机盐）存哈希；`SessionResponse.user.demo` 区分演示身份与注册账号。
+- `capabilities.demoMode` 为 `true` 时登录页才展示演示身份；注册/凭据登录与 `DEMO_ENABLED` 无关。
 
 未登录响应（登录页数据源）：
 

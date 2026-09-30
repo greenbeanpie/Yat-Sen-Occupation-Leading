@@ -76,8 +76,14 @@ cd backend
 npm run db:migrate:remote
 ```
 
-迁移脚本来自 `migrations/0001_init.sql`（由 `npm run gen:migrations` 生成）。迁移只前进不回滚；
-重新部署旧代码不会回退表结构。
+迁移脚本来自 `migrations/0001_init.sql`（由 `npm run gen:migrations` 生成）与后续增量（当前有
+`0002_user_credentials.sql`：users 增加 `username`/`password_hash`/`is_demo` 及唯一索引，存量用户标记为演示身份）。
+**引入账号体系后必须先在远端应用 0002 再部署新后端**，否则注册/登录端点会因缺少列而 500。
+迁移只前进不回滚；重新部署旧代码不会回退表结构；旧的纯演示部署在未迁移时仍可运行。
+
+`DEMO_ENABLED` 的取值决定登录页形态：`true`（当前演示站）额外提供演示身份直登；
+面向真实用户的生产部署建议设 `false`，届时 `GET /session` 不再返回演示身份、`POST /session` 直登返回 404，
+仅保留注册/凭据登录；前端“体验演示模式”按钮使用本机内置适配器，不受影响。
 
 ## 4. Secrets 与环境变量
 
