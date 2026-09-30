@@ -11,6 +11,16 @@ const root = dirname(dirname(fileURLToPath(import.meta.url)));
 // 每个测试进程独立 bundle 文件，避免并行 esbuild 写同一文件
 const bundlePath = join(root, "test", ".tmp", `worker.${process.pid}.${Math.random().toString(36).slice(2, 8)}.mjs`);
 
+// Miniflare 把 D1/R2/cache 等持久化目录放在 os.tmpdir() 下。在受限沙箱（如 Windows
+// 沙箱化运行、%TEMP% 只读的 CI）里 workerd 子进程无法在那里建目录，会直接
+// std::terminate 或报 SQLITE_CANTOPEN。把临时根目录指到仓库内的 test/.tmp（已 gitignore），
+// workerd 就能正常启动。必须在 Miniflare 启动前设置，os.tmpdir() 每次调用都会读这些变量。
+const mfTmpRoot = join(root, "test", ".tmp", "tmp-root");
+mkdirSync(mfTmpRoot, { recursive: true });
+process.env.TMP = mfTmpRoot;
+process.env.TEMP = mfTmpRoot;
+process.env.TMPDIR = mfTmpRoot;
+
 interface MfBundle {
   mf: Miniflare;
 }
