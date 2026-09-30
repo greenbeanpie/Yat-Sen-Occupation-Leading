@@ -10,6 +10,7 @@
  * 本脚本不会创建 Cloudflare 资源、不写入密钥、也不部署。
  * 资源创建见 `node scripts/bootstrap-cloudflare.mjs --apply`。
  */
+import { parseJsonArrayResult } from "./command-output.mjs";
 import { spawnSync } from "node:child_process";
 import { readFileSync, writeFileSync, readdirSync } from "node:fs";
 import { dirname, join } from "node:path";
@@ -40,7 +41,7 @@ function run(command, args, { cwd = ROOT } = {}) {
   const result = spawnSync(command, args, { cwd, encoding: "utf8", maxBuffer: 128 * 1024 * 1024, shell: winPackager || undefined });
   const output = `${result.stdout ?? ""}${result.stderr ?? ""}`.trim();
   if (result.error) return { code: 127, output: `${output}\n${result.error.message}`.trim() };
-  return { code: result.status ?? 1, output };
+  return { code: result.status ?? 1, output, stdout: result.stdout ?? "" };
 }
 
 function tail(text, lines = 15) {
@@ -158,21 +159,18 @@ if (authenticated) {
 if (authenticated) {
   const d1List = run(NPX, ["wrangler", "d1", "list", "--json"], { cwd: BACKEND });
   let databases = [];
-  if (d1List.code === 0) {
-    const start = d1List.output.indexOf("[");
-    // wrangler 的 npm notice 可能出现在 JSON 之后（stdout/stderr 合并），因此截到最后一个 ']'。
-    const end = d1List.output.lastIndexOf("]");
-    if (start >= 0 && end > start) {
-      try {
-        databases = JSON.parse(d1List.output.slice(start, end + 1));
-      } catch {
-        databases = [];
-      }
-    }
+  let databaseReadOk = false;
+  try {
+    databases = parseJsonArrayResult(d1List);
+    databaseReadOk = true;
+  } catch {
+    mark("fail", "无法读取 D1 列表；不能据此认定数据库不存在，请检查命令和授权");
   }
 
   const byName = databases.find((item) => item.name === d1Name);
-  if (!byName) {
+  if (!databaseReadOk) {
+    // Keep failed reads distinct from a confirmed missing database.
+  } else if (!byName) {
     mark("todo", `D1 数据库 ${d1Name} 不存在：node scripts/bootstrap-cloudflare.mjs --apply`);
   } else if (placeholder) {
     mark("todo", `D1 ${d1Name} 已存在（${byName.uuid}），但 wrangler.jsonc 的 database_id 仍是占位符`);
@@ -195,8 +193,7 @@ if (authenticated) {
     const migrationState = run(NPX, ["wrangler", "d1", "execute", "DB", "--remote", "--command", process.platform === "win32" ? `"${sql}"` : sql, "--json"], { cwd: BACKEND });
     let applied = [];
     try {
-      const start = migrationState.output.indexOf("["); const end = migrationState.output.lastIndexOf("]");
-      applied = JSON.parse(migrationState.output.slice(start, end + 1)).flatMap((entry) => (entry.results ?? []).map((row) => row.name));
+      applied = parseJsonArrayResult(migrationState).flatMap((entry) => (entry.results ?? []).map((row) => row.name));
     } catch { /* A failed read cannot establish migration readiness. */ }
     const expected = readdirSync(join(BACKEND, "migrations")).filter((file) => file.endsWith(".sql"));
     const pending = expected.filter((file) => !applied.includes(file));

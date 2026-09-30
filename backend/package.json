@@ -9,7 +9,7 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "export:openapi": "tsx scripts/export-openapi.ts",
+    "export:openapi": "node --import tsx scripts/export-openapi.ts",
     "generate:vapid": "tsx scripts/generate-vapid.ts",
     "gen:migrations": "tsx scripts/gen-migrations.ts",
     "db:migrate:local": "wrangler d1 migrations apply DB --local",
