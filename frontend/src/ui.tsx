@@ -1,3 +1,4 @@
+import { ThemeSelect } from './ThemeSelect';
 import { useCallback, useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { NavLink, Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import {
@@ -392,6 +393,7 @@ export default function App() {
             <span className="sync-pill"><Cloud size={15}/>{pending ? `${pending} 项待同步` : '已同步'}</span>
             <button className="icon-btn" title="刷新数据" onClick={reload}><RefreshCw size={17}/></button>
             <span className="avatar mini" title={user?.displayName}>{user?.displayName.slice(0, 1) ?? '演'}</span>
+            <ThemeSelect/>
           </div>
         </header>
 
@@ -483,6 +485,7 @@ function LoginScreen({
 
   return (
     <main className="login">
+      <header className="login-topbar"><ThemeSelect/></header>
       <section className="login-card">
         <div className="brand-mark">实</div>
         <span className="eyebrow">{demoSource ? '演示模式 · 本机虚构数据' : '实习决策与执行工作台'}</span>
