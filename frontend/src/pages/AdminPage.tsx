@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { FileSearch, Pencil, Plus, Send, Archive } from 'lucide-react';
 import { get, pollOperation, post, put } from '../api/client';
 import type { components } from '../api/schema';
@@ -58,6 +58,16 @@ function AdminJobCard({ job, context, onEdit }: { job: Job; context: ActionConte
   const [draft, setDraft] = useState<JobDraft | null>(null);
   const [error, setError] = useState('');
   const [parsing, setParsing] = useState(false);
+  // 列表接口不回填 requirements（由查询方按需填充），用详情接口补齐计数。
+  const [confirmedCount, setConfirmedCount] = useState<number | null>(null);
+  useEffect(() => {
+    let alive = true;
+    setConfirmedCount(null);
+    get<Job>(`/jobs/${job.id}`)
+      .then((detail) => { if (alive) setConfirmedCount(detail.requirements?.length ?? 0); })
+      .catch(() => { /* 计数仅为展示，详情不可达时保持列表默认值 */ });
+    return () => { alive = false; };
+  }, [job.id, job.updatedAt]);
 
   async function parseRequirements() {
     setError('');
@@ -85,7 +95,7 @@ function AdminJobCard({ job, context, onEdit }: { job: Job; context: ActionConte
 
   return <article className="admin-job">
     <div className="admin-job-head">
-      <div><div className="row-title">{job.title}<Badge value={job.status}/></div><p>{job.company || '公司未填写'} · {job.location || '地点未填写'} · 截止 {job.deadlineDate || '未设置'}</p><small>{job.requirements.length} 项已确认条件 · JD 版本 {job.jobVersion}</small></div>
+      <div><div className="row-title">{job.title}<Badge value={job.status}/></div><p>{job.company || '公司未填写'} · {job.location || '地点未填写'} · 截止 {job.deadlineDate || '未设置'}</p><small>{confirmedCount == null ? '—' : confirmedCount} 项已确认条件 · JD 版本 {job.jobVersion}</small></div>
       <div className="button-row">
         <button className="btn small secondary" disabled={context.busy} onClick={onEdit}><Pencil size={14}/>编辑</button>
         <button className="btn small secondary" disabled={context.busy || parsing || !job.jdText} onClick={() => void parseRequirements()}><FileSearch size={14}/>{parsing ? '解析中…' : '解析要求'}</button>

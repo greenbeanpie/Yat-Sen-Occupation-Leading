@@ -114,7 +114,7 @@ export function MatchingPage({ context }: { context: ActionContext }) {
           {(item) => <div className="portfolio-row">
             <div className="row-main">
               <div className="row-title">{item.job?.title ?? item.jobId}<Badge value={item.selected ? 'selected' : item.excludedReason ?? 'excluded'}/></div>
-              <p>{item.job?.company} · 匹配 {item.score} · 准备 {item.prepHours ?? '未估算'} 小时</p>
+              <p>{item.job?.company} · 匹配 {Math.round(item.score * 100)} 分 · 准备 {item.prepHours ?? '未估算'} 小时</p>
               {item.excludedReason && <small>{item.excludedReason}</small>}
             </div>
             <div className="button-row">
@@ -174,7 +174,8 @@ function ExplanationList({ title, items }: { title: string; items: { text: strin
 }
 
 function Score({ label, value }: { label: string; value: number | null | undefined }) {
-  return <div className="score-card"><small>{label}</small><strong>{value == null ? '未填写' : `${Math.round(value)} / 100`}</strong>{value != null && <div className="score-track"><span style={{ width: `${Math.max(0, Math.min(100, value))}%` }}/></div>}</div>;
+  // 服务端分数为 0–1 小数，展示为百分制。
+  return <div className="score-card"><small>{label}</small><strong>{value == null ? '未填写' : `${Math.round(value * 100)} / 100`}</strong>{value != null && <div className="score-track"><span style={{ width: `${Math.max(0, Math.min(100, value * 100))}%` }}/></div>}</div>;
 }
 
 function RecentMatch({ job, onOpen }: { job: Job; onOpen: (snapshot: MatchSnapshot) => void }) {
@@ -198,7 +199,7 @@ function RecentMatch({ job, onOpen }: { job: Job; onOpen: (snapshot: MatchSnapsh
   }
   return <button className="match-history-card" onClick={() => void open()} disabled={loading}>
     <span className="history-icon"><ChartNoAxesCombined size={17}/></span>
-    <span><b>{job.title}</b><small>{snapshot ? `总分 ${snapshot.scores.total}` : error || job.company}</small></span>
+    <span><b>{job.title}</b><small>{snapshot ? `总分 ${Math.round(snapshot.scores.total * 100)}` : error || job.company}</small></span>
     {loading ? <Loading label="读取"/> : <ArrowRight size={16}/>}
   </button>;
 }

@@ -180,7 +180,16 @@ export function ActionForm({
     setInvalid('');
     setSubmitting(true);
     try {
-      if (await onSubmit(values)) setValues(initial());
+      // Select values loaded asynchronously (options arrive after mount) can
+      // linger as '' in state while the DOM already shows the first option;
+      // submit what the user actually sees.
+      const effective = { ...values };
+      for (const field of fields) {
+        if (field.options?.length && !field.options.some((option) => option.value === effective[field.name])) {
+          effective[field.name] = field.options[0].value;
+        }
+      }
+      if (await onSubmit(effective)) setValues(initial());
     } finally {
       setSubmitting(false);
     }
