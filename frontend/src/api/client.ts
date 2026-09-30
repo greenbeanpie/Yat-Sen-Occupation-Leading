@@ -41,7 +41,7 @@ function messageFrom(payload: unknown, fallback: string): { message: string; cod
   };
 }
 
-export async function api<T = unknown>(path: string, init: RequestInit = {}): Promise<T> {
+export async function api<T = unknown>(path: string, init: RequestInit = {}, followPages = true): Promise<T> {
   const headers = new Headers(init.headers);
   if (init.body && !(init.body instanceof FormData) && !headers.has('Content-Type')) {
     headers.set('Content-Type', 'application/json');
@@ -77,7 +77,7 @@ export async function api<T = unknown>(path: string, init: RequestInit = {}): Pr
   }
 
   // Existing screens consume complete lists; transparently follow advertised pages.
-  if ((init.method ?? 'GET') === 'GET' && payload && typeof payload === 'object' && 'items' in payload && Array.isArray(payload.items) && 'nextCursor' in payload && typeof payload.nextCursor === 'string') {
+  if (followPages && (init.method ?? 'GET') === 'GET' && payload && typeof payload === 'object' && 'items' in payload && Array.isArray(payload.items) && 'nextCursor' in payload && typeof payload.nextCursor === 'string') {
     const url = new URL(path, 'https://pagination.local');
     url.searchParams.set('cursor', payload.nextCursor);
     const next = await api<{ items: unknown[]; nextCursor?: string | null }>(url.pathname + url.search, init);
@@ -87,6 +87,8 @@ export async function api<T = unknown>(path: string, init: RequestInit = {}): Pr
 }
 
 export const get = <T = unknown>(path: string, init?: RequestInit) => api<T>(path, init);
+/** Fetch one page when the screen explicitly controls loading further records. */
+export const getPage = <T = unknown>(path: string, init?: RequestInit) => api<T>(path, init, false);
 export const post = <T = unknown>(path: string, body?: unknown) =>
   api<T>(path, { method: 'POST', ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
 export const put = <T = unknown>(path: string, body: unknown) =>

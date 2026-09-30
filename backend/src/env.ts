@@ -28,7 +28,7 @@ export interface Env {
 
 export interface SessionUser {
   id: string;
-  role: "student" | "admin";
+  role: "student" | "admin" | "super_admin";
   displayName: string;
   timezone: string;
   notifyTaskDue: boolean;

@@ -2,7 +2,7 @@ import { z } from "@hono/zod-openapi";
 import { UuidSchema, IsoDateTimeSchema } from "./common";
 
 export const DemoUserSchema = z
-  .object({ id: UuidSchema, role: z.enum(["student", "admin"]), displayName: z.string() })
+  .object({ id: UuidSchema, role: z.enum(["student", "admin", "super_admin"]), displayName: z.string() })
   .openapi("DemoUser");
 
 export const SessionResponseSchema = z
@@ -11,7 +11,7 @@ export const SessionResponseSchema = z
     user: z
       .object({
         id: UuidSchema,
-        role: z.enum(["student", "admin"]),
+        role: z.enum(["student", "admin", "super_admin"]),
         displayName: z.string(),
         timezone: z.string(),
         demo: z.boolean(),

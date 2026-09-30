@@ -1,4 +1,5 @@
 import { bodyLimit } from "hono/body-limit";
+import { registerTicketRoutes } from "./routes/tickets";
 import { registerInvitationRoutes } from "./routes/invitations";
 import { registerHealthRoutes } from "./routes/health";
 import { rateLimit } from "./infra/rate-limit";
@@ -12,6 +13,7 @@ import { registerProfileRoutes } from "./routes/profile";
 import { registerDocumentRoutes } from "./routes/documents";
 import { registerOperationRoutes } from "./routes/operations";
 import { registerJobRoutes } from "./routes/jobs";
+import { registerUserManagementRoutes } from "./routes/user-management";
 import { registerAdminRoutes } from "./routes/admin";
 import { registerMatchingRoutes } from "./routes/matching";
 import { registerPlanningRoutes } from "./routes/planning";
@@ -78,7 +80,7 @@ export function createApp(): App {
     c.header("X-Request-Id", requestId);
     c.header("X-Content-Type-Options", "nosniff");
     const path = c.req.path;
-    if (path.includes("/session") || path.includes("/admin/invitations")) c.header("Cache-Control", "no-store");
+    if (path.includes("/session") || path.includes("/admin/") || path.includes("/tickets")) c.header("Cache-Control", "no-store");
     if (c.req.method !== "OPTIONS") {
       const auth = c.req.method === "POST" && /\/session(?:\/(?:login|register))?$/.test(path);
       await rateLimit(c.env, (auth ? "auth:" : "api:") + (c.req.header("CF-Connecting-IP") ?? "unknown"), auth ? 20 : 180);
@@ -102,11 +104,13 @@ export function createApp(): App {
   registerSessionRoutes(app);
   registerAccountRoutes(app);
   registerInvitationRoutes(app);
+  registerTicketRoutes(app);
   registerProfileRoutes(app);
   registerDocumentRoutes(app);
   registerOperationRoutes(app);
   registerJobRoutes(app);
   registerAdminRoutes(app);
+  registerUserManagementRoutes(app);
   registerMatchingRoutes(app);
   registerPlanningRoutes(app);
   registerTrackingRoutes(app);

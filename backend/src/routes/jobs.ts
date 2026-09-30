@@ -50,7 +50,7 @@ export function jobVersionSnapshot(db: D1Database, jobId: string, jobVersion: nu
 }
 
 function canEditJob(row: Record<string, unknown>, userId: string, role: string): boolean {
-  if (row.user_id === null || row.user_id === undefined) return role === "admin";
+  if (row.user_id === null || row.user_id === undefined) return ["admin", "super_admin"].includes(role);
   return row.user_id === userId;
 }
 
@@ -172,7 +172,7 @@ export function registerJobRoutes(app: App): void {
       conditions.push(`user_id = ?${binds.length + 1}`);
       binds.push(userId);
     } else {
-      if (role === "admin") {
+      if (["admin", "super_admin"].includes(role)) {
         conditions.push(`user_id IS NULL`);
       } else {
         conditions.push(`user_id IS NULL AND status = 'published'`);
@@ -251,7 +251,7 @@ export function registerJobRoutes(app: App): void {
     const { id } = c.req.valid("param");
     const row = await c.env.DB.prepare(`SELECT * FROM jobs WHERE id = ?1 AND deleted = 0`).bind(id).first<Record<string, unknown>>();
     if (!row) throw notFound();
-    const visible = row.user_id !== null && row.user_id === userId ? true : row.user_id === null && (row.status === "published" || role === "admin");
+    const visible = row.user_id !== null && row.user_id === userId ? true : row.user_id === null && (row.status === "published" || ["admin", "super_admin"].includes(role));
     if (!visible) throw notFound();
     const reqRows = await c.env.DB
       .prepare(`SELECT kind, value, quote FROM job_requirements WHERE job_id = ?1 AND job_version = ?2`)

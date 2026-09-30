@@ -58,6 +58,7 @@ import {
   type SkillEvidence,
 } from './demo-rules';
 import { buildExampleResumeDraft, isExampleResume } from './demo-seed';
+import { isAdministrativeRole } from '../roles';
 
 /**
  * 演示适配器的接口实现：与后端同一套路径、状态码、错误码和数据结构，
@@ -97,7 +98,7 @@ export function handleDemoRequest(store: DemoStore, request: DemoRequest): DemoR
   return store.write((db) => {
     const user = currentUser(db);
     if (route.auth && !user) throw unauthorized();
-    if (route.admin && user?.role !== 'admin') throw forbidden('仅管理员可执行该操作');
+    if (route.admin && !isAdministrativeRole(user?.role)) throw forbidden('仅管理员可执行该操作');
     return route.handler({ store, db, request, user: user as DemoUser, params });
   });
 }
@@ -244,7 +245,7 @@ function jobJson(db: DemoDatabase, job: JobRecord): JobRecord {
 }
 
 function canEditJob(job: JobRecord, user: DemoUser): boolean {
-  if (job.userId === null) return user.role === 'admin';
+  if (job.userId === null) return isAdministrativeRole(user.role);
   return job.userId === user.id;
 }
 
@@ -801,7 +802,7 @@ function jobRoutes(): Route[] {
           if (job.deleted) return false;
           if (scope === 'mine') {
             if (job.userId !== user.id) return false;
-          } else if (user.role === 'admin') {
+          } else if (isAdministrativeRole(user.role)) {
             if (job.userId !== null) return false;
           } else if (job.userId !== null || job.status !== 'published') {
             return false;
@@ -833,7 +834,7 @@ function jobRoutes(): Route[] {
         const job = requireRow(db.jobs.find((row) => row.id === params.id && !row.deleted));
         const visible =
           (job.userId !== null && job.userId === user.id) ||
-          (job.userId === null && (job.status === 'published' || user.role === 'admin'));
+          (job.userId === null && (job.status === 'published' || isAdministrativeRole(user.role)));
         if (!visible) throw notFound();
         return { status: 200, body: jobJson(db, job) };
       },

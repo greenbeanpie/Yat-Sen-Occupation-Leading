@@ -89,3 +89,25 @@ wrangler.jsonc vars：`AI_PROVIDER`、`AI_BASE_URL`、`AI_MODEL`、`CORS_ORIGIN`
 - **前端对接文档：[docs/frontend-integration.md](docs/frontend-integration.md)**（接入基础、异步作业、离线同步协议、冲突处理、联调自检清单）
 - 组员验收对照表与风险清单见 [backend_plan.md](../backend_plan.md) 八/九/十节；
 - 真实环境验证进度见 [docs/deployment.md](docs/deployment.md) 与 [docs/spike-extraction.md](docs/spike-extraction.md)。
+
+## 账户等级与升级（0005）
+
+- API 身份：`super_admin`（超级管理员）、`admin`（普通管理员）、`student`（一般用户；保留旧名称以兼容既有数据）。演示身份不具备管理权限。
+- 以 `COALESCE(users.access_role, users.role)` 为有效权限；历史 `role` 列保留兼容，新的权限调整只写 `access_role`。任何新权限检查应使用有效权限，不能直接读取历史列。
+- 普通管理员继续维护公共岗位和邀请码，只能查看/修改一般用户的昵称和停用状态；不能调整角色、操作管理员账户或系统设置。
+- 超级管理员可以管理角色及邀请注册开关。角色改变对现有会话的下一次请求即时生效；停用会撤销会话且不会删除业务数据。禁止停用当前账户，不能降级/停用最后一位具有登录凭据的有效超级管理员；无法登录的账户不能提升为管理员。角色变更在同一事务写入不含凭据的审计记录。
+- `/admin/users` 仅返回必要账户元数据，不返回邮箱、密码哈希或私人求职记录。新增管理写接口要求本站 Origin 与 JSON；不允许通过用户资料修改角色或凭据。
+- `0005_account_roles.sql` 为纯增量迁移，不重建用户表、不改变用户名、密码哈希、盐、会话或业务数据。仅把已核验的 `greenbp`（id `b3c4dacf-3562-4938-8ba7-d102f4cffe05`）真实有效管理员升级，其他管理员不会自动升级。
+- 发布前核验该账户的 id/用户名/role/is_demo/deleted（不要读取凭据），按顺序应用既有 D1 的待办迁移、发布既有 backend Worker、发布既有 frontend Worker。先确认 migration 成功再发布依赖新列的代码。无需新建 Worker、数据库、Bucket 或任何凭据。
+
+## 支持工单（0006）
+
+真实登录用户可提交文字工单、分页查看/回复自己的工单；普通管理员和超级管理员可处理全部工单并调整状态。演示/游客不可访问，权限改变对后续请求即时生效。工单不赋予任何私人求职数据访问权限。
+
+- `GET /tickets?limit=20&cursor=…`：稳定游标分页，返回 `items` 与 `nextCursor`。
+- `POST /tickets`：`{subject,body}`，标题 1–160 字符，正文 1–5000 字符。
+- `GET /tickets/{id}?limit=50&before=…`：工单与按时间顺序显示的最新消息；用 `messagesNextCursor` 加载更早消息。
+- `POST /tickets/{id}/messages`：`{body}`，工单所有者或管理员回复。
+- `PATCH /tickets/{id}/status`：管理员设置 `pending`、`in_progress`、`waiting_user`、`resolved`、`closed`。关闭后禁止回复，管理员可重新打开。
+
+创建限制每账户每 5 分钟 5 次；回复每分钟 20 次；状态修改每分钟 30 次，另受统一请求限制。创建/回复/状态修改要求本站 Origin 与 JSON，严格拒绝所有权及身份字段注入。所有工单响应 `Cache-Control: no-store`，页面仅以纯文字呈现，不写离线缓存，无附件或邮件通知。不要在工单中提交密码、API 密钥、支付凭据等秘密。

@@ -2,13 +2,14 @@
  * D1 schema（唯一事实来源）。0002 起采用增量迁移：本文件描述当前结构，
  * `migrations/0001_init.sql` 是已部署库的历史基线，其后结构变化写在 0002+ 增量里；
  * 测试直接 import 本文件执行，全新数据库按 0001+0002… 顺序应用即可得到同一终态。
- * D1 默认不强制外键，引用完整性由应用层校验 + db.batch() 事务保证（backend_plan.md R4）。
+ * 当前结构未声明外键，引用完整性由应用层校验 + db.batch() 事务保证（backend_plan.md R4）。
  * 所有可同步实体带 id/user_id/version/deleted/created_at/updated_at（backend_plan.md 五）。
  */
 export const MIGRATION_0001 = /* sql */ `
 CREATE TABLE users (
   id TEXT PRIMARY KEY,
   role TEXT NOT NULL CHECK (role IN ('student','admin')),
+  access_role TEXT CHECK (access_role IN ('student','admin','super_admin')),
   display_name TEXT NOT NULL,
   timezone TEXT NOT NULL DEFAULT 'Asia/Shanghai',
   username TEXT,
@@ -19,12 +20,19 @@ CREATE TABLE users (
   notify_task_due INTEGER NOT NULL DEFAULT 1,
   notify_interview INTEGER NOT NULL DEFAULT 1,
   deleted INTEGER NOT NULL DEFAULT 0,
+  disabled INTEGER NOT NULL DEFAULT 0 CHECK (disabled IN (0,1)),
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL
 );
 
 CREATE UNIQUE INDEX idx_users_username ON users (username) WHERE username IS NOT NULL;
 CREATE UNIQUE INDEX idx_users_username_canonical ON users(lower(trim(username))) WHERE username IS NOT NULL;
+
+CREATE TABLE system_settings (
+  id INTEGER PRIMARY KEY CHECK (id=1),
+  registration_enabled INTEGER NOT NULL DEFAULT 1 CHECK (registration_enabled IN (0,1))
+);
+INSERT INTO system_settings (id,registration_enabled) VALUES (1,1);
 
 CREATE TABLE profiles (
   id TEXT PRIMARY KEY,
@@ -420,4 +428,34 @@ CREATE INDEX idx_portfolios_page ON portfolios(user_id, deleted, created_at, id)
 CREATE INDEX idx_plans_page ON plans(user_id, deleted, created_at, id);
 CREATE INDEX idx_jobs_page ON jobs(user_id, deleted, created_at, id);
 CREATE INDEX idx_reminders_page ON reminders(user_id, status, fire_at, id);
+-- Private text-only support tickets. Existing account/business tables are untouched.
+CREATE TABLE support_tickets (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL,
+  subject TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending','in_progress','waiting_user','resolved','closed')),
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+CREATE INDEX idx_support_tickets_owner ON support_tickets(user_id,created_at,id);
+CREATE INDEX idx_support_tickets_created ON support_tickets(created_at,id);
+CREATE TABLE support_ticket_messages (
+  id TEXT PRIMARY KEY,
+  ticket_id TEXT NOT NULL,
+  author_id TEXT NOT NULL,
+  is_staff INTEGER NOT NULL CHECK (is_staff IN (0,1)),
+  body TEXT NOT NULL,
+  created_at TEXT NOT NULL
+);
+CREATE INDEX idx_support_messages_ticket ON support_ticket_messages(ticket_id,created_at,id);
+
+CREATE TABLE account_role_audit (
+  id TEXT PRIMARY KEY,
+  actor_id TEXT NOT NULL,
+  target_user_id TEXT NOT NULL,
+  previous_role TEXT NOT NULL,
+  new_role TEXT NOT NULL,
+  created_at TEXT NOT NULL
+);
+CREATE INDEX idx_account_role_audit_target ON account_role_audit(target_user_id,created_at,id);
 `;

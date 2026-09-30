@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { api, ApiError } from './client';
+import { api, ApiError, getPage } from './client';
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -58,5 +58,12 @@ describe('API session and conflict handling', () => {
     vi.stubGlobal('fetch', fetch);
     await expect(api('/jobs?scope=mine&q=React')).resolves.toMatchObject({ items: [{ id: 'a' }, { id: 'b' }], nextCursor: null });
     expect(fetch.mock.calls[1]?.[0]).toBe('/api/v1/jobs?scope=mine&q=React&cursor=100');
+  });
+  it('fetches only the requested page for explicit ticket pagination', async () => {
+    const fetch = vi.fn().mockResolvedValueOnce(new Response(JSON.stringify({ items: [{ id: 'ticket-a' }], nextCursor: 'opaque-cursor' }), { headers: { 'content-type': 'application/json' } }));
+    vi.stubGlobal('fetch', fetch);
+    await expect(getPage('/tickets?limit=20', { cache: 'no-store' })).resolves.toEqual({ items: [{ id: 'ticket-a' }], nextCursor: 'opaque-cursor' });
+    expect(fetch).toHaveBeenCalledTimes(1);
+    expect(fetch).toHaveBeenCalledWith('/api/v1/tickets?limit=20', expect.objectContaining({ cache: 'no-store' }));
   });
 });

@@ -4,7 +4,7 @@ import { NavLink, Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import {
   Activity, BriefcaseBusiness, CalendarDays, ChartNoAxesCombined, CheckCheck,
   ChevronRight, ClipboardList, Cloud, House, LoaderCircle, LogOut, Menu,
-  RefreshCw, Settings, Shield, UserRound, X,
+  RefreshCw, Settings, Shield, Ticket, UserRound, X,
 } from 'lucide-react';
 import { ApiError, get, post, api } from './api/client';
 import {
@@ -24,6 +24,9 @@ import { PlanningPage } from './pages/PlanningPage';
 import { TrackingPage } from './pages/TrackingPage';
 import { AdminPage } from './pages/AdminPage';
 import { SettingsPage } from './pages/SettingsPage';
+import { canAccessAdmin, canAccessTickets, roleLabel } from './roles';
+import { TicketsPage } from './pages/TicketsPage';
+import { TicketDetailPage } from './pages/TicketDetailPage';
 
 type Session = components['schemas']['SessionResponse'];
 
@@ -37,7 +40,8 @@ const navigation = [
   { to: '/match', label: '匹配与组合', icon: ChartNoAxesCombined },
   { to: '/plan', label: '计划与改写', icon: CalendarDays },
   { to: '/applications', label: '投递跟踪', icon: ClipboardList },
-  { to: '/admin', label: '管理员岗位', icon: Shield, admin: true },
+  { to: '/admin', label: '管理中心', icon: Shield, admin: true },
+  { to: '/tickets', label: '支持工单', icon: Ticket, account: true },
   { to: '/settings', label: '账户与设置', icon: Settings },
 ];
 
@@ -371,7 +375,8 @@ export default function App() {
   }
 
   const user = session.user ?? undefined;
-  const isAdmin = user?.role === 'admin' && !user.demo;
+  const isAdmin = canAccessAdmin(user);
+  const ticketsEnabled = canAccessTickets(user);
   const activeDataSource = getActiveDataSource();
   const actionContext: ActionContext = { userId: user?.id ?? '', refresh, busy, run };
 
@@ -389,7 +394,7 @@ export default function App() {
           return user?.demo ? '演示站 · 虚构数据' : '实习工作台';
         })()}</div>
         <nav aria-label="主导航">
-          {navigation.filter((item) => !item.admin || isAdmin).map(({ to, label, icon: Icon }) => (
+          {navigation.filter((item) => (!item.admin || isAdmin) && (!item.account || ticketsEnabled)).map(({ to, label, icon: Icon }) => (
             <NavLink key={to} end={to === '/'} to={to} className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
               <Icon size={18}/><span>{label}</span>
               {to === '/settings' && pending > 0 && <i className="count">{pending}</i>}
@@ -399,7 +404,7 @@ export default function App() {
         <div className="sidebar-bottom">
           <div className="who">
             <span className="avatar">{user?.displayName.slice(0, 1) ?? '演'}</span>
-            <span><b>{user?.displayName ?? '演示用户'}</b><small>{isAdmin ? '管理员身份' : '学生身份'}</small></span>
+            <span><b>{user?.displayName ?? '演示用户'}</b><small>{roleLabel(user?.role)}身份</small></span>
             <button className="icon-btn" title={activeDataSource === 'guest' ? '结束游客体验并清除数据' : '退出登录'} onClick={() => void logout()}><LogOut size={16}/></button>
           </div>
           <div className="api-indicator"><span className="dot"/>{activeDataSource === 'guest' ? '本标签页临时数据 · 退出或关闭即清除' : activeDataSource === 'demo' ? '内置演示数据源' : '后端会话已连接'}</div>
@@ -411,7 +416,7 @@ export default function App() {
       <main className="main">
         <header className="topbar">
           <button className="icon-btn menu-btn" aria-label="打开菜单" aria-expanded={mobileOpen} aria-controls="workbench-navigation" onClick={() => setMobileOpen(true)}><Menu size={20}/></button>
-          <div className="breadcrumbs">工作台 <span>/</span> {navigation.find((item) => item.to === location.pathname)?.label ?? '页面'}</div>
+          <div className="breadcrumbs">工作台 <span>/</span> {navigation.find((item) => item.to === location.pathname || (item.to === '/tickets' && location.pathname.startsWith('/tickets/')))?.label ?? '页面'}</div>
           <div className="top-actions">
             <span className="sync-pill"><Cloud size={15}/>{pending ? `${pending} 项待同步` : '已同步'}</span>
             <button className="icon-btn" title="刷新数据" onClick={reload}><RefreshCw size={17}/></button>
@@ -431,7 +436,9 @@ export default function App() {
             <Route path="/match" element={<MatchingPage context={actionContext}/>}/>
             <Route path="/plan" element={<PlanningPage context={actionContext}/>}/>
             <Route path="/applications" element={<TrackingPage context={actionContext}/>}/>
-            <Route path="/admin" element={isAdmin ? <AdminPage context={actionContext} user={user}/> : <Navigate to="/" replace/>}/>
+            <Route path="/admin" element={isAdmin && user ? <AdminPage context={actionContext} user={user} onRefreshSession={refreshAccountSession}/> : <Navigate to="/" replace/>}/>
+            <Route path="/tickets" element={ticketsEnabled ? <TicketsPage key={user?.id} context={actionContext} staff={isAdmin}/> : <Navigate to="/" replace/>}/>
+            <Route path="/tickets/:id" element={ticketsEnabled ? <TicketDetailPage context={actionContext} staff={isAdmin}/> : <Navigate to="/" replace/>}/>
             <Route path="/settings" element={<SettingsPage context={actionContext} pending={pending} demo={Boolean(user?.demo) || getActiveDataSource() !== 'http'} onRefreshSession={refreshAccountSession} onSessionEnded={accountSessionEnded}/>}/>
             <Route path="*" element={<Navigate to="/" replace/>}/>
           </Routes>
@@ -584,13 +591,13 @@ function LoginScreen({
           <div className="login-users">
             {users.map((user) => <button className="user-choice" key={user.id} disabled={busy} onClick={() => void onLogin(user.id)}>
               <span className="avatar">{user.displayName.slice(0, 1)}</span>
-              <span><b>{user.displayName}</b><small>{user.role === 'admin' ? '管理员' : '演示学生'}</small></span>
+              <span><b>{user.displayName}</b><small>演示{roleLabel(user.role)}</small></span>
               <ChevronRight size={18}/>
             </button>)}
           </div>
         </>}
         {import.meta.env.VITE_GUEST_ENABLED !== 'false' && <button className="guest-choice" disabled={busy} onClick={() => void onGuest()}>
-          游客访问（完整学生端体验）<ChevronRight size={18}/>
+          游客访问（完整一般用户体验）<ChevronRight size={18}/>
         </button>}
         {!demoSource && import.meta.env.VITE_LOCAL_DEMO_ENABLED !== 'false' && <button className="guest-choice" disabled={busy} onClick={onDemo}>
           体验演示模式（临时入口，本机虚构数据）<ChevronRight size={18}/>

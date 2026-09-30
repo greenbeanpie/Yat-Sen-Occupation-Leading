@@ -45,9 +45,9 @@ export async function issueSessionCookie(c: Context<AppEnv>, userId: string, pas
   const body = encode(encoder.encode(JSON.stringify(payload)));
   const signature = encode(new Uint8Array(await crypto.subtle.sign("HMAC", signingKey, encoder.encode(body))));
   const result = passwordHash === undefined
-    ? await c.env.DB.prepare(`INSERT INTO sessions (id, user_id, expires_at) VALUES (?1, ?2, ?3)`).bind(payload.jti, userId, payload.exp).run()
-    : await c.env.DB.prepare(`INSERT INTO sessions (id, user_id, expires_at) SELECT ?1, ?2, ?3 FROM users WHERE id=?2 AND password_hash=?4 AND deleted=0 AND is_demo=0`).bind(payload.jti, userId, payload.exp, passwordHash).run();
-  if (result.meta.changes !== 1) throw unauthorized('密码已变化，请重新登录');
+    ? await c.env.DB.prepare(`INSERT INTO sessions (id, user_id, expires_at) SELECT ?1, ?2, ?3 FROM users WHERE id=?2 AND deleted=0 AND disabled=0`).bind(payload.jti, userId, payload.exp).run()
+    : await c.env.DB.prepare(`INSERT INTO sessions (id, user_id, expires_at) SELECT ?1, ?2, ?3 FROM users WHERE id=?2 AND password_hash=?4 AND deleted=0 AND disabled=0 AND is_demo=0`).bind(payload.jti, userId, payload.exp, passwordHash).run();
+  if (result.meta.changes !== 1) throw unauthorized('账户状态或密码已变化，请重新登录');
   setCookie(c, COOKIE_NAME, `${body}.${signature}`, { httpOnly: true, sameSite: "Lax", path: "/", secure: true, maxAge: SESSION_TTL_SECONDS });
 }
 export async function clearSessionCookie(c: Context<AppEnv>): Promise<void> {
@@ -60,7 +60,7 @@ export async function resolveUser(c: Context<AppEnv>): Promise<SessionUser | nul
   if (!payload) return null;
   const row = await getUser(c.env.DB, payload.uid);
   if (!row || (Number(row.is_demo) === 1 && c.env.DEMO_ENABLED !== "true")) return null;
-  return { id: row.id as string, role: row.role as "student" | "admin", displayName: row.display_name as string,
+  return { id: row.id as string, role: row.role as "student" | "admin" | "super_admin", displayName: row.display_name as string,
     timezone: row.timezone as string, notifyTaskDue: Number(row.notify_task_due) === 1, notifyInterview: Number(row.notify_interview) === 1, demo: Number(row.is_demo) === 1 };
 }
 export const requireAuth: MiddlewareHandler<AppEnv> = async (c, next) => {
@@ -71,6 +71,11 @@ export const requireAuth: MiddlewareHandler<AppEnv> = async (c, next) => {
   await next();
 };
 export const requireAdmin: MiddlewareHandler<AppEnv> = async (c, next) => {
-  if (c.get("user").role !== "admin" || c.get("user").demo) throw forbidden("仅非演示管理员可执行该操作");
+  if (!["admin", "super_admin"].includes(c.get("user").role) || c.get("user").demo) throw forbidden("仅非演示管理员可执行该操作");
+  await next();
+};
+
+export const requireSuperAdmin: MiddlewareHandler<AppEnv> = async (c, next) => {
+  if (c.get("user").role !== "super_admin" || c.get("user").demo) throw forbidden("仅超级管理员可执行该操作");
   await next();
 };

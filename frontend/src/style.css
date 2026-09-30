@@ -500,6 +500,25 @@ button.upload-box:disabled { color: var(--muted); background: var(--theme-surfac
 }
 
 .theme-select { display: inline-flex; flex: 0 0 auto; }
+.admin-user-search { max-width: 420px; margin-bottom: 14px; }
+.admin-user-row { display: flex; width: 100%; min-width: 0; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; }
+.admin-user-row .row-main { min-width: 0; overflow-wrap: anywhere; }
+.admin-user-row .button-row { flex-wrap: wrap; margin: 0; }
+.admin-registration-toggle { display: flex; align-items: center; gap: 10px; font-size: 13px; cursor: pointer; }
+.admin-registration-toggle input { width: 18px; height: 18px; }
+.ticket-list-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.ticket-list-row .row-main { flex: 1 1 220px; overflow-wrap: anywhere; }
+.ticket-open { color: var(--link); font-size: 12px; font-weight: 700; }
+.ticket-back { margin-bottom: 18px; }
+.ticket-status-form { display: flex; align-items: end; flex-wrap: wrap; gap: 12px; }
+.ticket-status-form .field { min-width: min(240px, 100%); }
+.ticket-status-form p { flex-basis: 100%; }
+.ticket-messages { list-style: none; padding: 0; margin: 16px 0 0; display: grid; gap: 12px; }
+.ticket-message { min-width: 0; padding: 14px; border: 1px solid var(--line); border-radius: 11px; background: var(--surface); overflow-wrap: anywhere; }
+.ticket-message.staff { background: var(--surface-alt); border-left: 3px solid var(--link); }
+.ticket-message time { display: block; margin-top: 5px; color: var(--muted); font-size: 11px; }
+.ticket-message-body { white-space: pre-wrap; margin: 12px 0 0; color: var(--ink); font-size: 13px; line-height: 1.8; }
+.page-head h1 { overflow-wrap: anywhere; }
 .theme-select select { min-height: 36px; max-width: 112px; padding: 6px 8px; color: var(--ink); background: var(--surface); border: 1px solid var(--line); border-radius: 9px; font-size: 12px; cursor: pointer; }
 .login { position: relative; padding-top: 80px; }
 .login-topbar { position: absolute; top: 18px; right: 22px; }

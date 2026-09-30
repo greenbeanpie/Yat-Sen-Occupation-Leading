@@ -32,7 +32,7 @@ export function InvitationsPanel({ context }: { context: ActionContext }) {
     catch (value) { setError(value instanceof Error ? value.message : '无法撤销邀请码'); }
     finally { setBusy(false); }
   }
-  return <Panel title="邀请注册" description="每个邀请码只能注册一个学生账户，与邮箱无关。默认 24 小时有效，最近 100 条记录；明文仅创建时显示，离开此页面后无法重取。">
+  return <Panel title="邀请注册" description="每个邀请码只能注册一个一般用户账户，与邮箱无关。默认 24 小时有效，最近 100 条记录；明文仅创建时显示，离开此页面后无法重取。系统暂停注册时，邀请码暂不可用于新账户注册。">
     {error && <InlineError>{error}</InlineError>}
     <button className="btn primary" disabled={busy || context.busy} onClick={() => void create()}>创建邀请码</button>
     {created && <div role="status"><p>请通过可信渠道发送给受邀人：</p><code>{created.invitationCode}</code><p>到期：{new Date(created.expiresAt).toLocaleString()}</p><button className="btn secondary" onClick={() => setCreated(null)}>隐藏明文</button></div>}

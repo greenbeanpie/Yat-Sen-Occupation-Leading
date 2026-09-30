@@ -10,7 +10,7 @@ import { DEMO_USERS } from "../shared/constants";
 import { ensureDemoUsers, getUser, sessionSecret } from "../infra/db/helpers";
 import { DUMMY_PASSWORD_HASH, hashPassword, verifyPassword } from "../infra/password";
 import { clearSessionCookie, issueSessionCookie, resolveUser } from "../middleware/auth";
-import { invalidRequest, notFound, unauthorized } from "../shared/errors";
+import { invalidRequest, notFound, unauthorized, forbidden } from "../shared/errors";
 import { canonicalUsername, invitationHash } from "../infra/invitations";
 import { rateLimit } from "../infra/rate-limit";
 import { uuid, nowIso } from "../shared/datetime";
@@ -55,6 +55,7 @@ const register = createRoute({
       content: { "application/json": { schema: SessionResponseSchema } },
       description: "注册成功并自动登录（服务端签发会话）",
     },
+    403: { content: { "application/json": { schema: ErrorBodySchema } }, description: "超级管理员已暂停注册" },
     422: { content: { "application/json": { schema: ErrorBodySchema } }, description: "用户名不合法或已被占用、口令不满足要求" },
   },
 });
@@ -84,7 +85,7 @@ const logout = createRoute({
 function userPayload(row: Record<string, unknown>) {
   return {
     id: row.id as string,
-    role: row.role as "student" | "admin",
+    role: row.role as "student" | "admin" | "super_admin",
     displayName: row.display_name as string,
     timezone: row.timezone as string,
     demo: Number(row.is_demo ?? 0) === 1,
@@ -129,6 +130,8 @@ export function registerSessionRoutes(app: App): void {
   });
 
   app.openapi(register, async (c) => {
+    const settings = await c.env.DB.prepare("SELECT registration_enabled FROM system_settings WHERE id=1").first<{ registration_enabled: number }>();
+    if (settings?.registration_enabled === 0) throw forbidden("注册暂时关闭");
     const input = c.req.valid("json");
     const { password, displayName, email, invitationCode } = input;
     const username = canonicalUsername(input.username);
@@ -150,7 +153,7 @@ export function registerSessionRoutes(app: App): void {
       results = await c.env.DB.batch([
         c.env.DB.prepare(`INSERT INTO users (id, role, display_name, timezone, username, password_hash, email, is_demo, created_at, updated_at)
           SELECT ?1, 'student', ?2, 'Asia/Shanghai', ?3, ?4, ?5, 0, ?6, ?6
-          FROM invitations WHERE token_hash=?7 AND consumed_by IS NULL AND revoked_at IS NULL AND expires_at>?6`)
+          FROM invitations WHERE token_hash=?7 AND consumed_by IS NULL AND revoked_at IS NULL AND expires_at>?6 AND EXISTS (SELECT 1 FROM system_settings WHERE id=1 AND registration_enabled=1)`)
           .bind(id, displayName?.trim() || username, username, passwordHash, email ?? null, nowIso(), digest),
         c.env.DB.prepare(`UPDATE invitations SET consumed_by=?1, consumed_at=?2 WHERE token_hash=?3 AND consumed_by IS NULL AND EXISTS (SELECT 1 FROM users WHERE id=?1)`)
           .bind(id, nowIso(), digest),
@@ -183,7 +186,7 @@ export function registerSessionRoutes(app: App): void {
     const username = canonicalUsername(input.username);
     await rateLimit(c.env, `credential:${username}`, 10);
     const row = await c.env.DB
-      .prepare(`SELECT * FROM users WHERE lower(trim(username)) = ?1 AND deleted = 0 AND is_demo = 0`)
+      .prepare(`SELECT *, COALESCE(access_role,role) AS role FROM users WHERE lower(trim(username)) = ?1 AND deleted = 0 AND disabled = 0 AND is_demo = 0`)
       .bind(username)
       .first<Record<string, unknown>>();
     // 用户名不存在与密码错误返回同一提示，避免账号枚举。
@@ -218,7 +221,7 @@ function listDemoUsers(db: Env["DB"]) {
   return db
     .prepare(`SELECT id, role, display_name FROM users WHERE deleted = 0 AND is_demo = 1 ORDER BY display_name`)
     .all<{ id: string; role: string; display_name: string }>()
-    .then((r) => r.results.map((u) => ({ id: u.id, role: u.role as "student" | "admin", displayName: u.display_name })));
+    .then((r) => r.results.map((u) => ({ id: u.id, role: u.role as "student" | "admin" | "super_admin", displayName: u.display_name })));
 }
 
 function capabilitiesOf(env: Env) {

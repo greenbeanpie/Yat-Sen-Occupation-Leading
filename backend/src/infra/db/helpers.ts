@@ -33,7 +33,7 @@ export async function ensureDemoUsers(db: D1Database): Promise<void> {
 }
 
 export async function getUser(db: D1Database, id: string) {
-  return db.prepare(`SELECT * FROM users WHERE id = ?1 AND deleted = 0`).bind(id).first<Record<string, unknown>>();
+  return db.prepare(`SELECT *, COALESCE(access_role,role) AS role FROM users WHERE id = ?1 AND deleted = 0 AND disabled = 0`).bind(id).first<Record<string, unknown>>();
 }
 
 /** 通用单行查询助手：按主键 + 可选 user 隔离。 */

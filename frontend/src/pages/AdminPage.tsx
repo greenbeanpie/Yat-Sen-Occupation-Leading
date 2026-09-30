@@ -5,12 +5,15 @@ import { get, pollOperation, post, put } from '../api/client';
 import type { components } from '../api/schema';
 import { ActionForm, Badge, DataRows, InlineError, JsonPreview, Modal, PageHead, Panel, ResourceNotice, useResource } from '../components';
 import type { ActionContext } from '../components';
+import { roleLabel } from '../roles';
+import { UsersPanel } from './UsersPanel';
+import { SystemSettingsPanel } from './SystemSettingsPanel';
 
 type Job = components['schemas']['Job'];
 type JobDraft = components['schemas']['JobRequirementsDraft'];
 type AdminUser = NonNullable<components['schemas']['SessionResponse']['user']>;
 
-export function AdminPage({ context, user }: { context: ActionContext; user?: AdminUser }) {
+export function AdminPage({ context, user, onRefreshSession }: { context: ActionContext; user: AdminUser; onRefreshSession: () => Promise<void> }) {
   const jobs = useResource<components['schemas']['JobListResponse']>('/admin/jobs', context.refresh, context.userId);
   const [creating, setCreating] = useState(false);
   const [editing, setEditing] = useState<Job | null>(null);
@@ -23,19 +26,23 @@ export function AdminPage({ context, user }: { context: ActionContext; user?: Ad
 
   return <>
     <PageHead
-      kicker="管理员岗位库"
-      title="维护公共岗位"
-      description={`当前身份：${user?.displayName ?? '管理员'}。草稿经解析确认后发布，公共岗位仅在发布后对学生可见。`}
+      kicker={roleLabel(user.role)}
+      title="管理中心"
+      description={`当前账户：${user.displayName}。管理公共岗位、用户与邀请注册${user.role === 'super_admin' ? '，并配置角色权限和系统设置' : ''}。`}
       action={<button className="btn primary" onClick={() => setCreating(true)}><Plus size={16}/>新增公共岗位</button>}
     />
-    <Panel title="公共岗位" description="支持编辑 JD、解析并确认要求、发布、下架或归档">
+    <Panel title="公共岗位" description="支持编辑 JD、解析并确认要求、发布、下架或归档。公共岗位发布后才对一般用户可见。">
       <ResourceNotice error={jobs.error}/>
 
       <DataRows items={jobs.data?.items ?? []} loading={jobs.loading} empty="公共岗位库尚无记录。">
         {(job) => <AdminJobCard job={job} context={context} onEdit={() => setEditing(job)}/>}
       </DataRows>
     </Panel>
-    {user && !user.demo && <InvitationsPanel context={context}/> }
+    {!user.demo && <>
+      <UsersPanel context={context} role={user.role} onRefreshSession={onRefreshSession}/>
+      <InvitationsPanel context={context}/>
+      {user.role === 'super_admin' && <SystemSettingsPanel context={context}/>}
+    </>}
     {creating && <Modal title="新增公共岗位" onClose={() => setCreating(false)}>
       <ActionForm disabled={context.busy} label="创建草稿" onSubmit={create} fields={jobFields()}/>
     </Modal>}
@@ -110,7 +117,7 @@ function AdminJobCard({ job, context, onEdit }: { job: Job; context: ActionConte
     {error && <InlineError>{error}</InlineError>}
     {draft && <div className="draft-review">
       <div className="row-title">要求解析草稿 <Badge value={draft.status}/></div>
-      <p>逐条检查候选及 JD 原文引用；确认后才会参与学生的硬条件判断。</p>
+      <p>逐条检查候选及 JD 原文引用；确认后才会参与一般用户的硬条件判断。</p>
       <JsonPreview value={draft.candidates}/>
       <button className="btn primary" disabled={context.busy || draft.status !== 'ready'} onClick={() => void confirmRequirements()}>确认岗位要求</button>
     </div>}
