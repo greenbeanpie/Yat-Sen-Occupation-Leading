@@ -54,7 +54,7 @@ describe('account settings', () => {
     expect((await request(undefined, '/session/login', { method: 'POST', headers, body: JSON.stringify({ username: f.username, password: nextPassword }) })).status).toBe(200);
     const { mf } = await getMf();
     const row = await (await mf.getD1Database('DB')).prepare('SELECT password_hash FROM users WHERE id=?1').bind(f.id).first<{ password_hash: string }>();
-    expect(row!.password_hash).toMatch(/^pbkdf2-sha256\$600000\$/);
+    expect(row!.password_hash).toMatch(/^scrypt\$32768\$8\$3\$/);
     expect(row!.password_hash).not.toContain(nextPassword);
   });
   it('limits attempts per account even with multiple valid sessions', async () => {

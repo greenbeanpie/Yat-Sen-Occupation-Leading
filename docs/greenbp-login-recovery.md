@@ -1,5 +1,22 @@
 # greenbp login diagnosis and operator recovery
 
+## KDF compatibility fix and user command
+
+Project 2's same-account production record confirms PBKDF2 600000 failed with NotSupportedError while local tests passed. This fix uses the production-validated native scrypt parameters N=32768/r=8/p=3, 16-byte random salt, 32-byte output, 64 MiB max allocation. Storage uses unpadded Base64URL. Existing PBKDF2 formats remain recognized and upgrade after successful verification where the runtime supports them; unsupported runtime operations propagate as service errors rather than incorrect-password results. New registration, password change and bootstrap use scrypt. No schema migration is required.
+
+The failed first comparison was a utility bug: WRANGLER_LOG=error suppresses --json output. The utility now uses info logging while capturing all child output and disabling disk logs. Errors report only the safe operation stage and whether a write was attempted. A compare failure never claims APPLY occurred. Real Windows DPAPI roundtrip is tested with a synthetic password.
+
+After the compatible backend deployment is confirmed, the user runs:
+
+```powershell
+Set-Location 'C:\Users\hmz\AppData\Local\Temp\yso-login-recovery\backend'
+node --import tsx scripts/recover-greenbp.mjs --upgrade-kdf
+```
+
+Confirm `UPGRADE greenbp`, check boolean comparison, then `APPLY UPGRADE greenbp`. A mismatch refuses the upgrade. The same password is retained; no plaintext file is created by upgrade. Sensitive SQL is confined to the ignored, Windows-user-only recovery directory. Both session deletion and password update require the reviewed exact user ID, original hash, unchanged updated_at and unchanged admin/non-demo identity. There is no automatic write retry. A failed/uncertain submit requires metadata review. The user logs in manually and deletes that run's sensitive SQL directory after success. `--compare` remains read-only; `--reset` is only for a user-confirmed mismatch and uses scrypt now.
+
+The earlier diagnostic notes below describe the deployed pre-fix state; local Node comparison alone does not establish hosted PBKDF2 support.
+
 This utility does not fix an established application bug. The user reports the application's username/password error after entering username `greenbp`; a Cloudflare challenge is not assumed to explain that error. No real password, DPAPI plaintext, bootstrap SQL or production salt/digest was read by the agent. No real-credential login, password generation, reset or deployment was performed for this diagnosis.
 
 Read-only findings on 2026-09-30:

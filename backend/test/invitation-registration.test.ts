@@ -15,7 +15,7 @@ describe("invitation-only registration", () => {
     expect(registration.status).toBe(200);
     const user = await (await db()).prepare("SELECT * FROM users WHERE username='someone'").first();
     expect(user).toMatchObject({ email: null, email_verified_at: null, role: "student", is_demo: 0 });
-    expect(String(user!.password_hash)).toMatch(/^pbkdf2-sha256\$600000\$/);
+    expect(String(user!.password_hash)).toMatch(/^scrypt\$32768\$8\$3\$/);
     expect(user!.password_hash).not.toContain(password);
     const login = await request(undefined, "/session/login", json({ username: " SOMEONE ", password }));
     expect(login.status).toBe(200);

@@ -8,7 +8,7 @@ import {
 import { ErrorBodySchema } from "../shared/schemas/common";
 import { DEMO_USERS } from "../shared/constants";
 import { ensureDemoUsers, getUser, sessionSecret } from "../infra/db/helpers";
-import { hashPassword, verifyPassword } from "../infra/password";
+import { DUMMY_PASSWORD_HASH, hashPassword, verifyPassword } from "../infra/password";
 import { clearSessionCookie, issueSessionCookie, resolveUser } from "../middleware/auth";
 import { invalidRequest, notFound, unauthorized } from "../shared/errors";
 import { canonicalUsername, invitationHash } from "../infra/invitations";
@@ -189,11 +189,11 @@ export function registerSessionRoutes(app: App): void {
     // 用户名不存在与密码错误返回同一提示，避免账号枚举。
     if (!row || !(row.password_hash as string | null)) {
       // Equal-cost verification for unknown users; never a valid credential.
-      await verifyPassword(password, "pbkdf2-sha256$600000$AAAAAAAAAAAAAAAAAAAAAA$AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA");
+      await verifyPassword(password, DUMMY_PASSWORD_HASH);
       throw unauthorized("用户名或密码不正确");
     }
     if (!(await verifyPassword(password, row.password_hash as string))) throw unauthorized("用户名或密码不正确");
-    if ((row.password_hash as string).startsWith("pbkdf2-sha256$100000$")) {
+    if ((row.password_hash as string).startsWith("pbkdf2-sha256$")) {
       // Upgrade only after successful verification, without replacing a concurrent credential change.
       const upgraded = await hashPassword(password);
       const result = await c.env.DB.prepare(`UPDATE users SET password_hash = ?1 WHERE id = ?2 AND password_hash = ?3`)

@@ -3,7 +3,7 @@
 import { mkdirSync, existsSync, writeFileSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { randomBytes, randomUUID, pbkdf2Sync } from 'node:crypto';
+import { randomBytes, randomUUID, scryptSync } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -23,7 +23,7 @@ if (!sid) throw new Error('Cannot resolve current Windows user SID; no credentia
 execFileSync('icacls.exe', [output, '/inheritance:r', '/grant:r', `*${sid}:(OI)(CI)F`], { windowsHide: true, stdio: 'pipe' });
 const password = randomBytes(24).toString('base64url');
 const salt = randomBytes(16);
-const passwordHash = `pbkdf2-sha256$600000$${salt.toString('base64url')}$${pbkdf2Sync(password, salt, 600000, 32, 'sha256').toString('base64url')}`;
+const passwordHash = `scrypt$32768$8$3$${salt.toString('base64url')}$${scryptSync(password, salt, 32, {N:32768,r:8,p:3,maxmem:64*1024*1024}).toString('base64url')}`;
 // Password goes through stdin, never shell text, process arguments or output.
 const encrypted = execFileSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', "[Reflection.Assembly]::LoadWithPartialName('System.Security') | Out-Null; [Convert]::ToBase64String([Security.Cryptography.ProtectedData]::Protect([Text.Encoding]::UTF8.GetBytes([Console]::In.ReadToEnd()), $null, [Security.Cryptography.DataProtectionScope]::CurrentUser))"], { input: password, encoding: 'utf8', windowsHide: true }).trim();
 const now = new Date().toISOString(), id = randomUUID();

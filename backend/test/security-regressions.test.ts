@@ -207,7 +207,7 @@ describe("审计安全边界回归", () => {
     expect(await db.prepare("SELECT status FROM async_operations WHERE id=?1").bind(id).first()).toMatchObject({ status: "failed" });
   });
   it("密码新参数与破损/高迭代存储串处理", async () => {
-    const stored = await hashPassword("regression password"); expect(stored).toContain("$600000$"); expect(await verifyPassword("regression password", stored)).toBe(true); expect(await verifyPassword("wrong", stored)).toBe(false);
+    const stored = await hashPassword("regression password"); expect(stored).toContain("scrypt$32768$8$3$"); expect(await verifyPassword("regression password", stored)).toBe(true); expect(await verifyPassword("wrong", stored)).toBe(false);
     expect(await verifyPassword("test", "pbkdf2-sha256$10000000$bad$bad")).toBe(false); expect(await verifyPassword("test", "pbkdf2-sha256$100000$!!!$!!!")).toBe(false);
   });
   it("过大真实模型输入在联网前拒绝，正常请求限制输出 tokens", async () => {

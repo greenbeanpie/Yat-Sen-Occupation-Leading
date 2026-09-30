@@ -41,7 +41,7 @@ export function getMf(): Promise<MfBundle> {
       platform: "neutral",
       mainFields: ["module", "main"],
       target: "es2022",
-      external: ["cloudflare:workers"],
+      external: ["cloudflare:workers", "node:crypto"],
       logLevel: "silent",
     });
     writeFileSync(bundlePath, bundle.outputFiles[0]!.contents);

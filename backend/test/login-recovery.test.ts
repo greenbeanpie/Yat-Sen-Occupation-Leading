@@ -1,10 +1,10 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { pbkdf2Sync } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 import { getMf, STUDENT } from './helpers';
-import { verifyPassword } from '../src/infra/password';
+import { hashPassword, verifyPassword } from '../src/infra/password';
 // @ts-expect-error Reviewed operator-only ESM utility has no declaration file.
-import { TARGET, assertTarget, buildResetSql } from '../scripts/recover-greenbp.mjs';
+import { TARGET, assertTarget, buildResetSql, buildUpgradeSql, decryptDpapi, parseWranglerJson } from '../scripts/recover-greenbp.mjs';
 
 const fixturePassword = 'Fixture-v1-Abcdef-123!';
 const fixtureSalt = Buffer.from('000102030405060708090a0b0c0d0e0f', 'hex');
@@ -22,15 +22,15 @@ describe('operator recovery and bootstrap compatibility (synthetic local fixture
   it('only changes greenbp auth state, revokes its sessions and preserves account/business identity', async () => {
     const { mf } = await getMf();
     const db = await mf.getD1Database('DB');
-    await db.prepare(`INSERT INTO users (id,role,display_name,timezone,username,password_hash,email,is_demo,created_at,updated_at) VALUES (?1,'admin','Historical name','Asia/Shanghai','greenbp','old-fixture-hash','fixture@example.test',0,?2,?2)`).bind(row.id, row.updated_at).run();
+    await db.prepare(`INSERT INTO users (id,role,display_name,timezone,username,password_hash,email,is_demo,created_at,updated_at) VALUES (?1,'admin','Historical name','Asia/Shanghai','greenbp',?3,'fixture@example.test',0,?2,?2)`).bind(row.id, row.updated_at, bootstrapVector()).run();
     await db.batch([
       db.prepare('INSERT INTO sessions (id,user_id,expires_at) VALUES (?1,?2,?3)').bind('fixture-session-a', row.id, 9999999999),
       db.prepare('INSERT INTO sessions (id,user_id,expires_at) VALUES (?1,?2,?3)').bind('fixture-session-b', STUDENT, 9999999999),
     ]);
     const before = await db.prepare('SELECT * FROM users WHERE id=?1').bind(row.id).first();
-    const hash = bootstrapVector();
+    const hash = await hashPassword(fixturePassword);
     const timestamp = '2026-09-30T00:00:00.000Z';
-    await db.exec(buildResetSql(row, hash, timestamp));
+    await db.exec(buildUpgradeSql(row, bootstrapVector(), hash, timestamp));
     const after = await db.prepare('SELECT * FROM users WHERE id=?1').bind(row.id).first();
     expect(after).toEqual({ ...before, password_hash: hash, updated_at: timestamp });
     expect((await db.prepare('SELECT count(*) AS total FROM sessions WHERE user_id=?1').bind(row.id).first())!.total).toBe(0);
@@ -45,6 +45,25 @@ describe('operator recovery and bootstrap compatibility (synthetic local fixture
   it('refuses changed identity/status and unsafe hash inputs', () => {
     for (const change of [{ id: STUDENT }, { role: 'student' }, { deleted: 1 }, { is_demo: 1 }, { canonical_count: 2 }]) expect(() => assertTarget({ ...row, ...change })).toThrow();
     expect(() => buildResetSql(row, "bad'; DROP TABLE users;--", '2026-09-30T00:00:00.000Z')).toThrow();
+  });
+  it('runs real Windows DPAPI roundtrip with only a synthetic fixture and parses Wrangler JSON', () => {
+    const protectedResult = spawnSync('powershell.exe', ['-NoProfile','-NonInteractive','-Command', "[Reflection.Assembly]::LoadWithPartialName('System.Security') | Out-Null; [Convert]::ToBase64String([Security.Cryptography.ProtectedData]::Protect([Text.Encoding]::UTF8.GetBytes([Console]::In.ReadToEnd()),$null,[Security.Cryptography.DataProtectionScope]::CurrentUser))"], {input:fixturePassword,encoding:'utf8',windowsHide:true});
+    expect(protectedResult.status).toBe(0);
+    expect(decryptDpapi(protectedResult.stdout.trim())).toBe(fixturePassword);
+    expect(parseWranglerJson('[{"success":true,"results":[{"fixture":1}]}]')[0].results[0].fixture).toBe(1);
+    expect(()=>parseWranglerJson('')).toThrow();
+  });
+  it('uses exact original hash guard for same-password upgrade and rejects weak scrypt factors', async () => {
+    const hash = await hashPassword(fixturePassword);
+    expect(await verifyPassword(fixturePassword,hash)).toBe(true);
+    expect(await verifyPassword('wrong',hash)).toBe(false);
+    expect(await verifyPassword(fixturePassword,hash.replace('$32768$','$1024$'))).toBe(false);
+    expect(buildUpgradeSql(row,bootstrapVector(),hash,'2026-09-30T00:00:00.000Z')).toContain(`password_hash='${bootstrapVector()}'`);
+  });
+  it('does not translate hosted PBKDF2 runtime errors into wrong-password results', async () => {
+    const mock = vi.spyOn(crypto.subtle,'deriveBits').mockRejectedValue(new DOMException('synthetic iteration limit','NotSupportedError'));
+    try { await expect(verifyPassword(fixturePassword,bootstrapVector())).rejects.toMatchObject({name:'NotSupportedError'}); }
+    finally { mock.mockRestore(); }
   });
   it('plan creates no credential and noninteractive operator mode is blocked before any I/O', () => {
     const plan = spawnSync(process.execPath, ['--import', 'tsx', 'scripts/recover-greenbp.mjs'], { encoding: 'utf8', windowsHide: true });
