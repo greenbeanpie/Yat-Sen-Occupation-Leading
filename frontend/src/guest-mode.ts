@@ -30,7 +30,7 @@ export function isGuestUserId(value: string): boolean {
 export function isGuestMode(): boolean {
   const storage = sessionStorageOrNull();
   try {
-    return storage ? storage.getItem(GUEST_MODE_KEY) === 'true' : memoryGuestId !== null;
+    return (storage?.getItem(GUEST_MODE_KEY) === 'true') || memoryGuestId !== null;
   } catch {
     return memoryGuestId !== null;
   }
@@ -40,7 +40,7 @@ export function currentGuestUserId(): string | null {
   const storage = sessionStorageOrNull();
   let value: string | null;
   try {
-    value = storage ? storage.getItem(GUEST_USER_ID_KEY) : memoryGuestId;
+    value = storage?.getItem(GUEST_USER_ID_KEY) ?? memoryGuestId;
   } catch {
     value = memoryGuestId;
   }

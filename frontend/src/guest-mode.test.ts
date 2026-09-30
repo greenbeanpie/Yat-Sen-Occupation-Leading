@@ -70,4 +70,18 @@ describe('游客临时会话', () => {
     storage.clear();
     expect(storage.read()).toBeNull();
   });
+
+  it('sessionStorage 写入被拒绝时不会误切回 HTTP 数据源', () => {
+    const storage = fakeStorage();
+    vi.stubGlobal('sessionStorage', {
+      getItem: (key: string) => storage.getItem(key),
+      removeItem: (key: string) => storage.removeItem(key),
+      setItem: () => { throw new Error('storage write blocked'); },
+    });
+
+    const userId = startGuestMode();
+    expect(isGuestMode()).toBe(true);
+    expect(currentGuestUserId()).toBe(userId);
+    expect(isGuestUserId(userId)).toBe(true);
+  });
 });
