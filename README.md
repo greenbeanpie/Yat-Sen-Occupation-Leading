@@ -1,6 +1,6 @@
 # 实习决策与执行工作台
 
-仓库分为前端应用和 Cloudflare Workers 后端。支持注册账号（用户名 + 口令，PBKDF2 哈希、HttpOnly 会话 Cookie）登录使用；登录页仍保留演示身份选择，并提供“体验演示模式”临时入口（前端内置虚构数据，不写服务端）。模型服务默认使用确定性的 `mock` 适配器。产品目标与验收范围见 [PLAN.md](PLAN.md)，已实现内容和差异见 [计划对照](docs/plan-gap-analysis.md)。
+仓库分为前端应用和 Cloudflare Workers 后端。支持注册账号（用户名 + 口令，PBKDF2 哈希、HttpOnly 会话 Cookie）登录使用；登录页仍保留演示身份选择，并提供“体验演示模式”临时入口（前端内置虚构数据，不写服务端）。模型服务默认使用确定性的 `mock` 适配器。产品目标与验收范围见 [PLAN.md](PLAN.md)，已实现内容和差异见 [计划对照](docs/plan-gap-analysis.md)，面向公众使用前的缺口见 [生产就绪审计](docs/production-readiness-audit.md)。
 
 ## 目录
 
@@ -14,7 +14,7 @@
 │   ├── migrations/           # D1 迁移
 │   ├── openapi/              # 前后端共享的 API 契约快照
 │   └── test/                 # 单元及 Miniflare 集成测试
-├── docs/                     # 计划差异与验收记录
+├── docs/                     # 计划差异、验收记录与生产就绪审计
 ├── PLAN.md                   # 产品规格和实施计划
 └── backend_plan.md           # 后端实施计划
 ```
