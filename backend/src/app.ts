@@ -1,3 +1,8 @@
+import { bodyLimit } from "hono/body-limit";
+import { registerInvitationRoutes } from "./routes/invitations";
+import { registerHealthRoutes } from "./routes/health";
+import { rateLimit } from "./infra/rate-limit";
+import { logJson } from "./infra/logger";
 import { OpenAPIHono } from "@hono/zod-openapi";
 import { cors } from "hono/cors";
 import { errorBody, AppError } from "./shared/errors";
@@ -67,17 +72,34 @@ export function createApp(): App {
     return middleware(c, next);
   });
 
+  app.use("/*", async (c, next) => {
+    const requestId = crypto.randomUUID();
+    c.header("X-Request-Id", requestId);
+    c.header("X-Content-Type-Options", "nosniff");
+    const path = c.req.path;
+    if (path.includes("/session") || path.includes("/admin/invitations")) c.header("Cache-Control", "no-store");
+    if (c.req.method !== "OPTIONS") {
+      const auth = c.req.method === "POST" && /\/session(?:\/(?:login|register))?$/.test(path);
+      await rateLimit(c.env, (auth ? "auth:" : "api:") + (c.req.header("CF-Connecting-IP") ?? "unknown"), auth ? 20 : 180);
+    }
+    await next();
+  });
+  app.use("/*", bodyLimit({ maxSize: 11 * 1024 * 1024, onError: (c) => c.json(errorBody(new AppError(413, "payload_too_large", "请求体超过上限")), 413) }));
+
   app.onError((err, c) => {
     if (err instanceof AppError) {
+      if (err.status === 429) c.header("Retry-After", "60");
       return c.json(errorBody(err), err.status as 400) as never;
     }
-    console.error(JSON.stringify({ event: "unhandled_error", message: err.message, stack: err.stack }));
+    logJson("error", "unhandled_error", { requestId: c.res.headers.get("X-Request-Id"), errorType: err.name });
     return c.json(errorBody(new AppError(500, "internal_error", "服务器内部错误")), 500 as 400) as never;
   });
 
   app.notFound((c) => c.json(errorBody(new AppError(404, "not_found", "接口不存在")), 404) as never);
 
+  registerHealthRoutes(app);
   registerSessionRoutes(app);
+  registerInvitationRoutes(app);
   registerProfileRoutes(app);
   registerDocumentRoutes(app);
   registerOperationRoutes(app);

@@ -1,3 +1,4 @@
+import { validateReferences } from "./access";
 import type { SyncEntity } from "../shared/constants";
 import { conflict, invalidRequest, notFound } from "../shared/errors";
 import { nowIso, uuid } from "../shared/datetime";
@@ -86,6 +87,7 @@ export async function createEntity(
   explicitId?: string,
   options: EntityWriteOptions = {},
 ): Promise<WriteResult> {
+  await validateReferences(env, userId, cfg.table, payload);
   const id = explicitId ?? uuid();
   const now = nowIso();
   const columns = buildColumnValues(cfg, payload);
@@ -120,6 +122,7 @@ export async function updateEntity(
     throw conflict("记录已被其他修改更新，请先查看服务器版本", rowToJson(cfg, row));
   }
   if (Number(row.deleted) === 1) throw conflict("记录已被删除", rowToJson(cfg, row));
+  await validateReferences(env, userId, cfg.table, payload);
   const columns = buildColumnValues(cfg, payload);
   const versionIndex = Object.keys(columns).length + 3;
   const sets = [...Object.keys(columns).map((c, i) => `${c} = ?${i + 3}`), `version = ?${versionIndex}`, `updated_at = ?${versionIndex + 1}`];

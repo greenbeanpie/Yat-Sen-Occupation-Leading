@@ -9,12 +9,9 @@ import { fileURLToPath } from "node:url";
  */
 const root = dirname(dirname(fileURLToPath(import.meta.url)));
 const app = createApp();
-const res = await app.request("/api/v1/openapi.json");
-if (!res.ok) {
-  console.error("failed to generate openapi document", res.status, await res.text());
-  process.exit(1);
-}
-const doc = (await res.json()) as { paths?: Record<string, unknown> };
+const { OPENAPI_CONFIG } = await import("../src/app");
+// Export the route registry without executing runtime DB/rate-limit middleware.
+const doc = app.getOpenAPIDocument(OPENAPI_CONFIG as never);
 const target = join(root, "openapi", "openapi.json");
 mkdirSync(dirname(target), { recursive: true });
 writeFileSync(target, JSON.stringify(doc, null, 2) + "\n");

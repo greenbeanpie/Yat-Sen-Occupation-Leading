@@ -91,5 +91,9 @@ export async function fingerprintOf(parts: unknown[]): Promise<string> {
 }
 
 export function sessionSecret(env: Env): string {
-  return env.SESSION_SECRET || "insecure-dev-secret";
+  const secret = env.SESSION_SECRET;
+  if (!secret || new TextEncoder().encode(secret).length < 32) {
+    throw new Error("SESSION_SECRET must contain at least 32 bytes");
+  }
+  return secret;
 }

@@ -4,6 +4,56 @@
  */
 
 export interface paths {
+    "/api/v1/healthz": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description D1/R2 与全部 Workflow 绑定就绪 */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {string} */
+                            status: "ok";
+                        };
+                    };
+                };
+                /** @description 依赖未就绪 */
+                503: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {string} */
+                            status: "unavailable";
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/session": {
         parameters: {
             query?: never;
@@ -197,6 +247,177 @@ export interface paths {
             };
         };
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/invitations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Latest 100 invitation metadata; no codes or account/contact information */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            items: {
+                                id: components["schemas"]["Uuid"];
+                                createdAt: string;
+                                expiresAt: string;
+                                consumedAt: string | null;
+                                revokedAt: string | null;
+                            }[];
+                        };
+                    };
+                };
+                /** @description Not authenticated */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorBody"];
+                    };
+                };
+                /** @description Real administrator required */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorBody"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        /** @default 24 */
+                        expiresInHours?: number;
+                    };
+                };
+            };
+            responses: {
+                /** @description One-time plaintext invitation; do not log or cache */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            id: components["schemas"]["Uuid"];
+                            invitationCode: string;
+                            expiresAt: string;
+                        };
+                    };
+                };
+                /** @description Not authenticated */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorBody"];
+                    };
+                };
+                /** @description Real administrator required */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorBody"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/invitations/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: components["schemas"]["Uuid"];
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Revoked; consumed registrations are unaffected */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not authenticated */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorBody"];
+                    };
+                };
+                /** @description Real administrator required */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorBody"];
+                    };
+                };
+                /** @description Not found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorBody"];
+                    };
+                };
+            };
+        };
         options?: never;
         head?: never;
         patch?: never;
@@ -766,6 +987,7 @@ export interface paths {
                     content: {
                         "application/json": {
                             items: components["schemas"]["Document"][];
+                            nextCursor?: string | null;
                         };
                     };
                 };
@@ -892,7 +1114,7 @@ export interface paths {
             };
             requestBody?: never;
             responses: {
-                /** @description 已删除（墓碑；原始文件保留在私有桶中） */
+                /** @description 已删除（墓碑同步；原文件及解析草稿/片段清除） */
                 204: {
                     headers: {
                         [name: string]: unknown;
@@ -1822,6 +2044,7 @@ export interface paths {
                     content: {
                         "application/json": {
                             items: components["schemas"]["MatchSnapshot"][];
+                            nextCursor?: string | null;
                         };
                     };
                 };
@@ -1964,6 +2187,7 @@ export interface paths {
                     content: {
                         "application/json": {
                             items: components["schemas"]["Portfolio"][];
+                            nextCursor?: string | null;
                         };
                     };
                 };
@@ -2140,6 +2364,7 @@ export interface paths {
                     content: {
                         "application/json": {
                             items: components["schemas"]["Plan"][];
+                            nextCursor?: string | null;
                         };
                     };
                 };
@@ -2403,6 +2628,7 @@ export interface paths {
                     content: {
                         "application/json": {
                             items: components["schemas"]["AdjustmentSuggestion"][];
+                            nextCursor?: string | null;
                         };
                     };
                 };
@@ -2724,6 +2950,7 @@ export interface paths {
                     content: {
                         "application/json": {
                             items: components["schemas"]["Application"][];
+                            nextCursor?: string | null;
                         };
                     };
                 };
@@ -2946,6 +3173,7 @@ export interface paths {
                     content: {
                         "application/json": {
                             items: components["schemas"]["ApplicationEvent"][];
+                            nextCursor?: string | null;
                         };
                     };
                 };
@@ -3037,6 +3265,7 @@ export interface paths {
                     content: {
                         "application/json": {
                             items: components["schemas"]["Interview"][];
+                            nextCursor?: string | null;
                         };
                     };
                 };
@@ -3187,6 +3416,7 @@ export interface paths {
                     content: {
                         "application/json": {
                             items: components["schemas"]["TimeEntry"][];
+                            nextCursor?: string | null;
                         };
                     };
                 };
@@ -3817,6 +4047,9 @@ export interface components {
         };
         RegisterRequest: {
             username: components["schemas"]["Username"];
+            invitationCode: string;
+            /** Format: email */
+            email?: string;
             password: string;
             displayName?: string;
         };
@@ -3957,6 +4190,7 @@ export interface components {
         };
         JobListResponse: {
             items: components["schemas"]["Job"][];
+            nextCursor?: string | null;
         };
         Job: {
             id: components["schemas"]["Uuid"];
@@ -4312,6 +4546,7 @@ export interface components {
         };
         NotificationListResponse: {
             items: components["schemas"]["Notification"][];
+            nextCursor?: string | null;
             unreadCount: number;
         };
         Notification: {

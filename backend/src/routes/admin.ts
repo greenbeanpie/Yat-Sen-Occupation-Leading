@@ -1,3 +1,4 @@
+import { pageRows } from "../infra/pagination";
 import { OpenAPIHono, createRoute, z } from "@hono/zod-openapi";
 import { ErrorBodySchema, JobListResponseSchema, JobPayloadSchema, JobPublishSchema, JobSchema, UuidSchema } from "../shared/schemas";
 import { requireAuth, requireAdmin } from "../middleware/auth";
@@ -65,9 +66,8 @@ const publish = createRoute({
 
 export function registerAdminRoutes(app: App): void {
   app.openapi(listAll, async (c) => {
-    const rows = await c.env.DB.prepare(`SELECT * FROM jobs WHERE user_id IS NULL AND deleted = 0 ORDER BY created_at DESC`)
-      .all<Record<string, unknown>>();
-    return c.json({ items: rows.results.map(jobToJson) }, 200 as const) as never;
+    const rows = await pageRows(c, `SELECT * FROM jobs WHERE user_id IS NULL AND deleted = 0 ORDER BY created_at DESC, id DESC`, []);
+    return c.json({ items: rows.results.map(jobToJson), nextCursor: rows.nextCursor }, 200 as const) as never;
   });
 
   app.openapi(createPublicJob, async (c) => {
@@ -142,7 +142,7 @@ export function registerAdminRoutes(app: App): void {
           payload.degreeRequirement ?? row.degree_requirement,
           payload.graduationYearFrom ?? row.graduation_year_from,
           payload.graduationYearTo ?? row.graduation_year_to,
-          payload.sourceUrl ?? row.source_url,
+          payload.sourceUrl === undefined ? row.source_url : payload.sourceUrl,
           payload.deadlineDate ?? row.deadline_date,
           payload.jdText ?? (row.jd_text as string),
           newJobVersion,

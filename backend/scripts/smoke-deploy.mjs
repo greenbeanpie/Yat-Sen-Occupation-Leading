@@ -91,6 +91,15 @@ try {
   record(contractOk, `GET /api/v1/openapi.json -> ${openapi.response.status}`);
   // 账号体系：确认迁移 0002 已应用、注册/凭据登录路由已上线（不写入任何数据）。
   const paths = openapi.body?.paths ?? {};
+  const registerSchema = openapi.body?.components?.schemas?.RegisterRequest;
+  record(registerSchema?.required?.includes("invitationCode") && !registerSchema?.required?.includes("email"), "Registration contract requires invitation and leaves email optional");
+  record(Boolean(paths["/api/v1/admin/invitations"]), "Invitation administration contract present");
+  const closedRegistration = await call("/api/v1/session/register", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ username: "smoke_probe_no_invite", password: "smoke-probe-not-a-secret" }),
+  });
+  record(closedRegistration.response.status === 422 && closedRegistration.body?.error?.details?.some(item => item.field === "invitationCode"), "Registration without an invitation is rejected before account creation");
   record(
     Boolean(paths["/api/v1/session/register"] && paths["/api/v1/session/login"]),
     "契约包含 /session/register 与 /session/login",

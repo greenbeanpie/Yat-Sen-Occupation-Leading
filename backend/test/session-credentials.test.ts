@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { loginAs, request, requestAs } from "./helpers";
+import { loginAs, request, requestAs, seedInvitation } from "./helpers";
 
 // 测试夹具：口令在测试进程内拼接生成，不落在源码字面量中。
 const RUN = Math.random().toString(36).slice(2, 10);
@@ -11,7 +11,7 @@ const wrongPassphrase = ["totally", "wrong", RUN].join("-");
 async function register(body: unknown) {
   return request(undefined, "/session/register", {
     method: "POST",
-    body: JSON.stringify(body),
+    body: JSON.stringify({ invitationCode: await seedInvitation(), ...(body as object) }),
     headers: { "Content-Type": "application/json" },
   });
 }

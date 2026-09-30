@@ -41,7 +41,8 @@ describe("离线同步协议", () => {
   it("同步 JSON 字段映射到数据库的 *_json 列并返回规范字段", async () => {
     const cookie = await loginAs(STUDENT);
     const portfolioId = crypto.randomUUID();
-    const jobId = crypto.randomUUID();
+    const jobResponse = await requestAs(cookie, "/jobs", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ title: "离线组合引用的本人岗位" }) });
+    const jobId = (await jobResponse.json<{ id: string }>()).id;
     const initial = { timeBudgetHours: 8, items: [{ jobId, pinned: false, score: 70, selected: true }], notes: { source: "offline" } };
     const created = await requestAs(cookie, "/sync/operations", {
       method: "POST",

@@ -11,7 +11,7 @@
  * 资源创建见 `node scripts/bootstrap-cloudflare.mjs --apply`。
  */
 import { spawnSync } from "node:child_process";
-import { readFileSync, writeFileSync } from "node:fs";
+import { readFileSync, writeFileSync, readdirSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -188,6 +188,21 @@ if (authenticated) {
   const buckets = [...r2List.output.matchAll(/^name:\s*(\S+)\s*$/gm)].map((match) => match[1]);
   if (buckets.includes(bucketName)) mark("pass", `R2 私有桶就绪：${bucketName}`);
   else mark("todo", `R2 桶 ${bucketName} 不存在：node scripts/bootstrap-cloudflare.mjs --apply`);
+
+  if (STRICT) {
+    // npm/npx .cmd runs through cmd.exe on Windows; keep the fixed SQL as one argument.
+    const sql = "SELECT name FROM d1_migrations ORDER BY id";
+    const migrationState = run(NPX, ["wrangler", "d1", "execute", "DB", "--remote", "--command", process.platform === "win32" ? `"${sql}"` : sql, "--json"], { cwd: BACKEND });
+    let applied = [];
+    try {
+      const start = migrationState.output.indexOf("["); const end = migrationState.output.lastIndexOf("]");
+      applied = JSON.parse(migrationState.output.slice(start, end + 1)).flatMap((entry) => (entry.results ?? []).map((row) => row.name));
+    } catch { /* A failed read cannot establish migration readiness. */ }
+    const expected = readdirSync(join(BACKEND, "migrations")).filter((file) => file.endsWith(".sql"));
+    const pending = expected.filter((file) => !applied.includes(file));
+    if (migrationState.code !== 0 || pending.length) mark("fail", `远端迁移未就绪或无法读取：${pending.join(", ") || "读取失败"}`);
+    else mark("pass", "远端已应用全部仓库迁移（只读核验）");
+  }
 }
 
 console.log("\n────────────────────────");

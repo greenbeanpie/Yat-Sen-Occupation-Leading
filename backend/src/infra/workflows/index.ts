@@ -26,13 +26,22 @@ function makeRunner(fn: (env: Env, operationId: string) => Promise<{ status: str
       return Number(result.meta.changes ?? 0) === 1;
     });
     if (!acquired) return;
-    const result = await step.do("process", async () => fn(env, operationId));
+    let result: { status: string; error?: string };
+    try {
+      result = await step.do("process", async () => fn(env, operationId));
+    } catch {
+      await step.do("record-exhausted-failure", async () => {
+        await env.DB.prepare(`UPDATE async_operations SET status = 'failed', error = '作业重试失败，请重新发起', updated_at = ?1 WHERE id = ?2 AND status = 'running'`)
+          .bind(new Date().toISOString(), operationId).run();
+      });
+      return;
+    }
     await step.do("finalize", async () => {
       const now = new Date().toISOString();
       if (result.status === "succeeded") {
-        await env.DB.prepare(`UPDATE async_operations SET status = 'succeeded', updated_at = ?1 WHERE id = ?2`).bind(now, operationId).run();
+        await env.DB.prepare(`UPDATE async_operations SET status = 'succeeded', updated_at = ?1 WHERE id = ?2 AND status = 'running'`).bind(now, operationId).run();
       } else {
-        await env.DB.prepare(`UPDATE async_operations SET status = 'failed', error = ?1, updated_at = ?2 WHERE id = ?3`)
+        await env.DB.prepare(`UPDATE async_operations SET status = 'failed', error = ?1, updated_at = ?2 WHERE id = ?3 AND status = 'running'`)
           .bind(result.error ?? "unknown", now, operationId)
           .run();
       }

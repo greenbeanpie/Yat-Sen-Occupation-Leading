@@ -28,7 +28,9 @@ function messageFrom(payload: unknown, fallback: string): { message: string; cod
     ? body.details.flatMap((item) => {
         if (!item || typeof item !== 'object') return [];
         const detail = item as { field?: unknown; issue?: unknown };
-        return [`${String(detail.field ?? '字段')}: ${String(detail.issue ?? '无效')}`];
+        const field = String(detail.field ?? '字段');
+        const labels: Record<string, string> = { invitationCode: '邀请码', username: '用户名', password: '密码', email: '邮箱', displayName: '昵称' };
+        return [`${labels[field] ?? field}: ${String(detail.issue ?? '无效')}`];
       })
     : [];
   const message = typeof body.message === 'string' ? body.message : fallback;
@@ -67,10 +69,20 @@ export async function api<T = unknown>(path: string, init: RequestInit = {}): Pr
     : await response.text();
 
   if (!response.ok) {
+    if (response.status === 403 && (response.headers.get('cf-mitigated') === 'challenge' || (contentType.includes('text/html') && typeof payload === 'string' && /cloudflare|cf-chl|just a moment/i.test(payload)))) {
+      throw new ApiError('Cloudflare 安全验证拦截了请求。请在普通浏览器打开本站完成验证，再刷新重试；若持续出现，请联系站点管理员。', 403, undefined, 'security_challenge');
+    }
     const parsed = messageFrom(payload, `请求失败 (${response.status})`);
     throw new ApiError(parsed.message, response.status, payload, parsed.code, parsed.server);
   }
 
+  // Existing screens consume complete lists; transparently follow advertised pages.
+  if ((init.method ?? 'GET') === 'GET' && payload && typeof payload === 'object' && 'items' in payload && Array.isArray(payload.items) && 'nextCursor' in payload && typeof payload.nextCursor === 'string') {
+    const url = new URL(path, 'https://pagination.local');
+    url.searchParams.set('cursor', payload.nextCursor);
+    const next = await api<{ items: unknown[]; nextCursor?: string | null }>(url.pathname + url.search, init);
+    return { ...payload, items: [...payload.items, ...next.items], nextCursor: next.nextCursor ?? null } as T;
+  }
   return payload as T;
 }
 

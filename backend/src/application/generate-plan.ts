@@ -1,3 +1,4 @@
+import { visibleJob } from "./access";
 import { z } from "zod";
 import type { Env } from "../env";
 import { getAiProvider, AiError } from "../infra/ai";
@@ -52,8 +53,8 @@ export async function processGeneratePlan(env: Env, operationId: string): Promis
 
     const jobTitles = new Map<string, string>();
     for (const item of selected) {
-      const job = await env.DB.prepare(`SELECT title FROM jobs WHERE id = ?1`).bind(item.jobId).first<{ title: string }>();
-      if (job) jobTitles.set(item.jobId, job.title);
+      const job = await visibleJob(env, userId, item.jobId);
+      jobTitles.set(item.jobId, job.title as string);
     }
 
     // 计划任务要能关联具体岗位、差距或已确认证据（PLAN.md 2.5），

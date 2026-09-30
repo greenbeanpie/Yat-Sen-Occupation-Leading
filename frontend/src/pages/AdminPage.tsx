@@ -1,3 +1,4 @@
+import { InvitationsPanel } from './InvitationsPanel';
 import { useEffect, useState } from 'react';
 import { FileSearch, Pencil, Plus, Send, Archive } from 'lucide-react';
 import { get, pollOperation, post, put } from '../api/client';
@@ -34,6 +35,7 @@ export function AdminPage({ context, user }: { context: ActionContext; user?: Ad
         {(job) => <AdminJobCard job={job} context={context} onEdit={() => setEditing(job)}/>}
       </DataRows>
     </Panel>
+    {user && !user.demo && <InvitationsPanel context={context}/> }
     {creating && <Modal title="新增公共岗位" onClose={() => setCreating(false)}>
       <ActionForm disabled={context.busy} label="创建草稿" onSubmit={create} fields={jobFields()}/>
     </Modal>}

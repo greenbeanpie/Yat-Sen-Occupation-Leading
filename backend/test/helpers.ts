@@ -1,10 +1,11 @@
 import { Miniflare } from "miniflare";
 import * as esbuild from "esbuild";
-import { mkdirSync } from "node:fs";
+import { mkdirSync, writeFileSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { beforeEach } from "vitest";
 import { DEMO_USERS } from "../src/shared/constants";
+import { invitationHash, invitationToken } from "../src/infra/invitations";
 import { MIGRATION_0001 } from "../src/infra/db/schema";
 
 const root = dirname(dirname(fileURLToPath(import.meta.url)));
@@ -15,7 +16,7 @@ const bundlePath = join(root, "test", ".tmp", `worker.${process.pid}.${Math.rand
 // 沙箱化运行、%TEMP% 只读的 CI）里 workerd 子进程无法在那里建目录，会直接
 // std::terminate 或报 SQLITE_CANTOPEN。把临时根目录指到仓库内的 test/.tmp（已 gitignore），
 // workerd 就能正常启动。必须在 Miniflare 启动前设置，os.tmpdir() 每次调用都会读这些变量。
-const mfTmpRoot = join(root, "test", ".tmp", "tmp-root");
+const mfTmpRoot = process.env.YSO_TEST_TMP_DIR ?? join(root, "test", ".tmp", "tmp-root");
 mkdirSync(mfTmpRoot, { recursive: true });
 process.env.TMP = mfTmpRoot;
 process.env.TEMP = mfTmpRoot;
@@ -31,10 +32,11 @@ const globalCache = globalThis as typeof globalThis & { __ysoTestMf?: Promise<Mf
 export function getMf(): Promise<MfBundle> {
   globalCache.__ysoTestMf ??= (async () => {
     mkdirSync(dirname(bundlePath), { recursive: true });
-    await esbuild.build({
+    const bundle = await esbuild.build({
       entryPoints: [join(root, "src", "index.ts")],
       outfile: bundlePath,
       bundle: true,
+      write: false,
       format: "esm",
       platform: "neutral",
       mainFields: ["module", "main"],
@@ -42,6 +44,7 @@ export function getMf(): Promise<MfBundle> {
       external: ["cloudflare:workers"],
       logLevel: "silent",
     });
+    writeFileSync(bundlePath, bundle.outputFiles[0]!.contents);
     const mf = new Miniflare({
       scriptPath: bundlePath,
       modules: true,
@@ -57,7 +60,7 @@ export function getMf(): Promise<MfBundle> {
         AI_MODEL: "",
         CORS_ORIGIN: "http://localhost:5173",
         DEMO_ENABLED: "true",
-        SESSION_SECRET: "test-secret",
+        SESSION_SECRET: "test-secret-with-at-least-32-bytes-long",
       },
     });
     return { mf };
@@ -68,7 +71,7 @@ export function getMf(): Promise<MfBundle> {
 export const testEnv = { placeholder: true } as never;
 
 const TABLES = [
-  "users", "profiles", "experiences", "skills", "experience_skills",
+  "invitations", "reminder_push_deliveries", "sessions", "rate_limits", "users", "profiles", "experiences", "skills", "experience_skills",
   "documents", "document_segments", "parse_drafts",
   "jobs", "job_versions", "job_requirements",
   "match_snapshots", "portfolios",
@@ -138,4 +141,22 @@ export async function request(cookie: string | undefined, path: string, init: Re
 
 export async function requestAs(cookie: string, path: string, init: RequestInit = {}): Promise<Response> {
   return request(cookie, path, init);
+}
+
+/** Local-only real administrator fixture. Never grants a production account. */
+export async function loginRealAdmin(): Promise<string> {
+  const res = await request(undefined, "/session/register", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ invitationCode: await seedInvitation(), username: "admin_" + crypto.randomUUID().slice(0, 16), password: crypto.randomUUID() }) });
+  if (!res.ok) throw new Error(`fixture registration failed: ${res.status}`);
+  const { user } = await res.json<{ user: { id: string } }>();
+  const { mf } = await getMf();
+  await (await mf.getD1Database("DB")).prepare("UPDATE users SET role='admin' WHERE id=?1").bind(user.id).run();
+  return res.headers.get("set-cookie")!.split(";")[0]!;
+}
+
+/** Local-only invitation fixture. Never inserts production invitations. */
+export async function seedInvitation(): Promise<string> {
+  const token = invitationToken();
+  const { mf } = await getMf();
+  await (await mf.getD1Database("DB")).prepare("INSERT INTO invitations (id,token_hash,created_by,created_at,expires_at) VALUES (?1,?2,'test-fixture',?3,?4)").bind(crypto.randomUUID(), await invitationHash(token), new Date().toISOString(), new Date(Date.now()+3600_000).toISOString()).run();
+  return token;
 }

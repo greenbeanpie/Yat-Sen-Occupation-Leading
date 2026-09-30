@@ -1,5 +1,7 @@
 # 生产就绪审计：面向公众使用的缺口清单
 
+> 后续逐项核验、严重程度校正与本机修复记录见 [production-readiness-review.md](production-readiness-review.md)。下文保留原审计结论作历史记录，不代表39项均已确证或仍未处理。
+
 - 审计日期：2026-09-30
 - 审计基线提交：[`8de3897`](https://github.com/greenbeanpie/Yat-Sen-Occupation-Leading/commit/8de3897)（`main`）
 - 方法：6 路并行独立审计（认证与密码学 / 数据保护与合规 / 可靠性运维 / 后端 API 质量 / 前端与体验 / 成本与扩展），由主审对关键结论逐条复核

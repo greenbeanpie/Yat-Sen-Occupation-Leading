@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ADMIN, getMf, loginAs, requestAs, STUDENT } from "./helpers";
+import { getMf, loginRealAdmin, loginAs, requestAs, STUDENT } from "./helpers";
 import { runGenerateMatch, runGeneratePlan, runRewriteResume, runParseJobRequirements } from "../src/application/processors";
 
 async function makeEnv() {
@@ -22,7 +22,7 @@ async function runProcessor(
 
 /** 准备：管理员发布岗位 → 学生建画像 → 匹配 → 组合（含已选岗位）。 */
 async function setupPortfolio(): Promise<{ cookie: string; portfolioId: string; jobId: string }> {
-  const adminCookie = await loginAs(ADMIN);
+  const adminCookie = await loginRealAdmin();
   const create = await requestAs(adminCookie, "/admin/jobs", {
     method: "POST",
     body: JSON.stringify({

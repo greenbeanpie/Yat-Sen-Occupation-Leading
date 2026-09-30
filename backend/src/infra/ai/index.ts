@@ -51,6 +51,9 @@ export class OpenAiCompatProvider implements AiProvider {
   }
 
   async complete(messages: ChatMessage[], opts?: CompletionOptions): Promise<string> {
+    if (messages.reduce((size, message) => size + new TextEncoder().encode(message.content).length, 0) > 100_000) {
+      throw new AiError("模型输入超过 100KB 上限，请缩小文档或岗位内容", false);
+    }
     const timeoutMs = opts?.timeoutMs ?? 60_000;
     let lastError: AiError = new AiError("模型请求失败", false);
     for (let attempt = 0; attempt < 3; attempt++) {
@@ -66,6 +69,7 @@ export class OpenAiCompatProvider implements AiProvider {
           body: JSON.stringify({
             model: this.env.AI_MODEL,
             messages,
+            max_tokens: 4096,
             temperature: opts?.temperature ?? 0.2,
           }),
           signal: controller.signal,

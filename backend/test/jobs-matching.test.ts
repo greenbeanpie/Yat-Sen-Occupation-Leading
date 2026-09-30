@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ADMIN, getMf, loginAs, requestAs, STUDENT, STUDENT2 } from "./helpers";
+import { getMf, loginRealAdmin, loginAs, requestAs, STUDENT, STUDENT2 } from "./helpers";
 import { runParseJobRequirements, runGenerateMatch } from "../src/application/processors";
 
 async function runProcessor(
@@ -18,7 +18,7 @@ async function runProcessor(
 }
 
 async function setupMatchedJob() {
-  const cookie = await loginAs(ADMIN);
+  const cookie = await loginRealAdmin();
   // 管理员创建并发布公共岗位（JD 含技能关键词，供 mock 引用）
   const create = await requestAs(cookie, "/admin/jobs", {
     method: "POST",
@@ -56,7 +56,7 @@ async function setupMatchedJob() {
 describe("岗位与管理员", () => {
   it("管理员解析 JD 要求并确认写入（引用核验后的候选）", async () => {
     const jobId = await setupMatchedJob();
-    const cookie = await loginAs(ADMIN);
+    const cookie = await loginRealAdmin();
     const detail = await requestAs(cookie, `/jobs/${jobId}`);
     const detailBody = await detail.json<{ requirements: { kind: string; value: string; quote: string }[]; status: string }>();
     expect(detailBody.status).toBe("published");

@@ -3,7 +3,7 @@
  * 存储格式：pbkdf2-sha256$<iterations>$<salt b64url>$<hash b64url>；校验用常数时间比较。
  */
 const SCHEME = "pbkdf2-sha256";
-const ITERATIONS = 100_000;
+const ITERATIONS = 600_000;
 const KEY_LENGTH_BITS = 256;
 const encoder = new TextEncoder();
 
@@ -43,10 +43,16 @@ export async function hashPassword(password: string): Promise<string> {
 }
 
 export async function verifyPassword(password: string, stored: string): Promise<boolean> {
+  if (stored.split("$").length !== 4) return false;
   const [scheme, iterations, salt, hash] = stored.split("$");
   if (scheme !== SCHEME || !iterations || !salt || !hash) return false;
   const parsed = Number(iterations);
-  if (!Number.isInteger(parsed) || parsed < 1 || parsed > 10_000_000) return false;
-  const candidate = await derive(password, fromBase64Url(salt), parsed);
-  return timingSafeEqual(candidate, fromBase64Url(hash));
+  if (!Number.isInteger(parsed) || (parsed !== 100_000 && parsed !== ITERATIONS)) return false;
+  try {
+    const saltBytes = fromBase64Url(salt);
+    const hashBytes = fromBase64Url(hash);
+    if (saltBytes.length !== 16 || hashBytes.length !== 32) return false;
+    const candidate = await derive(password, saltBytes, parsed);
+    return timingSafeEqual(candidate, hashBytes);
+  } catch { return false; }
 }

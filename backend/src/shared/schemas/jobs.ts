@@ -1,3 +1,4 @@
+import { isHttpUrl } from "../../application/access";
 import { z } from "@hono/zod-openapi";
 import { baseEntityShape, DateYmdSchema, UuidSchema } from "./common";
 
@@ -9,7 +10,7 @@ export const JobPayloadSchema = z
     degreeRequirement: z.enum(["associate", "bachelor", "master", "phd", "none"]).nullish(),
     graduationYearFrom: z.number().int().min(2000).max(2100).nullish(),
     graduationYearTo: z.number().int().min(2000).max(2100).nullish(),
-    sourceUrl: z.string().max(1000).nullish(),
+    sourceUrl: z.string().max(1000).refine(isHttpUrl, "仅允许绝对 HTTP(S) 来源链接").nullish(),
     deadlineDate: DateYmdSchema.nullish(),
     jdText: z.string().max(50000).optional(),
   })
@@ -49,7 +50,7 @@ export const JobListQuerySchema = z
   .openapi("JobListQuery");
 
 export const JobListResponseSchema = z
-  .object({ items: z.array(JobSchema) })
+  .object({ items: z.array(JobSchema), nextCursor: z.string().nullable().optional() })
   .openapi("JobListResponse");
 
 export const JobPublishSchema = z

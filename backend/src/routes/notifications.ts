@@ -1,3 +1,4 @@
+import { pageRows } from "../infra/pagination";
 import { OpenAPIHono, createRoute, z } from "@hono/zod-openapi";
 import {
   ErrorBodySchema,
@@ -105,10 +106,7 @@ const vapidKey = createRoute({
 export function registerNotificationRoutes(app: App): void {
   app.openapi(listNotifications, async (c) => {
     const userId = c.get("user").id;
-    const rows = await c.env.DB
-      .prepare(`SELECT * FROM reminders WHERE user_id = ?1 AND status = 'sent' ORDER BY fire_at DESC LIMIT 100`)
-      .bind(userId)
-      .all<Record<string, unknown>>();
+    const rows = await pageRows(c, `SELECT * FROM reminders WHERE user_id = ?1 AND status = 'sent' ORDER BY fire_at DESC, id DESC`, [userId]);
     const items = rows.results.map((r) => ({
       id: r.id as string,
       kind: r.kind as string,
@@ -124,7 +122,7 @@ export function registerNotificationRoutes(app: App): void {
       .prepare(`SELECT COUNT(*) AS n FROM reminders WHERE user_id = ?1 AND status = 'sent' AND read_at IS NULL`)
       .bind(userId)
       .first<{ n: number }>();
-    return c.json({ items, unreadCount: unread?.n ?? 0 }, 200 as const) as never;
+    return c.json({ items, unreadCount: unread?.n ?? 0, nextCursor: rows.nextCursor }, 200 as const) as never;
   });
 
   app.openapi(markRead, async (c) => {

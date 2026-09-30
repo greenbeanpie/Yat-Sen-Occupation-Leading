@@ -13,6 +13,8 @@ CREATE TABLE users (
   timezone TEXT NOT NULL DEFAULT 'Asia/Shanghai',
   username TEXT,
   password_hash TEXT,
+  email TEXT,
+  email_verified_at TEXT,
   is_demo INTEGER NOT NULL DEFAULT 0,
   notify_task_due INTEGER NOT NULL DEFAULT 1,
   notify_interview INTEGER NOT NULL DEFAULT 1,
@@ -22,6 +24,7 @@ CREATE TABLE users (
 );
 
 CREATE UNIQUE INDEX idx_users_username ON users (username) WHERE username IS NOT NULL;
+CREATE UNIQUE INDEX idx_users_username_canonical ON users(lower(trim(username))) WHERE username IS NOT NULL;
 
 CREATE TABLE profiles (
   id TEXT PRIMARY KEY,
@@ -117,6 +120,7 @@ CREATE TABLE parse_drafts (
   result_json TEXT NOT NULL,
   status TEXT NOT NULL DEFAULT 'ready' CHECK (status IN ('ready','confirmed','rejected')),
   input_fingerprint TEXT NOT NULL,
+  confirmation_token TEXT,
   version INTEGER NOT NULL DEFAULT 1,
   deleted INTEGER NOT NULL DEFAULT 0,
   created_at TEXT NOT NULL,
@@ -393,4 +397,27 @@ CREATE TABLE push_subscriptions (
   updated_at TEXT NOT NULL,
   UNIQUE (user_id, endpoint)
 );
+
+CREATE TABLE invitations (
+  id TEXT PRIMARY KEY,
+  token_hash TEXT NOT NULL UNIQUE,
+  created_by TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  expires_at TEXT NOT NULL,
+  consumed_by TEXT UNIQUE,
+  consumed_at TEXT,
+  revoked_at TEXT
+);
+CREATE TABLE sessions (id TEXT PRIMARY KEY, user_id TEXT NOT NULL, expires_at INTEGER NOT NULL);
+CREATE INDEX idx_sessions_expiry ON sessions(expires_at);
+CREATE INDEX idx_sessions_user ON sessions(user_id);
+CREATE TABLE rate_limits (key TEXT NOT NULL, window INTEGER NOT NULL, hits INTEGER NOT NULL, expires_at INTEGER NOT NULL, PRIMARY KEY(key, window));
+CREATE INDEX idx_rate_limits_expiry ON rate_limits(expires_at);
+CREATE INDEX idx_operations_budget ON async_operations(user_id, created_at, status);
+CREATE TABLE reminder_push_deliveries (reminder_id TEXT NOT NULL, subscription_id TEXT NOT NULL, PRIMARY KEY(reminder_id, subscription_id));
+CREATE INDEX idx_documents_page ON documents(user_id, deleted, created_at, id);
+CREATE INDEX idx_portfolios_page ON portfolios(user_id, deleted, created_at, id);
+CREATE INDEX idx_plans_page ON plans(user_id, deleted, created_at, id);
+CREATE INDEX idx_jobs_page ON jobs(user_id, deleted, created_at, id);
+CREATE INDEX idx_reminders_page ON reminders(user_id, status, fire_at, id);
 `;

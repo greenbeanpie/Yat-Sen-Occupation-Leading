@@ -7,10 +7,12 @@ import {
 } from "../shared/schemas/session";
 import { ErrorBodySchema } from "../shared/schemas/common";
 import { DEMO_USERS } from "../shared/constants";
-import { ensureDemoUsers, getUser } from "../infra/db/helpers";
+import { ensureDemoUsers, getUser, sessionSecret } from "../infra/db/helpers";
 import { hashPassword, verifyPassword } from "../infra/password";
 import { clearSessionCookie, issueSessionCookie, resolveUser } from "../middleware/auth";
 import { invalidRequest, notFound, unauthorized } from "../shared/errors";
+import { canonicalUsername, invitationHash } from "../infra/invitations";
+import { rateLimit } from "../infra/rate-limit";
 import { uuid, nowIso } from "../shared/datetime";
 import type { AppEnv, Env } from "../env";
 
@@ -114,10 +116,11 @@ export function registerSessionRoutes(app: App): void {
   });
 
   app.openapi(login, async (c) => {
-    if (c.env.DEMO_ENABLED === "true") await ensureDemoUsers(c.env.DB);
+    if (c.env.DEMO_ENABLED !== "true") throw notFound("演示身份不存在");
+    await ensureDemoUsers(c.env.DB);
     const { userId } = c.req.valid("json");
     const row = await getUser(c.env.DB, userId);
-    if (!row) throw notFound("演示身份不存在");
+    if (!row || Number(row.is_demo) !== 1 || !(Object.values(DEMO_USERS) as string[]).includes(userId)) throw notFound("演示身份不存在");
     await issueSessionCookie(c, userId);
     return c.json(
       { authenticated: true, user: userPayload(row), capabilities: capabilitiesOf(c.env) },
@@ -126,22 +129,37 @@ export function registerSessionRoutes(app: App): void {
   });
 
   app.openapi(register, async (c) => {
-    const { username, password, displayName } = c.req.valid("json");
-    const taken = await c.env.DB
-      .prepare(`SELECT id FROM users WHERE username = ?1 AND deleted = 0`)
-      .bind(username)
-      .first<{ id: string }>();
-    if (taken) throw invalidRequest([{ field: "username", issue: "用户名已被占用" }], "注册信息有误");
-    const id = uuid();
+    const input = c.req.valid("json");
+    const { password, displayName, email, invitationCode } = input;
+    const username = canonicalUsername(input.username);
+    sessionSecret(c.env);
+    const digest = await invitationHash(invitationCode);
     const now = nowIso();
-    await c.env.DB.batch([
-      c.env.DB
-        .prepare(
-          `INSERT INTO users (id, role, display_name, timezone, username, password_hash, is_demo, created_at, updated_at)
-           VALUES (?1, 'student', ?2, ?3, ?4, ?5, 0, ?6, ?6)`,
-        )
-        .bind(id, displayName?.trim() || username, "Asia/Shanghai", username, await hashPassword(password), now),
-    ]);
+    const usable = await c.env.DB.prepare(`SELECT id FROM invitations WHERE token_hash=?1 AND consumed_by IS NULL AND revoked_at IS NULL AND expires_at>?2`).bind(digest, now).first();
+    const invalidInvite = () => invalidRequest([{ field: "invitationCode", issue: "邀请码无效、已使用或已过期" }], "无法注册");
+    if (!usable) throw invalidInvite();
+    const taken = await c.env.DB.prepare(`SELECT id FROM users WHERE lower(trim(username)) = ?1`).bind(username).first();
+    const nameTaken = () => invalidRequest([{ field: "username", issue: "用户名已被占用" }], "无法注册");
+    if (taken) throw nameTaken();
+    const id = uuid();
+    const passwordHash = await hashPassword(password);
+    let results;
+    try {
+      // Transactional D1 batch: the INSERT rechecks eligibility, then only that
+      // inserted account claims the invitation. Unique failures roll back both.
+      results = await c.env.DB.batch([
+        c.env.DB.prepare(`INSERT INTO users (id, role, display_name, timezone, username, password_hash, email, is_demo, created_at, updated_at)
+          SELECT ?1, 'student', ?2, 'Asia/Shanghai', ?3, ?4, ?5, 0, ?6, ?6
+          FROM invitations WHERE token_hash=?7 AND consumed_by IS NULL AND revoked_at IS NULL AND expires_at>?6`)
+          .bind(id, displayName?.trim() || username, username, passwordHash, email ?? null, nowIso(), digest),
+        c.env.DB.prepare(`UPDATE invitations SET consumed_by=?1, consumed_at=?2 WHERE token_hash=?3 AND consumed_by IS NULL AND EXISTS (SELECT 1 FROM users WHERE id=?1)`)
+          .bind(id, nowIso(), digest),
+      ]);
+    } catch (error) {
+      if (await c.env.DB.prepare(`SELECT id FROM users WHERE lower(trim(username))=?1`).bind(username).first()) throw nameTaken();
+      throw error;
+    }
+    if (results[0]!.meta.changes !== 1) throw invalidInvite();
     await issueSessionCookie(c, id);
     return c.json(
       {
@@ -160,14 +178,26 @@ export function registerSessionRoutes(app: App): void {
   });
 
   app.openapi(credentialLogin, async (c) => {
-    const { username, password } = c.req.valid("json");
+    const input = c.req.valid("json");
+    const { password } = input;
+    const username = canonicalUsername(input.username);
+    await rateLimit(c.env, `credential:${username}`, 10);
     const row = await c.env.DB
-      .prepare(`SELECT * FROM users WHERE username = ?1 AND deleted = 0`)
+      .prepare(`SELECT * FROM users WHERE lower(trim(username)) = ?1 AND deleted = 0 AND is_demo = 0`)
       .bind(username)
       .first<Record<string, unknown>>();
     // 用户名不存在与密码错误返回同一提示，避免账号枚举。
-    if (!row || !(row.password_hash as string | null)) throw unauthorized("用户名或密码不正确");
+    if (!row || !(row.password_hash as string | null)) {
+      // Equal-cost verification for unknown users; never a valid credential.
+      await verifyPassword(password, "pbkdf2-sha256$600000$AAAAAAAAAAAAAAAAAAAAAA$AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA");
+      throw unauthorized("用户名或密码不正确");
+    }
     if (!(await verifyPassword(password, row.password_hash as string))) throw unauthorized("用户名或密码不正确");
+    if ((row.password_hash as string).startsWith("pbkdf2-sha256$100000$")) {
+      // Upgrade only after successful verification, without replacing a concurrent credential change.
+      await c.env.DB.prepare(`UPDATE users SET password_hash = ?1 WHERE id = ?2 AND password_hash = ?3`)
+        .bind(await hashPassword(password), row.id, row.password_hash).run();
+    }
     await issueSessionCookie(c, row.id as string);
     return c.json(
       { authenticated: true, user: userPayload(row), capabilities: capabilitiesOf(c.env) },
@@ -175,8 +205,8 @@ export function registerSessionRoutes(app: App): void {
     );
   });
 
-  app.openapi(logout, (c) => {
-    clearSessionCookie(c);
+  app.openapi(logout, async (c) => {
+    await clearSessionCookie(c);
     return c.body(null, 204 as const);
   });
 }

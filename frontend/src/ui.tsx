@@ -62,7 +62,7 @@ export default function App() {
     update = registerServiceWorker({
       onNeedRefresh: () => setPendingUpdate(() => update),
       onOfflineReady: () => setMessage({ kind: 'success', text: '应用外壳已缓存，可以离线打开工作台。' }),
-      onError: (error) => console.warn('Service Worker 注册失败', error),
+      onError: () => setMessage({ kind: 'error', text: '离线缓存或应用更新失败，请刷新页面后重试。' }),
     });
     return () => setPendingUpdate(null);
   }, []);
@@ -214,7 +214,7 @@ export default function App() {
     }, '已进入演示工作台');
   }
 
-  async function registerAccount(input: { username: string; password: string; displayName?: string }): Promise<boolean> {
+  async function registerAccount(input: { username: string; password: string; invitationCode: string; email?: string; displayName?: string }): Promise<boolean> {
     setBusy(true);
     setSessionError('');
     try {
@@ -334,7 +334,7 @@ export default function App() {
   }
 
   const user = session.user ?? undefined;
-  const isAdmin = user?.role === 'admin';
+  const isAdmin = user?.role === 'admin' && !user.demo;
   const activeDataSource = getActiveDataSource();
   const actionContext: ActionContext = { userId: user?.id ?? '', refresh, busy, run };
 
@@ -366,6 +366,7 @@ export default function App() {
             <button className="icon-btn" title={activeDataSource === 'guest' ? '结束游客体验并清除数据' : '退出登录'} onClick={() => void logout()}><LogOut size={16}/></button>
           </div>
           <div className="api-indicator"><span className="dot"/>{activeDataSource === 'guest' ? '本标签页临时数据 · 退出或关闭即清除' : activeDataSource === 'demo' ? '内置演示数据源' : '后端会话已连接'}</div>
+          <small className="muted">版本 {import.meta.env.VITE_BUILD_ID}</small>
         </div>
       </aside>
       {mobileOpen && <button className="sidebar-scrim" aria-label="关闭菜单" onClick={() => setMobileOpen(false)}/>}
@@ -444,7 +445,7 @@ function LoginScreen({
   demoSource: boolean;
   onLogin: (id: string) => Promise<void>;
   onGuest: () => Promise<void>;
-  onRegister: (input: { username: string; password: string; displayName?: string }) => Promise<boolean>;
+  onRegister: (input: { username: string; password: string; invitationCode: string; email?: string; displayName?: string }) => Promise<boolean>;
   onCredentialLogin: (input: { username: string; password: string }) => Promise<boolean>;
   onDemo: () => void;
 }) {
@@ -454,6 +455,8 @@ function LoginScreen({
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
   const [displayName, setDisplayName] = useState('');
+  const [invitationCode, setInvitationCode] = useState('');
+  const [email, setEmail] = useState('');
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -461,7 +464,7 @@ function LoginScreen({
     if (mode === 'login') {
       await onCredentialLogin({ username: username.trim(), password });
     } else {
-      await onRegister({ username: username.trim(), password, displayName: displayName.trim() || undefined });
+      await onRegister({ username: username.trim(), password, invitationCode: invitationCode.trim(), email: email.trim() || undefined, displayName: displayName.trim() || undefined });
     }
   }
 
@@ -476,11 +479,12 @@ function LoginScreen({
           : '注册或登录你的账号开始使用；也可以选择演示身份快速体验。'}</p>
         {error && <div className="alert"><Activity size={17}/><span>{error}</span></div>}
 
+        {!demoSource && <p className="muted">仅限受邀注册。用户名不区分大小写。忘记密码请联系邀请人，由管理员独立核验身份后人工处理；选填邮箱未经验证，不能用于找回密码。</p>}
         {!demoSource && <form className="form-grid" onSubmit={(event) => void submit(event)}>
           <label className="field">
             <span>用户名</span>
-            {/* 浏览器凭 type=password 识别口令框；autocomplete 令牌会被安全扫描误判为凭据硬编码，故未使用。 */}
             <input
+              autoComplete="username"
               value={username}
               placeholder="3-32 位字母、数字、下划线或连字符"
               pattern="[a-zA-Z0-9_\-]{3,32}"
@@ -494,11 +498,17 @@ function LoginScreen({
               <input value={displayName} maxLength={64} placeholder="默认与用户名相同" onChange={(event) => setDisplayName(event.target.value)}/>
             </label>
           )}
+          {mode === 'register' && <>
+            <label className="field"><span>一次性邀请码</span><input value={invitationCode} required autoComplete="off" spellCheck={false} minLength={16} maxLength={16} pattern="[A-Za-z0-9_\-]{16}" onChange={event => setInvitationCode(event.target.value)}/></label>
+            <label className="field"><span>邮箱（选填，未验证）</span><input type="email" value={email} maxLength={254} autoComplete="email" onChange={event => setEmail(event.target.value)}/></label>
+          </>}
           <label className="field">
             <span>密码</span>
             <input
               type="password"
+              autoComplete={mode === 'register' ? 'new-password' : 'current-password'}
               value={password}
+              maxLength={128}
               minLength={mode === 'register' ? 8 : undefined}
               placeholder={mode === 'register' ? '至少 8 位' : ''}
               required
@@ -510,6 +520,7 @@ function LoginScreen({
               <span>确认密码</span>
               <input
                 type="password"
+                autoComplete="new-password"
                 value={confirm}
                 required
                 onChange={(event) => setConfirm(event.target.value)}
@@ -539,10 +550,10 @@ function LoginScreen({
             </button>)}
           </div>
         </>}
-        <button className="guest-choice" disabled={busy} onClick={() => void onGuest()}>
+        {import.meta.env.VITE_GUEST_ENABLED !== 'false' && <button className="guest-choice" disabled={busy} onClick={() => void onGuest()}>
           游客访问（完整学生端体验）<ChevronRight size={18}/>
-        </button>
-        {!demoSource && <button className="guest-choice" disabled={busy} onClick={onDemo}>
+        </button>}
+        {!demoSource && import.meta.env.VITE_LOCAL_DEMO_ENABLED !== 'false' && <button className="guest-choice" disabled={busy} onClick={onDemo}>
           体验演示模式（临时入口，本机虚构数据）<ChevronRight size={18}/>
         </button>}
         <small className="muted">退出游客体验或关闭此标签页后，游客会话和数据会清除。</small>

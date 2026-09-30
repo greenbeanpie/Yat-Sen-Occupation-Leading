@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
+import { useEffect, useRef, useId, useState, type FormEvent, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { FolderKanban, LoaderCircle, X } from 'lucide-react';
 import { get } from './api/client';
@@ -168,6 +168,14 @@ export function ActionForm({
   const [values, setValues] = useState<Record<string, string>>(initial);
   const [submitting, setSubmitting] = useState(false);
   const [invalid, setInvalid] = useState('');
+  const errorId = useId();
+  const dirty = JSON.stringify(values) !== JSON.stringify(initial());
+  useEffect(() => {
+    if (!dirty) return;
+    const warn = (event: BeforeUnloadEvent) => { event.preventDefault(); event.returnValue = ''; };
+    window.addEventListener('beforeunload', warn);
+    return () => window.removeEventListener('beforeunload', warn);
+  }, [dirty]);
 
   useEffect(() => {
     setValues(initial());
@@ -213,6 +221,7 @@ export function ActionForm({
           <span>{field.label}{field.required && <i aria-hidden="true">*</i>}</span>
           {field.options ? (
             <select
+              aria-describedby={invalid ? errorId : undefined}
               required={field.required}
               value={values[field.name]}
               onChange={(event) => setValues((current) => ({ ...current, [field.name]: event.target.value }))}
@@ -243,7 +252,7 @@ export function ActionForm({
           )}
         </label>
       ))}
-      {invalid && <p className="inline-error form-notice" role="alert">{invalid}</p>}
+      {invalid && <p id={errorId} className="inline-error form-notice" role="alert">{invalid}</p>}
       <div className="form-submit">
         <button className="btn primary" disabled={disabled || submitting}>
           {submitting ? '正在保存…' : label}
@@ -287,11 +296,31 @@ export function Modal({
   onClose: () => void;
   children: ReactNode;
 }) {
+  const dialogRef = useRef<HTMLElement>(null);
+  const closeRef = useRef(onClose);
+  closeRef.current = onClose;
+  useEffect(() => {
+    const previous = document.activeElement as HTMLElement | null;
+    const dialog = dialogRef.current;
+    const controls = () => Array.from(dialog?.querySelectorAll<HTMLElement>('button:not(:disabled), a[href], input:not(:disabled), select:not(:disabled), textarea:not(:disabled), [tabindex="0"]') ?? []).filter((element) => element.getClientRects().length > 0);
+    (controls()[0] ?? dialog)?.focus();
+    const keydown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); closeRef.current(); }
+      if (event.key !== 'Tab') return;
+      const items = controls();
+      const first = items[0]; const last = items[items.length - 1];
+      if (!first) { event.preventDefault(); dialog?.focus(); return; }
+      if (event.shiftKey && (document.activeElement === first || document.activeElement === dialog)) { event.preventDefault(); last.focus(); }
+      else if (!event.shiftKey && (document.activeElement === last || !dialog?.contains(document.activeElement))) { event.preventDefault(); first.focus(); }
+    };
+    dialog?.addEventListener('keydown', keydown);
+    return () => { dialog?.removeEventListener('keydown', keydown); if (previous?.isConnected) previous.focus(); };
+  }, []);
   return (
     <div className="modal-backdrop" role="presentation" onMouseDown={(event) => {
       if (event.target === event.currentTarget) onClose();
     }}>
-      <section className="modal" role="dialog" aria-modal="true" aria-label={title}>
+      <section ref={dialogRef} tabIndex={-1} className="modal" role="dialog" aria-modal="true" aria-label={title}>
         <header><h2>{title}</h2><button className="icon-btn" aria-label="关闭" onClick={onClose}><X size={18}/></button></header>
         {children}
       </section>

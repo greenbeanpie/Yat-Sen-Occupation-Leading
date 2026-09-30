@@ -32,6 +32,10 @@ export async function processParseJobRequirements(env: Env, operationId: string)
   const input = JSON.parse(op.input_json as string) as { jobId: string };
   const job = await env.DB.prepare(`SELECT * FROM jobs WHERE id = ?1 AND deleted = 0`).bind(input.jobId).first<Record<string, unknown>>();
   if (!job) return { status: "failed", error: "岗位不存在" };
+  const actor = await env.DB.prepare(`SELECT role, is_demo FROM users WHERE id = ?1 AND deleted = 0`).bind(userId).first<{ role: string; is_demo: number }>();
+  if (!actor || (job.user_id !== null ? job.user_id !== userId : actor.role !== "admin" || actor.is_demo === 1)) {
+    return { status: "failed", error: "无权解析该岗位" };
+  }
 
   const fingerprint = await fingerprintOf([job.id, job.job_version, job.jd_text]);
   if (fingerprint !== op.input_fingerprint) {

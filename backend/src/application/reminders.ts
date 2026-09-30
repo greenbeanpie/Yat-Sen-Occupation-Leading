@@ -48,7 +48,7 @@ export async function createReminder(env: Env, userId: string, input: ReminderIn
 /** 取消实体上的未发送提醒（改期/完成后）。 */
 export async function cancelRemindersFor(env: Env, userId: string, entity: string, entityId: string): Promise<void> {
   await env.DB
-    .prepare(`UPDATE reminders SET status = 'cancelled', updated_at = ?3 WHERE entity = ?1 AND entity_id = ?2 AND status = 'pending' AND user_id = ?4`)
+    .prepare(`UPDATE reminders SET status = 'cancelled', updated_at = ?3 WHERE entity = ?1 AND entity_id = ?2 AND (status = 'pending' OR (status = 'sent' AND retry_count >= 0)) AND user_id = ?4`)
     .bind(entity, entityId, nowIso(), userId)
     .run();
 }
@@ -98,10 +98,10 @@ export interface CronResult {
  * Cron 每 15 分钟：读取到期提醒 → 站内标记已发送 → 有订阅则推送；
  * 失效订阅（404/410）清理，暂时失败有限重试（≤3 次后失败）。
  */
-export async function cronTick(env: Env, now: string = nowIso()): Promise<CronResult> {
+export async function cronTick(env: Env, now: string = nowIso(), push = sendWebPush): Promise<CronResult> {
   const result: CronResult = { due: 0, sentInApp: 0, sentPush: 0, failed: 0, expiredSubscriptions: 0 };
   const due = await env.DB
-    .prepare(`SELECT * FROM reminders WHERE status = 'pending' AND fire_at <= ?1 ORDER BY fire_at LIMIT 50`)
+    .prepare(`SELECT * FROM reminders WHERE (status = 'pending' OR (status = 'sent' AND retry_count >= 0 AND retry_count < 3)) AND fire_at <= ?1 ORDER BY fire_at LIMIT 50`)
     .bind(now)
     .all<Record<string, unknown>>();
   result.due = due.results.length;
@@ -114,20 +114,29 @@ export async function cronTick(env: Env, now: string = nowIso()): Promise<CronRe
 
     if (!enabled) {
       // 用户关闭了该类提醒：直接标记发送完成（不再打扰）
-      await env.DB.prepare(`UPDATE reminders SET status = 'sent', sent_at = ?2, updated_at = ?2 WHERE id = ?1`).bind(reminder.id, nowIso()).run();
+      await env.DB.prepare(`UPDATE reminders SET status = 'sent', retry_count = -1, sent_at = ?2, updated_at = ?2 WHERE id = ?1`).bind(reminder.id, nowIso()).run();
       continue;
     }
 
     // 站内提醒：标记发送即出现在通知列表
-    await env.DB.prepare(`UPDATE reminders SET status = 'sent', sent_at = ?2, updated_at = ?2 WHERE id = ?1`).bind(reminder.id, nowIso()).run();
-    result.sentInApp++;
+    if (reminder.status === 'pending') {
+      await env.DB.prepare(`UPDATE reminders SET status = 'sent', sent_at = ?2, updated_at = ?2 WHERE id = ?1 AND status = 'pending'`).bind(reminder.id, nowIso()).run();
+      result.sentInApp++;
+    }
+
+    // Reserve an attempt before subscription lookup/network IO; interrupted attempts
+    // remain eligible next tick. -1 denotes completed push delivery.
+    await env.DB.prepare(`UPDATE reminders SET retry_count = retry_count + 1 WHERE id = ?1 AND status = 'sent' AND retry_count >= 0`).bind(reminder.id).run();
 
     // 浏览器推送：用户主动授权后（存在 active 订阅）才发
     const subs = await env.DB
       .prepare(`SELECT * FROM push_subscriptions WHERE user_id = ?1 AND status = 'active' AND deleted = 0`)
       .bind(userId)
       .all<Record<string, unknown>>();
-    if (subs.results.length === 0) continue;
+    if (subs.results.length === 0) {
+      await env.DB.prepare(`UPDATE reminders SET retry_count = -1 WHERE id = ?1 AND status = 'sent'`).bind(reminder.id).run();
+      continue;
+    }
 
     const payload = JSON.stringify({
       title: reminder.title,
@@ -136,13 +145,17 @@ export async function cronTick(env: Env, now: string = nowIso()): Promise<CronRe
       data: { reminderId: reminder.id, entity: reminder.entity, entityId: reminder.entity_id },
     });
 
+    let temporaryFailure = false;
     for (const sub of subs.results) {
+      const delivered = await env.DB.prepare(`SELECT reminder_id FROM reminder_push_deliveries WHERE reminder_id = ?1 AND subscription_id = ?2`).bind(reminder.id, sub.id).first();
+      if (delivered) continue;
       try {
-        await sendWebPush(env, {
+        await push(env, {
           endpoint: sub.endpoint as string,
           p256dh: sub.p256dh as string,
           auth: sub.auth as string,
         }, payload);
+        await env.DB.prepare(`INSERT OR IGNORE INTO reminder_push_deliveries (reminder_id, subscription_id) VALUES (?1, ?2)`).bind(reminder.id, sub.id).run();
         result.sentPush++;
       } catch (e) {
         const status = (e as { statusCode?: number }).statusCode;
@@ -153,16 +166,23 @@ export async function cronTick(env: Env, now: string = nowIso()): Promise<CronRe
           continue;
         }
         // 暂时失败：有限重试（由下次 cron 处理；超过 3 次标记失败）
-        const retries = Number(reminder.retry_count ?? 0) + 1;
-        if (retries >= 3) {
-          await env.DB.prepare(`UPDATE reminders SET status = 'failed', retry_count = ?2, updated_at = ?3 WHERE id = ?1`).bind(reminder.id, retries, nowIso()).run();
-          result.failed++;
-        } else {
-          await env.DB.prepare(`UPDATE reminders SET retry_count = ?2, updated_at = ?3 WHERE id = ?1`).bind(reminder.id, retries, nowIso()).run();
-        }
+        temporaryFailure = true;
         logJson("warn", "push_send_failed", { reminderId: reminder.id as string, statusCode: status });
       }
     }
+    const retries = temporaryFailure ? Number(reminder.retry_count ?? 0) + 1 : -1;
+    await env.DB.prepare(`UPDATE reminders SET retry_count = ?2, updated_at = ?3 WHERE id = ?1 AND status = 'sent'`).bind(reminder.id, retries, nowIso()).run();
+    if (retries >= 3) result.failed++;
   }
+  const backlog = await env.DB.prepare(`SELECT COUNT(*) AS n FROM reminders WHERE status = 'pending' AND fire_at <= ?1`).bind(now).first<{ n: number }>();
+  if ((backlog?.n ?? 0) > 0 || result.failed) logJson("warn", "reminder_backlog", { count: backlog?.n ?? 0, failed: result.failed });
+  // Crash between reservation and dispatch must not leave an immortal queued record.
+  await env.DB.prepare(`UPDATE async_operations SET status = 'failed', error = '排队超时，请重新发起', updated_at = ?1 WHERE status = 'queued' AND created_at < ?2`).bind(now, new Date(new Date(now).getTime() - 30 * 60_000).toISOString()).run();
+  await env.DB.prepare(`UPDATE async_operations SET status = 'failed', error = '执行超时，请重新发起', updated_at = ?1 WHERE status = 'running' AND updated_at < ?2`).bind(now, new Date(new Date(now).getTime() - 24 * 3600_000).toISOString()).run();
+  await env.DB.batch([
+    env.DB.prepare(`DELETE FROM sessions WHERE expires_at <= ?1`).bind(Math.floor(new Date(now).getTime() / 1000)),
+    env.DB.prepare(`DELETE FROM rate_limits WHERE expires_at <= ?1`).bind(Math.floor(new Date(now).getTime() / 1000)),
+  ]);
+  logJson("info", "cron_tick", { ...result });
   return result;
 }

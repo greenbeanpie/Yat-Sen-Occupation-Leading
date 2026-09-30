@@ -1,3 +1,4 @@
+import { pageRows } from "../infra/pagination";
 import { OpenAPIHono, createRoute, z } from "@hono/zod-openapi";
 import {
   AcceptedResponseSchema,
@@ -162,7 +163,7 @@ const confirmRequirements = createRoute({
 export function registerJobRoutes(app: App): void {
   app.openapi(listJobs, async (c) => {
     const userId = c.get("user").id;
-    const role = c.get("user").role;
+    const role = c.get("user").demo ? "student" : c.get("user").role;
     const query = c.req.valid("query");
     const scope = query.scope ?? "public";
     const conditions: string[] = [];
@@ -179,7 +180,7 @@ export function registerJobRoutes(app: App): void {
     }
     if (query.q) {
       conditions.push(`(title LIKE ?${binds.length + 1} OR jd_text LIKE ?${binds.length + 1})`);
-      binds.push(`%${query.q}%`, `%${query.q}%`);
+      binds.push(`%${query.q}%`);
     }
     if (query.degree) {
       conditions.push(`degree_requirement = ?${binds.length + 1}`);
@@ -189,11 +190,8 @@ export function registerJobRoutes(app: App): void {
       conditions.push(`location LIKE ?${binds.length + 1}`);
       binds.push(`%${query.location}%`);
     }
-    const rows = await c.env.DB
-      .prepare(`SELECT * FROM jobs WHERE deleted = 0 AND ${conditions.join(" AND ")} ORDER BY created_at DESC LIMIT 100`)
-      .bind(...binds)
-      .all<Record<string, unknown>>();
-    return c.json({ items: rows.results.map(jobToJson) }, 200 as const) as never;
+    const rows = await pageRows(c, `SELECT * FROM jobs WHERE deleted = 0 AND ${conditions.join(" AND ")} ORDER BY created_at DESC, id DESC`, [...binds]);
+    return c.json({ items: rows.results.map(jobToJson), nextCursor: rows.nextCursor }, 200 as const) as never;
   });
 
   app.openapi(createJob, async (c) => {
@@ -249,7 +247,7 @@ export function registerJobRoutes(app: App): void {
 
   app.openapi(getJob, async (c) => {
     const userId = c.get("user").id;
-    const role = c.get("user").role;
+    const role = c.get("user").demo ? "student" : c.get("user").role;
     const { id } = c.req.valid("param");
     const row = await c.env.DB.prepare(`SELECT * FROM jobs WHERE id = ?1 AND deleted = 0`).bind(id).first<Record<string, unknown>>();
     if (!row) throw notFound();
@@ -264,7 +262,7 @@ export function registerJobRoutes(app: App): void {
 
   app.openapi(updateJob, async (c) => {
     const userId = c.get("user").id;
-    const role = c.get("user").role;
+    const role = c.get("user").demo ? "student" : c.get("user").role;
     const { id } = c.req.valid("param");
     const { baseVersion, ...payload } = c.req.valid("json");
     const row = await c.env.DB.prepare(`SELECT * FROM jobs WHERE id = ?1 AND deleted = 0`).bind(id).first<Record<string, unknown>>();
@@ -278,20 +276,19 @@ export function registerJobRoutes(app: App): void {
     const stmts = [
       c.env.DB
         .prepare(
-          `UPDATE jobs SET title = ?3, company = ?4, location = ?5, degree_requirement = ?6, graduation_year_from = ?7, graduation_year_to = ?8,
-           source_url = ?9, deadline_date = ?10, jd_text = ?11, job_version = ?12, version = ?13, updated_at = ?14
+          `UPDATE jobs SET title = ?2, company = ?3, location = ?4, degree_requirement = ?5, graduation_year_from = ?6, graduation_year_to = ?7,
+           source_url = ?8, deadline_date = ?9, jd_text = ?10, job_version = ?11, version = ?12, updated_at = ?13
            WHERE id = ?1`,
         )
         .bind(
           id,
-          userId,
           payload.title ?? (row.title as string),
           payload.company ?? (row.company as string),
           payload.location ?? row.location,
           payload.degreeRequirement ?? row.degree_requirement,
           payload.graduationYearFrom ?? row.graduation_year_from,
           payload.graduationYearTo ?? row.graduation_year_to,
-          payload.sourceUrl ?? row.source_url,
+          payload.sourceUrl === undefined ? row.source_url : payload.sourceUrl,
           payload.deadlineDate ?? row.deadline_date,
           payload.jdText ?? (row.jd_text as string),
           newJobVersion,
@@ -310,7 +307,7 @@ export function registerJobRoutes(app: App): void {
 
   app.openapi(deleteJob, async (c) => {
     const userId = c.get("user").id;
-    const role = c.get("user").role;
+    const role = c.get("user").demo ? "student" : c.get("user").role;
     const { id } = c.req.valid("param");
     const row = await c.env.DB.prepare(`SELECT * FROM jobs WHERE id = ?1 AND deleted = 0`).bind(id).first<Record<string, unknown>>();
     if (!row) throw notFound();
@@ -321,7 +318,7 @@ export function registerJobRoutes(app: App): void {
 
   app.openapi(parseRequirements, async (c) => {
     const userId = c.get("user").id;
-    const role = c.get("user").role;
+    const role = c.get("user").demo ? "student" : c.get("user").role;
     const { id } = c.req.valid("param");
     const row = await c.env.DB.prepare(`SELECT * FROM jobs WHERE id = ?1 AND deleted = 0`).bind(id).first<Record<string, unknown>>();
     if (!row) throw notFound();
@@ -332,7 +329,7 @@ export function registerJobRoutes(app: App): void {
 
   app.openapi(getRequirementsDraft, async (c) => {
     const userId = c.get("user").id;
-    const role = c.get("user").role;
+    const role = c.get("user").demo ? "student" : c.get("user").role;
     const { id } = c.req.valid("param");
     const row = await c.env.DB.prepare(`SELECT * FROM jobs WHERE id = ?1 AND deleted = 0`).bind(id).first<Record<string, unknown>>();
     if (!row) throw notFound();
@@ -348,7 +345,7 @@ export function registerJobRoutes(app: App): void {
 
   app.openapi(confirmRequirements, async (c) => {
     const userId = c.get("user").id;
-    const role = c.get("user").role;
+    const role = c.get("user").demo ? "student" : c.get("user").role;
     const { id } = c.req.valid("param");
     const row = await c.env.DB.prepare(`SELECT * FROM jobs WHERE id = ?1 AND deleted = 0`).bind(id).first<Record<string, unknown>>();
     if (!row) throw notFound();

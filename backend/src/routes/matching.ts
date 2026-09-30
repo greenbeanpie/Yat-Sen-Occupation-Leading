@@ -1,3 +1,5 @@
+import { pageRows } from "../infra/pagination";
+import { visibleJob } from "../application/access";
 import { OpenAPIHono, createRoute, z } from "@hono/zod-openapi";
 import {
   AcceptedResponseSchema,
@@ -40,7 +42,7 @@ const listMatches = createRoute({
   middleware: [requireAuth] as const,
   request: { query: z.object({ jobId: UuidSchema }) },
   responses: {
-    200: { content: { "application/json": { schema: z.object({ items: z.array(MatchSnapshotSchema) }) } }, description: "该岗位的匹配快照（最新在前）" },
+    200: { content: { "application/json": { schema: z.object({ items: z.array(MatchSnapshotSchema), nextCursor: z.string().nullable().optional() }) } }, description: "该岗位的匹配快照（最新在前）" },
     401: { content: { "application/json": { schema: ErrorBodySchema } }, description: "未登录" },
   },
 });
@@ -76,7 +78,7 @@ const listPortfolios = createRoute({
   tags: ["portfolios"],
   middleware: [requireAuth] as const,
   responses: {
-    200: { content: { "application/json": { schema: z.object({ items: z.array(PortfolioSchema) }) } }, description: "我的组合列表" },
+    200: { content: { "application/json": { schema: z.object({ items: z.array(PortfolioSchema), nextCursor: z.string().nullable().optional() }) } }, description: "我的组合列表" },
     401: { content: { "application/json": { schema: ErrorBodySchema } }, description: "未登录" },
   },
 });
@@ -119,7 +121,7 @@ async function loadCandidates(env: AppEnv["Bindings"], userId: string): Promise<
         (SELECT SUM(pt.estimate_hours) FROM plan_tasks pt WHERE pt.job_id = ms.job_id AND pt.user_id = ms.user_id AND pt.deleted = 0) AS prep_hours
        FROM match_snapshots ms
        JOIN jobs j ON j.id = ms.job_id
-       WHERE ms.user_id = ?1 AND ms.status = 'ready'
+       WHERE ms.user_id = ?1 AND ms.status = 'ready' AND j.deleted = 0 AND (j.user_id = ?1 OR (j.user_id IS NULL AND j.status = 'published'))
          AND ms.id IN (SELECT MAX(id) FROM match_snapshots WHERE user_id = ?1 GROUP BY job_id)`,
     )
     .bind(userId)
@@ -167,7 +169,7 @@ export function registerMatchingRoutes(app: App): void {
     const userId = c.get("user").id;
     const body = c.req.valid("json");
     await assertFreshInputs(c.env, userId, body.clientProfileVersion, body.clientExperienceVersions);
-    const jobRow = await c.env.DB.prepare(`SELECT id, job_version FROM jobs WHERE id = ?1 AND deleted = 0`).bind(body.jobId).first<{ job_version: number }>();
+    const jobRow = await visibleJob(c.env, userId, body.jobId);
     if (!jobRow) throw notFound("岗位不存在");
     const ctx = await loadRuleContext(c.env, userId);
     const operationId = await startOperation(
@@ -208,8 +210,8 @@ export function registerMatchingRoutes(app: App): void {
 
   app.openapi(listPortfolios, async (c) => {
     const userId = c.get("user").id;
-    const rows = await c.env.DB.prepare(`SELECT * FROM portfolios WHERE user_id = ?1 AND deleted = 0 ORDER BY created_at DESC`).bind(userId).all<Record<string, unknown>>();
-    return c.json({ items: rows.results.map(portfolioToJson) }, 200 as const) as never;
+    const rows = await pageRows(c, `SELECT * FROM portfolios WHERE user_id = ?1 AND deleted = 0 ORDER BY created_at DESC, id DESC`, [userId]);
+    return c.json({ items: rows.results.map(portfolioToJson), nextCursor: rows.nextCursor }, 200 as const) as never;
   });
 
   app.openapi(getPortfolio, async (c) => {

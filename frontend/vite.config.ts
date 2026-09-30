@@ -1,8 +1,20 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
+import { createHash } from 'node:crypto';
+import { readFileSync, readdirSync } from 'node:fs';
+import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const sourceRoot = fileURLToPath(new URL('./src/', import.meta.url));
+const fingerprint = createHash('sha256');
+for (const file of readdirSync(sourceRoot, { recursive: true }).map(String).sort().filter(file => /\.(tsx?|css)$/.test(file) && !file.includes('.test.'))) {
+  fingerprint.update(file); fingerprint.update(readFileSync(join(sourceRoot, file)));
+}
+const buildId = process.env.VITE_BUILD_ID || fingerprint.digest('hex').slice(0, 12);
 
 export default defineConfig({
+  define: { 'import.meta.env.VITE_BUILD_ID': JSON.stringify(buildId) },
   plugins: [
     react(),
     VitePWA({

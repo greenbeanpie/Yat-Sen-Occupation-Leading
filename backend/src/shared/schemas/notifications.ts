@@ -17,7 +17,8 @@ export const NotificationSchema = z
   .openapi("Notification");
 
 export const NotificationListResponseSchema = z
-  .object({ items: z.array(NotificationSchema), unreadCount: z.number().int() })
+  .object({ items: z.array(NotificationSchema),
+    nextCursor: z.string().nullable().optional(), unreadCount: z.number().int() })
   .openapi("NotificationListResponse");
 
 export const PushSubscriptionPayloadSchema = z

@@ -1,3 +1,4 @@
+import { pageRows } from "../infra/pagination";
 import { OpenAPIHono, createRoute, z } from "@hono/zod-openapi";
 import {
   ApplicationEventPayloadSchema,
@@ -45,7 +46,7 @@ const listApplications = createRoute({
   tags: ["applications"],
   middleware: [requireAuth] as const,
   responses: {
-    200: { content: { "application/json": { schema: z.object({ items: z.array(ApplicationSchema) }) } }, description: "投递列表" },
+    200: { content: { "application/json": { schema: z.object({ items: z.array(ApplicationSchema), nextCursor: z.string().nullable().optional() }) } }, description: "投递列表" },
     401: { content: { "application/json": { schema: ErrorBodySchema } }, description: "未登录" },
   },
 });
@@ -99,7 +100,7 @@ const listEvents = createRoute({
   middleware: [requireAuth] as const,
   request: { params: z.object({ id: UuidSchema }) },
   responses: {
-    200: { content: { "application/json": { schema: z.object({ items: z.array(ApplicationEventSchema) }) } }, description: "状态历史与反馈" },
+    200: { content: { "application/json": { schema: z.object({ items: z.array(ApplicationEventSchema), nextCursor: z.string().nullable().optional() }) } }, description: "状态历史与反馈" },
     401: { content: { "application/json": { schema: ErrorBodySchema } }, description: "未登录" },
   },
 });
@@ -142,7 +143,7 @@ const listInterviews = createRoute({
   middleware: [requireAuth] as const,
   request: { params: z.object({ id: UuidSchema }) },
   responses: {
-    200: { content: { "application/json": { schema: z.object({ items: z.array(InterviewSchema) }) } }, description: "面试安排" },
+    200: { content: { "application/json": { schema: z.object({ items: z.array(InterviewSchema), nextCursor: z.string().nullable().optional() }) } }, description: "面试安排" },
     401: { content: { "application/json": { schema: ErrorBodySchema } }, description: "未登录" },
   },
 });
@@ -182,7 +183,7 @@ const listTimeEntries = createRoute({
   middleware: [requireAuth] as const,
   request: { query: z.object({ from: DateYmdSchema, to: DateYmdSchema }) },
   responses: {
-    200: { content: { "application/json": { schema: z.object({ items: z.array(TimeEntrySchema) }) } }, description: "工时记录" },
+    200: { content: { "application/json": { schema: z.object({ items: z.array(TimeEntrySchema), nextCursor: z.string().nullable().optional() }) } }, description: "工时记录" },
     401: { content: { "application/json": { schema: ErrorBodySchema } }, description: "未登录" },
   },
 });
@@ -255,8 +256,8 @@ export function registerTrackingRoutes(app: App): void {
 
   app.openapi(listApplications, async (c) => {
     const userId = c.get("user").id;
-    const rows = await c.env.DB.prepare(`SELECT * FROM applications WHERE user_id = ?1 AND deleted = 0 ORDER BY created_at DESC`).bind(userId).all<Record<string, unknown>>();
-    return c.json({ items: rows.results.map((r) => rowToJson(APPLICATION_CFG, r)) }, 200 as const) as never;
+    const rows = await pageRows(c, `SELECT * FROM applications WHERE user_id = ?1 AND deleted = 0 ORDER BY created_at DESC, id DESC`, [userId]);
+    return c.json({ items: rows.results.map((r) => rowToJson(APPLICATION_CFG, r)), nextCursor: rows.nextCursor }, 200 as const) as never;
   });
 
   app.openapi(getApplication, async (c) => {
@@ -302,11 +303,8 @@ export function registerTrackingRoutes(app: App): void {
   app.openapi(listEvents, async (c) => {
     const userId = c.get("user").id;
     const { id } = c.req.valid("param");
-    const rows = await c.env.DB
-      .prepare(`SELECT * FROM application_events WHERE application_id = ?1 AND user_id = ?2 AND deleted = 0 ORDER BY occurred_at DESC`)
-      .bind(id, userId)
-      .all<Record<string, unknown>>();
-    return c.json({ items: rows.results.map((r) => rowToJson(APPLICATION_EVENT_CFG, r)) }, 200 as const) as never;
+    const rows = await pageRows(c, `SELECT * FROM application_events WHERE application_id = ?1 AND user_id = ?2 AND deleted = 0 ORDER BY occurred_at DESC, id DESC`, [id, userId]);
+    return c.json({ items: rows.results.map((r) => rowToJson(APPLICATION_EVENT_CFG, r)), nextCursor: rows.nextCursor }, 200 as const) as never;
   });
 
   app.openapi(createEvent, async (c) => {
@@ -348,8 +346,8 @@ export function registerTrackingRoutes(app: App): void {
   app.openapi(listInterviews, async (c) => {
     const userId = c.get("user").id;
     const { id } = c.req.valid("param");
-    const rows = await c.env.DB.prepare(`SELECT * FROM interviews WHERE application_id = ?1 AND user_id = ?2 AND deleted = 0 ORDER BY scheduled_at`).bind(id, userId).all<Record<string, unknown>>();
-    return c.json({ items: rows.results.map((r) => rowToJson(INTERVIEW_CFG, r)) }, 200 as const) as never;
+    const rows = await pageRows(c, `SELECT * FROM interviews WHERE application_id = ?1 AND user_id = ?2 AND deleted = 0 ORDER BY scheduled_at, id DESC`, [id, userId]);
+    return c.json({ items: rows.results.map((r) => rowToJson(INTERVIEW_CFG, r)), nextCursor: rows.nextCursor }, 200 as const) as never;
   });
 
   app.openapi(updateInterview, async (c) => {
@@ -375,11 +373,8 @@ export function registerTrackingRoutes(app: App): void {
   app.openapi(listTimeEntries, async (c) => {
     const userId = c.get("user").id;
     const { from, to } = c.req.valid("query");
-    const rows = await c.env.DB
-      .prepare(`SELECT * FROM time_entries WHERE user_id = ?1 AND deleted = 0 AND spent_on >= ?2 AND spent_on <= ?3 ORDER BY spent_on`)
-      .bind(userId, from, to)
-      .all<Record<string, unknown>>();
-    return c.json({ items: rows.results.map((r) => rowToJson(TIME_ENTRY_CFG, r)) }, 200 as const) as never;
+    const rows = await pageRows(c, `SELECT * FROM time_entries WHERE user_id = ?1 AND deleted = 0 AND spent_on >= ?2 AND spent_on <= ?3 ORDER BY spent_on, id DESC`, [userId, from, to]);
+    return c.json({ items: rows.results.map((r) => rowToJson(TIME_ENTRY_CFG, r)), nextCursor: rows.nextCursor }, 200 as const) as never;
   });
 
   app.openapi(deleteTimeEntry, async (c) => {

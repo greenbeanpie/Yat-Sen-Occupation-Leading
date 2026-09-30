@@ -22,7 +22,12 @@ async function viaUnzip(data: Uint8Array): Promise<string[]> {
   const { unzipSync, strFromU8 } = await import("fflate");
   let files: Record<string, Uint8Array>;
   try {
-    files = unzipSync(data);
+    files = unzipSync(data, { filter: (entry) => {
+      if (/vbaProject\.bin$/i.test(entry.name)) throw unprocessableFile("不接受包含宏的文档");
+      if (entry.name !== "word/document.xml") return false;
+      if (entry.originalSize > 4 * 1024 * 1024) throw unprocessableFile("DOCX 解压正文超过 4MB 上限");
+      return true;
+    } });
   } catch {
     throw unprocessableFile("无法读取 DOCX（文件可能已损坏）");
   }

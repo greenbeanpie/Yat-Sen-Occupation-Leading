@@ -1,3 +1,4 @@
+import { safeHttpUrl } from "../safe-url";
 import { useState } from 'react';
 import { ArrowUpRight, FileSearch, Plus, Trash2 } from 'lucide-react';
 import { del, get, pollOperation, post } from '../api/client';
@@ -64,7 +65,7 @@ export function JobsPage({ context }: { context: ActionContext }) {
           <div className="row-main">
             <div className="row-title">{job.title}<Badge value={job.status}/></div>
             <p>{job.company || '公司未填写'} · {job.location || '地点未填写'} · 截止 {job.deadlineDate || '未设置'}</p>
-            {job.sourceUrl && <a className="source-link" href={job.sourceUrl} target="_blank" rel="noreferrer">查看来源 <ArrowUpRight size={14}/></a>}
+            {safeHttpUrl(job.sourceUrl) && <a className="source-link" href={safeHttpUrl(job.sourceUrl)} target="_blank" rel="noreferrer">查看来源 <ArrowUpRight size={14}/></a>}
           </div>
           <div className="button-row">
             <button className="btn small secondary" onClick={() => setSelected(job.id)}>查看条件</button>
@@ -145,7 +146,7 @@ function JobDetail({ id, context, onClose }: { id: string; context: ActionContex
     {job.loading && !job.data ? <Loading/> : job.data ? <>
       <div className="detail-title"><h3>{job.data.title}</h3><Badge value={job.data.status}/></div>
       <p>{job.data.company || '公司未填写'} · {job.data.location || '地点未填写'}</p>
-      {job.data.sourceUrl && <a className="source-link" href={job.data.sourceUrl} target="_blank" rel="noreferrer">岗位来源 <ArrowUpRight size={14}/></a>}
+      {safeHttpUrl(job.data.sourceUrl) && <a className="source-link" href={safeHttpUrl(job.data.sourceUrl)} target="_blank" rel="noreferrer">岗位来源 <ArrowUpRight size={14}/></a>}
       <h4>已确认岗位条件</h4>
       {job.data.requirements.length ? <ul className="requirement-list">{job.data.requirements.map((requirement, index) => <li key={`${requirement.kind}-${index}`}>
         <b>{requirement.kind}</b><span>{requirement.value}</span>{requirement.quote && <blockquote>{requirement.quote}</blockquote>}

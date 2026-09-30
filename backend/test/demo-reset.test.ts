@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 // 直接使用 createApp，避免把 Workflows 入口（cloudflare:workers）拉进 Node 测试池。
 import { createApp } from "../src/app";
 import type { Env } from "../src/env";
-import { getMf, loginAs, requestAs, STUDENT, STUDENT2 } from "./helpers";
+import { getMf, loginAs, loginRealAdmin, requestAs, STUDENT, STUDENT2 } from "./helpers";
 
 async function seedStudentData(cookie: string): Promise<void> {
   const profile = await requestAs(cookie, "/profile", {
@@ -29,7 +29,7 @@ async function seedStudentData(cookie: string): Promise<void> {
 
 describe("演示数据重置", () => {
   it("清空当前身份的业务数据，但保留公共岗位与其他身份的数据", async () => {
-    const admin = await loginAs("10000000-0000-4000-8000-0000000000ff");
+    const admin = await loginRealAdmin();
     const created = await requestAs(admin, "/admin/jobs", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -75,17 +75,17 @@ describe("演示数据重置", () => {
     expect((await otherJobs.json<{ items: unknown[] }>()).items).toHaveLength(1);
   });
 
-  it("非演示环境返回 403", async () => {
+  it("禁用演示后旧演示会话失效", async () => {
     const { mf } = await getMf();
     const DB = await mf.getD1Database("DB");
     const cookie = await loginAs(STUDENT);
     const response = await createApp().request("/api/v1/demo/reset", { method: "POST", headers: { Cookie: cookie } }, {
       DB,
       DEMO_ENABLED: "false",
-      SESSION_SECRET: "test-secret",
+      SESSION_SECRET: "test-secret-with-at-least-32-bytes-long",
     } as unknown as Env);
-    expect(response.status).toBe(403);
+    expect(response.status).toBe(401);
     const body = (await response.json()) as { error: { code: string } };
-    expect(body.error.code).toBe("forbidden");
+    expect(body.error.code).toBe("unauthorized");
   });
 });

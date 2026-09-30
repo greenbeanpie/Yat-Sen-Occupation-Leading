@@ -40,6 +40,8 @@ export const UsernameSchema = z
 export const RegisterRequestSchema = z
   .object({
     username: UsernameSchema,
+    invitationCode: z.string().regex(/^[A-Za-z0-9_-]{16}$/, "邀请码格式不正确"),
+    email: z.string().trim().email().max(254).optional(),
     password: z.string().min(8, "至少 8 位").max(128),
     displayName: z.string().min(1).max(64).optional(),
   })

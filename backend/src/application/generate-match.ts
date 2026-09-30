@@ -56,7 +56,7 @@ export async function processGenerateMatch(env: Env, operationId: string): Promi
   const userId = op.user_id as string;
   const input = JSON.parse(op.input_json as string) as { jobId: string };
   const job = await env.DB
-    .prepare(`SELECT * FROM jobs WHERE id = ?1 AND deleted = 0 AND (status = 'published' OR user_id = ?2)`)
+    .prepare(`SELECT * FROM jobs WHERE id = ?1 AND deleted = 0 AND ((user_id IS NULL AND status = 'published') OR user_id = ?2)`)
     .bind(input.jobId, userId)
     .first<Record<string, unknown>>();
   if (!job) return { status: "failed", error: "岗位不存在或未发布" };

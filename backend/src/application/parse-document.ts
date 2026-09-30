@@ -44,10 +44,11 @@ export async function processParseDocument(env: Env, operationId: string): Promi
   const op = await env.DB.prepare(`SELECT * FROM async_operations WHERE id = ?1`).bind(operationId).first<Record<string, unknown>>();
   if (!op) return { status: "failed", error: "作业不存在" };
   if (op.status === "succeeded") return { status: "succeeded" };
+  if (op.status === "failed") return { status: "failed", error: "作业已失效" };
 
   const userId = op.user_id as string;
   const input = JSON.parse(op.input_json as string) as { documentId: string };
-  const doc = await env.DB.prepare(`SELECT * FROM documents WHERE id = ?1 AND user_id = ?2`)
+  const doc = await env.DB.prepare(`SELECT * FROM documents WHERE id = ?1 AND user_id = ?2 AND deleted = 0`)
     .bind(input.documentId, userId)
     .first<Record<string, unknown>>();
   if (!doc) return { status: "failed", error: "文档不存在" };
@@ -55,14 +56,14 @@ export async function processParseDocument(env: Env, operationId: string): Promi
   // 输入指纹核验：文件被替换/删除后，旧输入的结果不得覆盖新数据
   const fingerprint = await fingerprintOf([doc.id, doc.r2_key, doc.size_bytes, doc.version]);
   if (fingerprint !== op.input_fingerprint) {
-    await env.DB.prepare(`UPDATE documents SET status = 'failed', error = ?1, updated_at = ?2 WHERE id = ?3`)
+    await env.DB.prepare(`UPDATE documents SET status = 'failed', error = ?1, updated_at = ?2 WHERE id = ?3 AND deleted = 0`)
       .bind("文件已变化，请重新发起解析", nowIso(), doc.id as string)
       .run();
     return { status: "failed", error: "输入已过期（文件已变化）" };
   }
 
   try {
-    await env.DB.prepare(`UPDATE documents SET status = 'extracting', updated_at = ?1 WHERE id = ?2`)
+    await env.DB.prepare(`UPDATE documents SET status = 'extracting', updated_at = ?1 WHERE id = ?2 AND deleted = 0`)
       .bind(nowIso(), doc.id as string)
       .run();
 
@@ -79,7 +80,7 @@ export async function processParseDocument(env: Env, operationId: string): Promi
       await env.DB.batch(
         segments.map((s) =>
           env.DB
-            .prepare(`INSERT INTO document_segments (id, document_id, user_id, seq, page, text) VALUES (?1, ?2, ?3, ?4, ?5, ?6)`)
+            .prepare(`INSERT INTO document_segments (id, document_id, user_id, seq, page, text) SELECT ?1, ?2, ?3, ?4, ?5, ?6 WHERE EXISTS (SELECT 1 FROM documents WHERE id = ?2 AND user_id = ?3 AND deleted = 0)`)
             .bind(crypto.randomUUID(), doc.id, userId, s.seq, s.page, s.text),
         ),
       );
@@ -125,12 +126,15 @@ export async function processParseDocument(env: Env, operationId: string): Promi
       return ok;
     });
 
+    const current = await env.DB.prepare(`SELECT version FROM documents WHERE id = ?1 AND user_id = ?2 AND deleted = 0`).bind(doc.id, userId).first<{ version: number }>();
+    if (!current || current.version !== doc.version) return { status: "failed", error: "文档已删除或已变化" };
     const draftId = crypto.randomUUID();
-    await env.DB.batch([
+    const written = await env.DB.batch([
       env.DB
         .prepare(
           `INSERT INTO parse_drafts (id, user_id, document_id, operation_id, result_json, status, input_fingerprint, created_at, updated_at)
-           VALUES (?1, ?2, ?3, ?4, ?5, 'ready', ?6, ?7, ?7)`,
+           SELECT ?1, ?2, ?3, ?4, ?5, 'ready', ?6, ?7, ?7
+           WHERE EXISTS (SELECT 1 FROM documents WHERE id = ?3 AND user_id = ?2 AND deleted = 0 AND version = ?8)`,
         )
         .bind(
           draftId,
@@ -140,12 +144,14 @@ export async function processParseDocument(env: Env, operationId: string): Promi
           JSON.stringify({ experiences, skills, rejectedCounts: rejected, engine: extraction.engine }),
           fingerprint,
           nowIso(),
+          doc.version,
         ),
       env.DB
-        .prepare(`UPDATE async_operations SET status = 'succeeded', result_ref = ?1, updated_at = ?2 WHERE id = ?3`)
+        .prepare(`UPDATE async_operations SET status = 'succeeded', result_ref = ?1, updated_at = ?2 WHERE id = ?3 AND EXISTS (SELECT 1 FROM parse_drafts WHERE id = ?1)`)
         .bind(draftId, nowIso(), operationId),
-      env.DB.prepare(`UPDATE documents SET status = 'draft_ready', error = NULL, updated_at = ?1 WHERE id = ?2`).bind(nowIso(), doc.id),
+      env.DB.prepare(`UPDATE documents SET status = 'draft_ready', error = NULL, updated_at = ?1 WHERE id = ?2 AND deleted = 0`).bind(nowIso(), doc.id),
     ]);
+    if (Number(written[0]?.meta.changes) !== 1) return { status: "failed", error: "文档已删除或已变化" };
     logJson("info", "parse_document_done", { operationId, documentId: doc.id, experiences: experiences.length, skills: skills.length, rejected });
     return { status: "succeeded" };
   } catch (e) {

@@ -1,3 +1,4 @@
+import { pageRows } from "../infra/pagination";
 import { OpenAPIHono, createRoute, z } from "@hono/zod-openapi";
 import {
   AcceptedResponseSchema,
@@ -46,7 +47,7 @@ const listPlans = createRoute({
   tags: ["plans"],
   middleware: [requireAuth] as const,
   responses: {
-    200: { content: { "application/json": { schema: z.object({ items: z.array(PlanSchema) }) } }, description: "我的计划列表" },
+    200: { content: { "application/json": { schema: z.object({ items: z.array(PlanSchema), nextCursor: z.string().nullable().optional() }) } }, description: "我的计划列表" },
     401: { content: { "application/json": { schema: ErrorBodySchema } }, description: "未登录" },
   },
 });
@@ -100,7 +101,7 @@ const listSuggestions = createRoute({
   middleware: [requireAuth] as const,
   request: { params: z.object({ id: UuidSchema }) },
   responses: {
-    200: { content: { "application/json": { schema: z.object({ items: z.array(AdjustmentSuggestionSchema) }) } }, description: "调整建议列表" },
+    200: { content: { "application/json": { schema: z.object({ items: z.array(AdjustmentSuggestionSchema), nextCursor: z.string().nullable().optional() }) } }, description: "调整建议列表" },
     401: { content: { "application/json": { schema: ErrorBodySchema } }, description: "未登录" },
   },
 });
@@ -178,8 +179,8 @@ export function registerPlanningRoutes(app: App): void {
 
   app.openapi(listPlans, async (c) => {
     const userId = c.get("user").id;
-    const rows = await c.env.DB.prepare(`SELECT * FROM plans WHERE user_id = ?1 AND deleted = 0 ORDER BY created_at DESC`).bind(userId).all<Record<string, unknown>>();
-    return c.json({ items: rows.results.map(planToJson) }, 200 as const) as never;
+    const rows = await pageRows(c, `SELECT * FROM plans WHERE user_id = ?1 AND deleted = 0 ORDER BY created_at DESC, id DESC`, [userId]);
+    return c.json({ items: rows.results.map(planToJson), nextCursor: rows.nextCursor }, 200 as const) as never;
   });
 
   app.openapi(getPlan, async (c) => {
@@ -294,11 +295,8 @@ export function registerPlanningRoutes(app: App): void {
   app.openapi(listSuggestions, async (c) => {
     const userId = c.get("user").id;
     const { id } = c.req.valid("param");
-    const rows = await c.env.DB
-      .prepare(`SELECT * FROM adjustment_suggestions WHERE plan_id = ?1 AND user_id = ?2 AND deleted = 0 ORDER BY created_at DESC`)
-      .bind(id, userId)
-      .all<Record<string, unknown>>();
-    return c.json({ items: rows.results.map(suggestionToJson) }, 200 as const) as never;
+    const rows = await pageRows(c, `SELECT * FROM adjustment_suggestions WHERE plan_id = ?1 AND user_id = ?2 AND deleted = 0 ORDER BY created_at DESC, id DESC`, [id, userId]);
+    return c.json({ items: rows.results.map(suggestionToJson), nextCursor: rows.nextCursor }, 200 as const) as never;
   });
 
   app.openapi(resolveSuggestion, async (c) => {
