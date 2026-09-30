@@ -15,6 +15,12 @@
 - For frontend changes, run `npm run typecheck`, `npm run lint`, `npm test`, and `npm run build` from `frontend/`.
 - Run `node scripts/deploy-preflight.mjs` before a Cloudflare deployment and `node backend/scripts/smoke-deploy.mjs <backend-url>` afterward.
 
+## 发布要求
+
+- 每次实质性功能更改合入 `main` 后，都必须将 `main` 推送到 `origin`，并部署到 Cloudflare 生产环境；实质性更改包括会影响用户可见行为、运行逻辑、数据结构或 API 契约的代码变更。
+- 发布前运行受影响项目的检查，并通过 `node scripts/deploy-preflight.mjs`；只部署本次变更涉及的既有 Worker，若前后端都需发布，先部署后端再部署前端。
+- 部署后验证生产域名和受影响功能，并记录提交与部署结果；若凭证、平台状态或验证失败阻止发布，应明确报告阻塞原因，不得声称已部署。
+
 ## Git branch policy
 
 - `main` is the only persistent local and remote branch. Before deleting any branch, verify its tip is an ancestor of `main` and inspect the live remote branch list; never delete `main`.
