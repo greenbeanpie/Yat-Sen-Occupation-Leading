@@ -4,7 +4,7 @@
 
 Project 2's same-account production record confirms PBKDF2 600000 failed with NotSupportedError while local tests passed. This fix uses the production-validated native scrypt parameters N=32768/r=8/p=3, 16-byte random salt, 32-byte output, 64 MiB max allocation. Storage uses unpadded Base64URL. Existing PBKDF2 formats remain recognized and upgrade after successful verification where the runtime supports them; unsupported runtime operations propagate as service errors rather than incorrect-password results. New registration, password change and bootstrap use scrypt. No schema migration is required.
 
-The failed first comparison was a utility bug: WRANGLER_LOG=error suppresses --json output. The utility now uses info logging while capturing all child output and disabling disk logs. Errors report only the safe operation stage and whether a write was attempted. A compare failure never claims APPLY occurred. Real Windows DPAPI roundtrip is tested with a synthetic password.
+The failed comparison was a utility bug: both WRANGLER_LOG=error and info suppress --json output. The utility now uses the default log level while capturing all child output and disabling disk logs. Errors report only the safe operation stage, an allowlisted error category and whether a write was attempted. A compare failure never claims APPLY occurred. Real Windows DPAPI roundtrip is tested with a synthetic password. `node --import tsx scripts/recover-greenbp.mjs --diagnose` executes only SELECT 1 (no credentials) through the actual utility subprocess; it has passed against production using the corrected log level.
 
 After the compatible backend deployment is confirmed, the user runs:
 

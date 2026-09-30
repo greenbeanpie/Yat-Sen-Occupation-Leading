@@ -37,16 +37,20 @@ function cli(args) {
   const r = spawnSync(process.execPath, [resolve(backend, 'node_modules/wrangler/bin/wrangler.js'), ...args], {
     cwd: backend, encoding: 'utf8', windowsHide: true, maxBuffer: 8 * 1024 * 1024,
     env: { ...process.env, CLOUDFLARE_ACCOUNT_ID: TARGET.accountId,
-      WRANGLER_WRITE_LOGS: 'false', WRANGLER_LOG_SANITIZE: 'true', WRANGLER_SEND_METRICS: 'false', WRANGLER_LOG: 'info' },
+      WRANGLER_WRITE_LOGS: 'false', WRANGLER_LOG_SANITIZE: 'true', WRANGLER_SEND_METRICS: 'false', WRANGLER_LOG: 'log' },
   });
   // Never forward Wrangler output/errors: a credential query or SQL error may contain a hash.
-  if (r.error || r.status !== 0) throw new Error('Cloudflare command failed; sensitive output suppressed. Check connectivity/auth using wrangler whoami separately. Do not automatically retry a reset.');
+  if (r.error || r.status !== 0) {
+    const output = (r.stderr ?? '') + (r.stdout ?? '');
+    const code = r.error ? 'PROCESS_START_FAILED' : /authenticate|authentication|expired|login|10000/i.test(output) ? 'CLOUD_AUTH_FAILED' : /fetch failed|ECONN|ENOTFOUND|ETIMEDOUT|proxy/i.test(output) ? 'CLOUD_NETWORK_FAILED' : 'CLOUD_COMMAND_FAILED';
+    throw Object.assign(new Error('Cloudflare command failed; sensitive output suppressed.'), {safeCode:code});
+  }
   return parseWranglerJson(r.stdout);
 }
 export function parseWranglerJson(stdout) {
   const start = stdout.indexOf('[');
   let payload;
-  try { payload = JSON.parse(stdout.slice(start)); } catch { throw new Error('Unexpected Cloudflare response; sensitive output suppressed.'); }
+  try { payload = JSON.parse(stdout.slice(start)); } catch { throw Object.assign(new Error('Unexpected Cloudflare response; sensitive output suppressed.'),{safeCode:stdout.trim() ? 'CLOUD_JSON_INVALID' : 'CLOUD_JSON_MISSING'}); }
   if (!Array.isArray(payload) || payload.some(item => item.success !== true || item.error)) throw new Error('Cloudflare did not confirm success; stopped.');
   return payload;
 }
@@ -154,6 +158,13 @@ async function reset(terminal) {
 }
 async function main() {
   const flags = process.argv.slice(2);
+  if (flags.length === 1 && flags[0] === '--diagnose') {
+    stage = 'cloud-read-diagnostic';
+    const result = query('SELECT 1 AS fixture');
+    if (result[0]?.fixture !== 1) throw new Error('Unexpected safe diagnostic result.');
+    console.log(JSON.stringify({cloudRead:true,jsonParsed:true,credentialRead:false,credentialWrite:false}));
+    return;
+  }
   if (flags.length === 0 || (flags.length === 1 && flags[0] === '--help')) {
     console.log(`Plan only; no credentials generated/read, no network calls, no database changes.\nTarget: greenbp / yso-db (${TARGET.databaseId}), Cloudflare account ${TARGET.accountId}.\nOperator in a Windows terminal: node --import tsx scripts/recover-greenbp.mjs --compare, --upgrade-kdf (same password; after backend deploy), or --reset (user-confirmed mismatch). Never run these operator modes via an agent.`);
     return;
@@ -170,5 +181,5 @@ async function main() {
   } finally { terminal.close(); }
 }
 if (process.argv[1] && pathToFileURL(resolve(process.argv[1])).href === import.meta.url) {
-  main().catch(() => { console.error(`Recovery stopped at ${stage}. Sensitive details suppressed. ${writeAttempted ? 'A credential write was attempted; do not retry. Request metadata review.' : 'No credential write was attempted.'}`); process.exitCode = 1; });
+  main().catch(error => { console.error(`Recovery stopped at ${stage} (${error?.safeCode ?? 'STAGE_FAILED'}). Sensitive details suppressed. ${writeAttempted ? 'A credential write was attempted; do not retry. Request metadata review.' : 'No credential write was attempted.'}`); process.exitCode = 1; });
 }
