@@ -34,7 +34,10 @@ function mark(kind, message) {
 }
 
 function run(command, args, { cwd = ROOT } = {}) {
-  const result = spawnSync(command, args, { cwd, encoding: "utf8", maxBuffer: 128 * 1024 * 1024 });
+  // Windows 上 npm/npx 是 .cmd 批处理；Node 20.12+ 出于 CVE-2024-27980
+  // 默认拒绝 spawnSync 直接执行 .cmd，必须经 shell 解析。
+  const winPackager = process.platform === "win32" && /^(npm|npx|pnpm|yarn)(\.cmd|\.bat)?$/i.test(command);
+  const result = spawnSync(command, args, { cwd, encoding: "utf8", maxBuffer: 128 * 1024 * 1024, shell: winPackager || undefined });
   const output = `${result.stdout ?? ""}${result.stderr ?? ""}`.trim();
   if (result.error) return { code: 127, output: `${output}\n${result.error.message}`.trim() };
   return { code: result.status ?? 1, output };
@@ -76,8 +79,11 @@ function contractCheck(title, target, command, args, cwd) {
     return;
   }
   const after = readFileSync(target, "utf8");
-  if (after === before) {
+  // Windows 检出为 CRLF、生成器写出 LF，按内容（归一化换行）比较。
+  const normalize = (text) => text.replace(/\r\n/g, "\n");
+  if (normalize(after) === normalize(before)) {
     mark("pass", `${title}：与当前代码一致`);
+    writeFileSync(target, before);
     return;
   }
   writeFileSync(target, before);
