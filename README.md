@@ -57,8 +57,10 @@ npm run dev:demo    # http://127.0.0.1:5174
 
 当前线上演示站（2026-09-30 部署）：
 
-- 前端工作台：<https://yso-internship-workbench-frontend.hddhp.workers.dev>
-- 后端 API：<https://yso-backend.hddhp.workers.dev>（前端通过 Service Binding 以同源 `/api/v1` 访问）
+- 前端工作台：<https://intern.greenbp.dpdns.org>（更新既有 `greenbp-intern-workbench` Worker）
+- 后端 API：<https://greenbp-intern-workbench-backend.hddhp.workers.dev>（前端通过 Service Binding 以同源 `/api/v1` 访问）
+
+当前 Cloudflare API 已确认前端域名与后端绑定；自动化 HTTP 检查请求前端时收到 Cloudflare 403 安全挑战，线上浏览器流程尚待复验。
 
 部署前先跑只读预检（本地门禁 + 契约快照 + 两个 Worker 的 dry-run + Cloudflare 资源状态）：
 
@@ -68,7 +70,7 @@ node scripts/deploy-preflight.mjs
 
 首次部署：`node scripts/bootstrap-cloudflare.mjs --apply` 创建 D1/R2 并回填 `database_id`，再按
 [后端部署文档](backend/docs/deployment.md) 配置迁移与密钥。发布顺序是先部署后端 Worker
-`yso-backend`，再部署前端 Worker；前端通过 Service Binding 把同源 `/api/v1` 请求转发到后端，
+`greenbp-intern-workbench-backend`，再部署既有前端 Worker `greenbp-intern-workbench`；前端通过 Service Binding 把同源 `/api/v1` 请求转发到后端，
 保证演示会话 Cookie 正常工作。部署后用
 `node backend/scripts/smoke-deploy.mjs <后端地址>` 冒烟。
 

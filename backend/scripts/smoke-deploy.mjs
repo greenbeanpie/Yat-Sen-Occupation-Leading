@@ -3,7 +3,7 @@
  * 部署后冒烟：对已部署（或本地 wrangler dev）的后端跑通演示身份链路。
  *
  * 用法：
- *   node backend/scripts/smoke-deploy.mjs https://yso-backend.<subdomain>.workers.dev
+ *   node backend/scripts/smoke-deploy.mjs https://greenbp-intern-workbench-backend.<subdomain>.workers.dev
  *   node backend/scripts/smoke-deploy.mjs http://127.0.0.1:8787
  *   node backend/scripts/smoke-deploy.mjs <url> --student <uuid>
  *

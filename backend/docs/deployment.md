@@ -10,15 +10,18 @@
 - 账号 `17a6817bca6612a9cb11d0395eeba0ac`（`zgpride87@outlook.com`）；
 - D1 `yso-db` = `a3a5c86a-d7f7-46f7-b1d1-9440f6ec9322`（APAC），已应用 `0001_init.sql`；
 - R2 私有桶 `yso-docs` 已创建；`backend/wrangler.jsonc` 已回填真实 `database_id`；
-- 后端 Worker：<https://yso-backend.hddhp.workers.dev>；
-- 前端 Worker：<https://yso-internship-workbench-frontend.hddhp.workers.dev>（Service Binding 指向 `yso-backend`）；
+- 后端 Worker：<https://greenbp-intern-workbench-backend.hddhp.workers.dev>；
+- 前端 Worker：<https://intern.greenbp.dpdns.org>（更新既有 `greenbp-intern-workbench` Worker，Service Binding 指向 `greenbp-intern-workbench-backend`）；
+- 当前 Worker ID：前端 `6f0068bf09c44ffca500def82538a2a9`，后端 `ca540dfc662346ef81df95866a6ac5e8`；
 - Secrets：`SESSION_SECRET`、`VAPID_PRIVATE_KEY`、`VAPID_SUBJECT` 已写入后端 Worker；`VAPID_PUBLIC_KEY` 在 `vars` 中；
 - 本机 Node `v26.3.0`、wrangler `4.44.0`；CI 使用 Node 22。
 - `DEMO_ENABLED=true` 与 `AI_PROVIDER=mock` 按 `PLAN.md` 保留：这是正式托管的公开演示站，不是具备真实账号认证或真实模型服务的生产业务系统。
 
-本轮生产复核部署版本：后端 `ae05602c-039c-458c-a3ba-335fbaa90f82`，前端
-`2bb5d439-cdf0-4216-837b-d26a7856d1b3`。线上后端冒烟 9/9，前端主流程 26/26，移动端与深链接
-9/9，离线刷新与恢复同步 4/4；CORS 预检对前端来源返回 204 并带白名单响应头，对 `localhost` 不返回允许来源头。主流程中的断网步骤会产生预期的 `ERR_INTERNET_DISCONNECTED` 资源日志。
+本轮部署版本：后端 `df0129ec-cd2e-4ee6-8788-a377856eff57`，前端
+`e5779fc7-8b6e-4b2d-81c7-67ec45b30402`。后端部署冒烟 9/9，CORS 预检对正式前端来源返回 204 并带白名单响应头。
+Cloudflare API 确认前端自定义域名与后端 Service Binding 均已恢复；从自动化 HTTP 客户端请求前端域名的首页和 `/api/v1/session` 返回 Cloudflare 403 安全挑战，因此当前域名上的浏览器端到端流程尚未复验。
+
+恢复说明：一次删除操作意外移除了原前端 Worker 对象，随后已用仓库构建产物在相同 Worker 名称下重建，并恢复自定义域名和 Service Binding。Cloudflare 为重建对象分配了新 ID；原 ID `b08e905b2f46447bb4f0fca8ce48a44a` 和原对象版本历史未保留。意外创建的 `yso-internship-workbench-frontend` 已通过精确 Worker ID 删除。
 
 更新 `react-router-dom` 至 `7.18.4` 后，前后端 `npm audit --omit=dev` 均为 0 项；开发依赖告警仍需单独评估。
 
@@ -109,7 +112,7 @@ npx wrangler secret list              # 只读核对已配置的密钥名
 
 ## 5. 部署
 
-先部署后端，再部署前端：前端的 `BACKEND` Service Binding 按名称绑定 `yso-backend`，
+先部署后端，再部署前端：前端的 `BACKEND` Service Binding 按名称绑定 `greenbp-intern-workbench-backend`，
 同源 `/api/v1/*` 因此保持会话 Cookie 同源。
 
 ```bash
@@ -132,7 +135,7 @@ npx wrangler deploy
 ## 6. 部署后冒烟
 
 ```bash
-node backend/scripts/smoke-deploy.mjs https://yso-backend.<subdomain>.workers.dev
+node backend/scripts/smoke-deploy.mjs https://greenbp-intern-workbench-backend.<subdomain>.workers.dev
 ```
 
 脚本检查：会话列表与 demoMode 能力 → 演示身份登录（签发 Cookie）→ 带 Cookie 读取身份 →

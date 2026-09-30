@@ -64,7 +64,7 @@
 
 已完成（可复现命令见 [后端部署文档](../backend/docs/deployment.md)）：
 
-- **配置**：后端 `wrangler.jsonc` 已声明 D1、私有 R2、5 个 Workflows、cron 与 observability；前端 `wrangler.jsonc` 声明 `assets`（`binding=ASSETS`、SPA 回退、`run_worker_first: ["/api/v1", "/api/v1/*"]`）与 `services: BACKEND → yso-backend`。
+- **配置**：后端 `wrangler.jsonc` 已声明 D1、私有 R2、5 个 Workflows、cron 与 observability；前端 `wrangler.jsonc` 更新既有 `greenbp-intern-workbench` Worker，使用自定义域名 `intern.greenbp.dpdns.org`、`assets`（`binding=ASSETS`、SPA 回退、`run_worker_first: ["/api/v1", "/api/v1/*"]`）与 `services: BACKEND → greenbp-intern-workbench-backend`。
 - **只读预检**：`node scripts/deploy-preflight.mjs` 跑本地门禁、契约一致性、两个 Worker 的 `wrangler deploy --dry-run`、Cloudflare 登录与 D1/R2 资源状态。
 - **资源引导**：`node scripts/bootstrap-cloudflare.mjs --apply` 创建 D1/R2 并回填 `database_id`（默认计划模式，幂等，不写密钥）。
 - **CI**：`.github/workflows/ci.yml` 在 push/PR 上执行后端测试与 dry-run、前端 Lint/测试/构建与 dry-run、契约漂移检查。
@@ -76,17 +76,18 @@
 1. 新建 D1 `yso-db` = `a3a5c86a-d7f7-46f7-b1d1-9440f6ec9322`（APAC）与私有 R2 `yso-docs`，并把真实 `database_id` 回填到 `backend/wrangler.jsonc`；
 2. `npm run db:migrate:remote` 应用 `0001_init.sql`（41 条语句）；
 3. 写入 `SESSION_SECRET`、`VAPID_PRIVATE_KEY`、`VAPID_SUBJECT` 三个 secret，`VAPID_PUBLIC_KEY` 放入 `vars`；
-4. 部署顺序：先 `yso-backend`，再 `yso-internship-workbench-frontend`（Service Binding 生效）。
+4. 部署顺序：原位将 `yso-backend` 重命名为 `greenbp-intern-workbench-backend` 并部署，再更新既有 `greenbp-intern-workbench`；意外新建的 `yso-internship-workbench-frontend` 已通过精确 Worker ID 删除。
 
 线上地址与实测：
 
 | 目标 | 地址 | 结果 |
 |---|---|---|
-| 后端 Worker | <https://yso-backend.hddhp.workers.dev> | 冒烟 9/9；`/api/v1/session` 返回演示身份 |
-| 前端 Worker | <https://yso-internship-workbench-frontend.hddhp.workers.dev> | 主流程 26/26、移动端与深链接 9/9、离线刷新 4/4 |
+| 后端 Worker | <https://greenbp-intern-workbench-backend.hddhp.workers.dev> | 冒烟 9/9；`/api/v1/session` 返回演示身份 |
+| 前端 Worker | <https://intern.greenbp.dpdns.org> | Cloudflare API 确认自定义域名、ASSETS 与后端 Service Binding；自动化 HTTP 检查遇到 403 安全挑战，当前线上浏览器流程待复验 |
 
-线上主流程覆盖了真实 Cloudflare Workflows（岗位要求解析、匹配、计划、改写）、真实 D1 写入、
-前端 Worker 到后端 Worker 的 Service Binding、离线队列的 `applied → duplicate` 幂等回执与管理员发布流程。
+此前 26 步主流程、移动端深链接 9 步和离线刷新 4 步的验证针对旧的 `yso-internship-workbench-frontend.hddhp.workers.dev` 部署；Worker 已删除，不能作为当前自定义域名的验收结果。后端直连冒烟与本地生产同构验证仍有效。
+
+恢复说明：恢复 `greenbp-intern-workbench` 时 Cloudflare 分配了新的 Worker ID（`6f0068bf09c44ffca500def82538a2a9`），原 Worker ID 与版本历史未保留；自定义域名和后端 Service Binding 已重新挂接。后端 Worker ID 保持为 `ca540dfc662346ef81df95866a6ac5e8`。
 
 ## 六、本轮修复的缺陷
 
