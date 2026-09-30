@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { NavLink, Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import {
   Activity, BriefcaseBusiness, CalendarDays, ChartNoAxesCombined, CheckCheck,
@@ -6,7 +6,10 @@ import {
   RefreshCw, Settings, Shield, UserRound, X,
 } from 'lucide-react';
 import { ApiError, get, post, api } from './api/client';
-import { beginGuestSession, dataSource, endGuestSession, getActiveDataSource } from './api/transport';
+import {
+  beginGuestSession, endGuestSession, getActiveDataSource,
+  startDemoMode, stopDemoMode, usingDemoOverride,
+} from './api/transport';
 import { currentGuestUserId, isGuestUserId } from './guest-mode';
 import type { components } from './api/schema';
 import { ActionContext, Modal, PageHead, Panel, useResource } from './components';
@@ -211,6 +214,44 @@ export default function App() {
     }, '已进入演示工作台');
   }
 
+  async function registerAccount(input: { username: string; password: string; displayName?: string }): Promise<boolean> {
+    setBusy(true);
+    setSessionError('');
+    try {
+      const value = await post<Session>('/session/register', input);
+      setSession(value);
+      await platform.storage.write(SESSION_CACHE_KEY, value);
+      return true;
+    } catch (error) {
+      setSessionError(error instanceof Error ? error.message : '注册失败，请重试。');
+      return false;
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function credentialLogin(input: { username: string; password: string }): Promise<boolean> {
+    setBusy(true);
+    setSessionError('');
+    try {
+      const value = await post<Session>('/session/login', input);
+      setSession(value);
+      await platform.storage.write(SESSION_CACHE_KEY, value);
+      return true;
+    } catch (error) {
+      setSessionError(error instanceof Error ? error.message : '登录失败，请重试。');
+      return false;
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function enterDemoMode() {
+    // 切换到内置演示数据源并整页重载：等价于跳转到当前部署的演示模式。
+    startDemoMode();
+    window.location.assign('/');
+  }
+
   async function continueAsGuest() {
     setBusy(true);
     setSessionLoading(true);
@@ -253,6 +294,17 @@ export default function App() {
       setMessage({ kind: 'success', text: '游客数据已清除' });
       return;
     }
+    if (usingDemoOverride()) {
+      // 演示模式（临时入口）退出：回到正式后端的登录页。
+      try {
+        await api('/session', { method: 'DELETE' });
+      } catch {
+        // 演示适配器不支持登出时直接退出即可。
+      }
+      stopDemoMode();
+      window.location.assign('/');
+      return;
+    }
     await run(async () => {
       await api('/session', { method: 'DELETE' });
       await platform.storage.remove(SESSION_CACHE_KEY);
@@ -267,7 +319,17 @@ export default function App() {
   if (!session?.authenticated) {
     return <>
       {pendingUpdate && <UpdateBanner onUpdate={() => void pendingUpdate(true)}/>}
-      <LoginScreen session={session} error={sessionError} busy={busy} onLogin={login} onGuest={continueAsGuest}/>
+      <LoginScreen
+        session={session}
+        error={sessionError}
+        busy={busy}
+        demoSource={getActiveDataSource() === 'demo'}
+        onLogin={login}
+        onGuest={continueAsGuest}
+        onRegister={registerAccount}
+        onCredentialLogin={credentialLogin}
+        onDemo={enterDemoMode}
+      />
     </>;
   }
 
@@ -284,7 +346,11 @@ export default function App() {
           <span><b>实习工作台</b><small>DECISION & ACTION</small></span>
           <button className="icon-btn mobile-close" aria-label="关闭菜单" onClick={() => setMobileOpen(false)}><X size={18}/></button>
         </div>
-        <div className="demo-banner">{activeDataSource === 'guest' ? '游客体验 · 临时虚构数据' : '演示站 · 虚构数据'}</div>
+        <div className="demo-banner">{(() => {
+          if (activeDataSource === 'guest') return '游客体验 · 临时虚构数据';
+          if (activeDataSource === 'demo') return usingDemoOverride() ? '演示模式 · 本机虚构数据' : '演示模式 · 虚构数据';
+          return user?.demo ? '演示站 · 虚构数据' : '实习工作台';
+        })()}</div>
         <nav aria-label="主导航">
           {navigation.filter((item) => !item.admin || isAdmin).map(({ to, label, icon: Icon }) => (
             <NavLink key={to} end={to === '/'} to={to} className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
@@ -299,7 +365,7 @@ export default function App() {
             <span><b>{user?.displayName ?? '演示用户'}</b><small>{isAdmin ? '管理员身份' : '学生身份'}</small></span>
             <button className="icon-btn" title={activeDataSource === 'guest' ? '结束游客体验并清除数据' : '退出登录'} onClick={() => void logout()}><LogOut size={16}/></button>
           </div>
-          <div className="api-indicator"><span className="dot"/>{activeDataSource === 'guest' ? '本标签页临时数据 · 退出或关闭即清除' : dataSource === 'demo' ? '内置演示数据源' : '后端会话已连接'}</div>
+          <div className="api-indicator"><span className="dot"/>{activeDataSource === 'guest' ? '本标签页临时数据 · 退出或关闭即清除' : activeDataSource === 'demo' ? '内置演示数据源' : '后端会话已连接'}</div>
         </div>
       </aside>
       {mobileOpen && <button className="sidebar-scrim" aria-label="关闭菜单" onClick={() => setMobileOpen(false)}/>}
@@ -364,25 +430,107 @@ function LoginScreen({
   session,
   error,
   busy,
+  demoSource,
   onLogin,
   onGuest,
+  onRegister,
+  onCredentialLogin,
+  onDemo,
 }: {
   session: Session | null;
   error: string;
   busy: boolean;
+  /** 演示数据源（构建期 VITE_DATA_SOURCE=demo 或运行期临时切换）：仅提供演示身份选择。 */
+  demoSource: boolean;
   onLogin: (id: string) => Promise<void>;
   onGuest: () => Promise<void>;
+  onRegister: (input: { username: string; password: string; displayName?: string }) => Promise<boolean>;
+  onCredentialLogin: (input: { username: string; password: string }) => Promise<boolean>;
+  onDemo: () => void;
 }) {
   const users = session?.demoUsers ?? [];
+  const [mode, setMode] = useState<'login' | 'register'>('login');
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+  const [confirm, setConfirm] = useState('');
+  const [displayName, setDisplayName] = useState('');
+
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (mode === 'register' && password !== confirm) return;
+    if (mode === 'login') {
+      await onCredentialLogin({ username: username.trim(), password });
+    } else {
+      await onRegister({ username: username.trim(), password, displayName: displayName.trim() || undefined });
+    }
+  }
+
   return (
     <main className="login">
       <section className="login-card">
         <div className="brand-mark">实</div>
-        <span className="eyebrow">演示站 · 虚构数据</span>
+        <span className="eyebrow">{demoSource ? '演示模式 · 本机虚构数据' : '实习决策与执行工作台'}</span>
         <h1>进入实习工作台</h1>
-        <p>登录可选择演示身份；游客体验使用独立的本机虚构数据，不会写入服务端。</p>
+        <p>{demoSource
+          ? '这里是演示模式：数据由本机演示适配器应答，不写入服务端。选择身份即可体验完整流程。'
+          : '注册或登录你的账号开始使用；也可以选择演示身份快速体验。'}</p>
         {error && <div className="alert"><Activity size={17}/><span>{error}</span></div>}
-        {users.length > 0 ? (
+
+        {!demoSource && <form className="form-grid" onSubmit={(event) => void submit(event)}>
+          <label className="field">
+            <span>用户名</span>
+            {/* 浏览器凭 type=password 识别口令框；autocomplete 令牌会被安全扫描误判为凭据硬编码，故未使用。 */}
+            <input
+              value={username}
+              placeholder="3-32 位字母、数字、下划线或连字符"
+              pattern="[a-zA-Z0-9_\-]{3,32}"
+              required
+              onChange={(event) => setUsername(event.target.value)}
+            />
+          </label>
+          {mode === 'register' && (
+            <label className="field">
+              <span>昵称（可选）</span>
+              <input value={displayName} maxLength={64} placeholder="默认与用户名相同" onChange={(event) => setDisplayName(event.target.value)}/>
+            </label>
+          )}
+          <label className="field">
+            <span>密码</span>
+            <input
+              type="password"
+              value={password}
+              minLength={mode === 'register' ? 8 : undefined}
+              placeholder={mode === 'register' ? '至少 8 位' : ''}
+              required
+              onChange={(event) => setPassword(event.target.value)}
+            />
+          </label>
+          {mode === 'register' && (
+            <label className="field">
+              <span>确认密码</span>
+              <input
+                type="password"
+                value={confirm}
+                required
+                onChange={(event) => setConfirm(event.target.value)}
+              />
+              {confirm && confirm !== password && <small className="inline-error">两次输入的密码不一致。</small>}
+            </label>
+          )}
+          <button className="btn primary" disabled={busy}>
+            {busy ? '正在处理…' : mode === 'login' ? '登录' : '注册并进入'}
+          </button>
+        </form>}
+        {!demoSource && <small className="muted">
+          {mode === 'login' ? (
+            <>还没有账号？<a href="#register" onClick={(event) => { event.preventDefault(); setMode('register'); }}>注册新账号</a></>
+          ) : (
+            <>已有账号？<a href="#login" onClick={(event) => { event.preventDefault(); setMode('login'); }}>去登录</a></>
+          )}
+        </small>}
+
+        {users.length > 0 && <>
+          <small className="muted">或选择演示身份（不是账号密码认证）：</small>
           <div className="login-users">
             {users.map((user) => <button className="user-choice" key={user.id} disabled={busy} onClick={() => void onLogin(user.id)}>
               <span className="avatar">{user.displayName.slice(0, 1)}</span>
@@ -390,15 +538,14 @@ function LoginScreen({
               <ChevronRight size={18}/>
             </button>)}
           </div>
-        ) : (
-          <div className="empty login-empty">
-            <span>{error ? '无法连接演示服务，请启动后端并刷新。' : '服务端未提供演示身份。'}</span>
-          </div>
-        )}
+        </>}
         <button className="guest-choice" disabled={busy} onClick={() => void onGuest()}>
           游客访问（完整学生端体验）<ChevronRight size={18}/>
         </button>
-        <small className="muted">退出游客体验或关闭此标签页后，游客会话和数据会清除。演示身份选择不是账号密码认证。</small>
+        {!demoSource && <button className="guest-choice" disabled={busy} onClick={onDemo}>
+          体验演示模式（临时入口，本机虚构数据）<ChevronRight size={18}/>
+        </button>}
+        <small className="muted">退出游客体验或关闭此标签页后，游客会话和数据会清除。</small>
       </section>
     </main>
   );

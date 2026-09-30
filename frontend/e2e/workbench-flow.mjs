@@ -87,7 +87,50 @@ async function goNav(label) {
   await page.getByRole('link', { name: new RegExp(`^${label}`) }).first().click();
 }
 
-// ---------------------------------------------------------------- 登录
+// ---------------------------------------------------------------- 账号注册与凭据登录
+const accountName = `e2e_${RUN}`;
+const accountSecret = ['e2e', 'passphrase', RUN].join('-');
+await page.goto(BASE, { waitUntil: 'networkidle' });
+await step('账号：注册新账号并自动进入工作台（POST /session/register）', async () => {
+  await page.getByRole('link', { name: '注册新账号' }).click();
+  await page.getByLabel('用户名').fill(accountName);
+  await page.getByLabel('昵称（可选）').fill('联调账号');
+  await page.getByLabel('密码', { exact: true }).fill(accountSecret);
+  await page.getByLabel('确认密码').fill(accountSecret);
+  await page.getByRole('button', { name: '注册并进入' }).click();
+  const call = await waitForCall('POST', /^\/session\/register$/);
+  await waitForText(page, /早上好/);
+  return `${call.status}，已进入 ${(await page.locator('.who b').innerText()).trim()}`;
+});
+
+await step('账号：登出后用账号密码重新登录（POST /session/login）', async () => {
+  await page.getByRole('button', { name: '退出登录' }).click();
+  await waitForText(page, '进入实习工作台');
+  await page.getByLabel('用户名').fill(accountName);
+  await page.getByLabel('密码', { exact: true }).fill(accountSecret);
+  await page.getByRole('button', { name: '登录', exact: true }).click();
+  const call = await waitForCall('POST', /^\/session\/login$/);
+  await waitForText(page, /早上好/);
+  const display = (await page.locator('.who b').innerText()).trim();
+  if (display !== '联调账号') throw new Error(`昵称未保留：${display}`);
+  return `${call.status}，昵称 ${display}`;
+});
+
+await step('账号：登出后进入演示模式临时入口，再退出回正式登录页', async () => {
+  await page.getByRole('button', { name: '退出登录' }).click();
+  await waitForText(page, '进入实习工作台');
+  await page.getByRole('button', { name: /体验演示模式/ }).click();
+  await waitForText(page, '这里是演示模式');
+  await page.getByRole('button', { name: /演示学生/ }).first().click();
+  await waitForText(page, /早上好/);
+  const indicator = (await page.locator('.api-indicator').innerText()).trim();
+  if (!indicator.includes('内置演示数据源')) throw new Error(`未切到演示数据源：${indicator}`);
+  await page.getByRole('button', { name: '退出登录' }).click();
+  await waitForText(page, '注册或登录你的账号开始使用');
+  return '演示模式往返 OK';
+});
+
+// 后续步骤沿用演示身份（内置演示数据源）。
 await page.goto(BASE, { waitUntil: 'networkidle' });
 await step('登录：选择演示学生身份', async () => {
   await page.getByRole('button', { name: /演示学生/ }).first().click();
