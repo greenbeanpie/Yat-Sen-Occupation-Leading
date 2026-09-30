@@ -17,9 +17,8 @@
 - 本机 Node `v26.3.0`、wrangler `4.44.0`；CI 使用 Node 22。
 - `DEMO_ENABLED=true` 与 `AI_PROVIDER=mock` 按 `PLAN.md` 保留：这是正式托管的公开演示站，不是具备真实账号认证或真实模型服务的生产业务系统。
 
-本轮部署版本：后端 `df0129ec-cd2e-4ee6-8788-a377856eff57`，前端
-`e5779fc7-8b6e-4b2d-81c7-67ec45b30402`。后端部署冒烟 9/9，CORS 预检对正式前端来源返回 204 并带白名单响应头。
-Cloudflare API 确认前端自定义域名与后端 Service Binding 均已恢复；从自动化 HTTP 客户端请求前端域名的首页和 `/api/v1/session` 返回 Cloudflare 403 安全挑战，因此当前域名上的浏览器端到端流程尚未复验。
+最近一次部署（2026-09-30）：`main`（`3b54bc1`，包含 `e32ef58` 与 `30dfc00` 的访客访问及会话清理功能）已推送至 `origin/main`，前端原位部署到 Worker `greenbp-intern-workbench`，活动版本 `d6bffaff-c1a3-4213-a6fb-1f5e93c01ad6`；本次没有修改后端，后端仍为 `df0129ec-cd2e-4ee6-8788-a377856eff57`。部署前预检 15 项通过，访客本地浏览器 E2E 5 项通过（其中 API 会话由测试桩拦截），前端生产构建成功。
+Cloudflare API 确认 `intern.greenbp.dpdns.org` 仍映射至该前端 Worker，`BACKEND` Service Binding 指向 `greenbp-intern-workbench-backend`；没有创建新 Worker，也未更改 D1/R2。部署前后，自动化 HTTP 客户端和无头浏览器访问首页及 `/api/v1/session` 都收到 Cloudflare 403 安全挑战，因此本次无法通过自动化客户端复验公开域名上的完整浏览器流程；这与部署前观察到的状态相同。
 
 恢复说明：一次删除操作意外移除了原前端 Worker 对象，随后已用仓库构建产物在相同 Worker 名称下重建，并恢复自定义域名和 Service Binding。Cloudflare 为重建对象分配了新 ID；原 ID `b08e905b2f46447bb4f0fca8ce48a44a` 和原对象版本历史未保留。意外创建的 `yso-internship-workbench-frontend` 已通过精确 Worker ID 删除。
 
