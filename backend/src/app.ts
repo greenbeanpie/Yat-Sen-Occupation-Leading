@@ -1,3 +1,4 @@
+import { registerAiSettingsRoutes } from './routes/ai-settings';
 import { registerCareerSourceRoutes } from "./routes/career-source";
 import { bodyLimit } from "hono/body-limit";
 import { registerTicketRoutes } from "./routes/tickets";
@@ -113,6 +114,7 @@ export function createApp(): App {
   registerAdminRoutes(app);
   registerCareerSourceRoutes(app);
   registerUserManagementRoutes(app);
+  registerAiSettingsRoutes(app);
   registerMatchingRoutes(app);
   registerPlanningRoutes(app);
   registerTrackingRoutes(app);

@@ -532,3 +532,11 @@ input, textarea, select { accent-color: var(--blue); }
 @media (prefers-reduced-motion: reduce) {
  *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
 }
+
+.ai-settings-form { display: grid; gap: 14px; }
+.ai-settings-status { display: flex; flex-wrap: wrap; gap: 8px 18px; color: var(--muted); font-size: 12px; }
+.ai-settings-headers { min-width: 0; border: 1px solid var(--theme-line, #dfe4eb); border-radius: 10px; padding: 14px; display: grid; gap: 12px; }
+.ai-settings-headers legend { color: var(--ink); font-size: 12px; padding: 0 6px; }
+.ai-settings-form .field small { font-size: 10px; font-weight: 400; line-height: 1.7; }
+.ai-settings-form .admin-registration-toggle { align-items: flex-start; font-size: 11px; line-height: 1.7; }
+.ai-settings-form .admin-registration-toggle input { flex-shrink: 0; margin-top: 2px; }

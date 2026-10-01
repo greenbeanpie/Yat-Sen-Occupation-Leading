@@ -1,4 +1,8 @@
 import type { Env } from "../../env";
+import { AiError } from './errors';
+import { boundedNumber, resolveAiConfig, type AiConfig } from './config';
+import { buildAiRequest, completionText } from './request';
+export { AiError } from './errors';
 
 export interface ChatMessage {
   role: "system" | "user" | "assistant";
@@ -7,6 +11,8 @@ export interface ChatMessage {
 
 export interface CompletionOptions {
   temperature?: number;
+  /** Opaque conversation ID, reused across turns/retries; never user data. */
+  sessionId?: string;
   timeoutMs?: number;
   /** Bounded review-only tasks can disable retries and cap response bytes. */
   maxAttempts?: number;
@@ -14,18 +20,11 @@ export interface CompletionOptions {
   rejectRedirects?: boolean;
 }
 
-/** 统一模型适配器（PLAN.md 2.4）：OpenAI 风格 + mock，超时/限流重试由实现负责。 */
+/** Text-only provider adapter + mock; callers retain structured-output validation. */
 export interface AiProvider {
   readonly name: string;
+  readonly supportsTemperature?: boolean;
   complete(messages: ChatMessage[], opts?: CompletionOptions): Promise<string>;
-}
-
-export class AiError extends Error {
-  readonly retryable: boolean;
-  constructor(message: string, retryable: boolean) {
-    super(message);
-    this.retryable = retryable;
-  }
 }
 
 export function getAiProvider(env: Env): AiProvider {
@@ -33,9 +32,6 @@ export function getAiProvider(env: Env): AiProvider {
     case "mock":
       return new MockProvider();
     case "openai":
-      if (!env.AI_BASE_URL?.trim()) {
-        throw new AiError("AI_PROVIDER=openai 时必须配置 AI_BASE_URL", false);
-      }
       return new OpenAiCompatProvider(env);
     default:
       throw new AiError(`不支持的 AI_PROVIDER：${env.AI_PROVIDER}`, false);
@@ -43,64 +39,68 @@ export function getAiProvider(env: Env): AiProvider {
 }
 
 /**
- * OpenAI 风格 chat/completions 适配器：
- * - 只发送必要文本与结构化上下文，不发送密钥；
+ * Backward-compatible class name; dispatches by validated preset protocol.
+ * - Only sends task text/context; credentials are confined to auth headers;
  * - 超时、429、5xx 指数退避重试；4xx 其它错误不可重试；
  * - 不假设供应商支持严格结构化输出，响应一律由调用方做 Zod 校验。
  */
 export class OpenAiCompatProvider implements AiProvider {
   readonly name: string;
+  readonly supportsTemperature: boolean;
+  private readonly config: AiConfig;
+  private readonly sessionId = crypto.randomUUID();
   constructor(private env: Env) {
-    this.name = `openai-compat:${env.AI_MODEL || "default"}`;
+    this.config = resolveAiConfig(env);
+    this.name = `${this.config.preset === 'custom' ? 'openai-compat' : this.config.preset}:${this.config.model}`;
+    this.supportsTemperature = this.config.capabilities.temperature;
   }
 
   async complete(messages: ChatMessage[], opts?: CompletionOptions): Promise<string> {
     if (messages.reduce((size, message) => size + new TextEncoder().encode(message.content).length, 0) > 100_000) {
       throw new AiError("模型输入超过 100KB 上限，请缩小文档或岗位内容", false);
     }
-    const timeoutMs = opts?.timeoutMs ?? 60_000;
+    const timeoutMs = Math.min(this.config.timeoutMs, boundedNumber(opts?.timeoutMs, 'timeoutMs', 1, 60_000, this.config.timeoutMs, true)!);
+    const maxAttempts = Math.min(this.config.maxAttempts, boundedNumber(opts?.maxAttempts, 'maxAttempts', 1, 3, this.config.maxAttempts, true)!);
+    const maxResponseBytes = boundedNumber(opts?.maxResponseBytes, 'maxResponseBytes', 1, 1_000_000, 1_000_000, true)!;
+    const request = buildAiRequest(this.config, messages, this.env.AI_API_KEY, opts?.sessionId ?? this.sessionId, opts);
     let lastError: AiError = new AiError("模型请求失败", false);
-    for (let attempt = 0; attempt < (opts?.maxAttempts ?? 3); attempt++) {
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), timeoutMs);
       try {
-        const res = await fetch(`${this.env.AI_BASE_URL.replace(/\/$/, "")}/chat/completions`, {
+        const res = await fetch(request.url, {
           method: "POST",
-          redirect: opts?.rejectRedirects ? "manual" : "follow",
-          headers: {
-            "Content-Type": "application/json",
-            ...(this.env.AI_API_KEY ? { Authorization: `Bearer ${this.env.AI_API_KEY}` } : {}),
-          },
-          body: JSON.stringify({
-            model: this.env.AI_MODEL,
-            messages,
-            max_tokens: 4096,
-            temperature: opts?.temperature ?? 0.2,
-          }),
+          // Never forward credentials/attribution through a redirect.
+          redirect: "manual",
+          headers: request.headers,
+          body: request.body,
           signal: controller.signal,
         });
         if (res.status === 429 || res.status >= 500) {
           lastError = new AiError(`模型服务暂时不可用（HTTP ${res.status}）`, true);
-          await backoff(attempt);
+          await res.body?.cancel();
+          if (attempt + 1 < maxAttempts) await backoff(attempt);
           continue;
         }
         if (!res.ok) {
+          await res.body?.cancel();
           throw new AiError(`模型请求被拒绝（HTTP ${res.status}）`, false);
         }
-        const body = (opts?.maxResponseBytes ? JSON.parse(await boundedModelResponse(res, opts.maxResponseBytes)) : await res.json()) as { choices?: { message?: { content?: string } }[] };
-        const content = body.choices?.[0]?.message?.content;
-        if (typeof content !== "string") throw new AiError("模型响应格式错误", false);
-        return content;
+        const responseText = await boundedModelResponse(res, maxResponseBytes);
+        let body: unknown;
+        try { body = JSON.parse(responseText); }
+        catch { throw new AiError('模型响应不是有效 JSON', false); }
+        return completionText(this.config, body);
       } catch (e) {
         if (e instanceof AiError) {
           lastError = e;
           if (!e.retryable) throw e;
         } else if (e instanceof Error && e.name === "AbortError") {
           lastError = new AiError("模型请求超时", true);
-          await backoff(attempt);
+          if (attempt + 1 < maxAttempts) await backoff(attempt);
         } else {
           lastError = new AiError("网络错误", true);
-          await backoff(attempt);
+          if (attempt + 1 < maxAttempts) await backoff(attempt);
         }
       } finally {
         clearTimeout(timer);
@@ -116,7 +116,8 @@ async function boundedModelResponse(res: Response, limit: number): Promise<strin
   try {while(true){const {done,value}=await reader.read();if(done)break;size+=value.byteLength;if(size>limit)throw new AiError("模型响应过大",false);chunks.push(value);}}
   finally {await reader.cancel();}
   const bytes=new Uint8Array(size);let at=0;for(const chunk of chunks){bytes.set(chunk,at);at+=chunk.length;}
-  return new TextDecoder('utf-8',{fatal:true,ignoreBOM:false}).decode(bytes);
+  try { return new TextDecoder('utf-8',{fatal:true,ignoreBOM:false}).decode(bytes); }
+  catch { throw new AiError('模型响应不是有效 UTF-8', false); }
 }
 
 async function backoff(attempt: number): Promise<void> {

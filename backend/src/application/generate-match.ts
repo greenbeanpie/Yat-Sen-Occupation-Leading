@@ -1,6 +1,7 @@
+import { getConfiguredAiProvider } from '../infra/ai/settings';
 import { z } from "zod";
 import type { Env } from "../env";
-import { getAiProvider, AiError } from "../infra/ai";
+import { AiError } from "../infra/ai";
 import { verifyQuote } from "../domain/quotes";
 import { computeMatchScores, evaluateHardConditions, type HardRequirement } from "../domain/rules";
 import { nowIso, uuid } from "../shared/datetime";
@@ -85,7 +86,7 @@ export async function processGenerateMatch(env: Env, operationId: string): Promi
       .map((c) => `${c.kind}: ${c.requirement}${c.note ? `（${c.note}）` : ""}`);
 
     const jdText = (job.jd_text as string) ?? "";
-    const provider = getAiProvider(env);
+    const provider = await getConfiguredAiProvider(env, userId, operationId);
     const raw = await provider.complete([
       { role: "system", content: "你是求职匹配解释器。只输出 JSON。所有 quotes 必须来自给定 JD 原文，禁止编造。不预测录取概率。" },
       {

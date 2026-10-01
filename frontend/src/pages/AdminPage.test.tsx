@@ -19,12 +19,14 @@ describe('administration sections', () => {
     expect(html).toContain('用户管理');
     expect(html).toContain('邀请注册');
     expect(html).not.toContain('系统设置');
+    expect(html).not.toContain('AI 模型配置');
   });
 
   it('shows system settings and role management to super administrators', () => {
     const html = render('super_admin');
     expect(html).toContain('超级管理员');
     expect(html).toContain('系统设置');
+    expect(html).toContain('AI 模型配置');
     expect(html).toContain('管理所有账户');
     expect(html).toContain('邀请注册');
   });
@@ -34,5 +36,6 @@ describe('administration sections', () => {
     expect(html).not.toContain('<h2>用户管理</h2>');
     expect(html).not.toContain('<h2>邀请注册</h2>');
     expect(html).not.toContain('<h2>系统设置</h2>');
+    expect(html).not.toContain('AI 模型配置');
   });
 });

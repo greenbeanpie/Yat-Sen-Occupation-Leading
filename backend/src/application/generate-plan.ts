@@ -1,7 +1,8 @@
+import { getConfiguredAiProvider } from '../infra/ai/settings';
 import { visibleJob } from "./access";
 import { z } from "zod";
 import type { Env } from "../env";
-import { getAiProvider, AiError } from "../infra/ai";
+import { AiError } from "../infra/ai";
 import { nowIso, uuid } from "../shared/datetime";
 import { RULE_VERSION } from "../shared/constants";
 import { contextFingerprint, loadRuleContext } from "./freshness";
@@ -96,7 +97,7 @@ export async function processGeneratePlan(env: Env, operationId: string): Promis
     }));
     const allowedEvidenceIds = new Set(evidence.map((row) => row.evidenceId));
 
-    const provider = getAiProvider(env);
+    const provider = await getConfiguredAiProvider(env, userId, operationId);
     const raw = await provider.complete([
       { role: "system", content: "你是求职计划生成器。只输出 JSON。任务必须可执行、可估时，不得编造已完成的事实。" },
       {

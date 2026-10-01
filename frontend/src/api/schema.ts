@@ -3538,6 +3538,172 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/ai-settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description 仅非敏感配置、密钥状态及能力表；不发出模型请求 */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["AiSettingsResponse"];
+                    };
+                };
+                /** @description 权限、配置或版本错误；不会返回密钥 */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorBody"];
+                    };
+                };
+                /** @description 权限、配置或版本错误；不会返回密钥 */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorBody"];
+                    };
+                };
+                /** @description 权限、配置或版本错误；不会返回密钥 */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorBody"];
+                    };
+                };
+                /** @description 权限、配置或版本错误；不会返回密钥 */
+                413: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorBody"];
+                    };
+                };
+                /** @description 权限、配置或版本错误；不会返回密钥 */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorBody"];
+                    };
+                };
+                /** @description 权限、配置或版本错误；不会返回密钥 */
+                503: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorBody"];
+                    };
+                };
+            };
+        };
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["AiSettingsWrite"];
+                };
+            };
+            responses: {
+                /** @description 仅非敏感配置、密钥状态及能力表；不发出模型请求 */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["AiSettingsResponse"];
+                    };
+                };
+                /** @description 权限、配置或版本错误；不会返回密钥 */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorBody"];
+                    };
+                };
+                /** @description 权限、配置或版本错误；不会返回密钥 */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorBody"];
+                    };
+                };
+                /** @description 权限、配置或版本错误；不会返回密钥 */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorBody"];
+                    };
+                };
+                /** @description 权限、配置或版本错误；不会返回密钥 */
+                413: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorBody"];
+                    };
+                };
+                /** @description 权限、配置或版本错误；不会返回密钥 */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorBody"];
+                    };
+                };
+                /** @description 权限、配置或版本错误；不会返回密钥 */
+                503: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorBody"];
+                    };
+                };
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/matches": {
         parameters: {
             query?: never;
@@ -6059,6 +6225,58 @@ export interface components {
         };
         SystemSettings: {
             registrationEnabled: boolean;
+        };
+        AiSettingsResponse: {
+            version: number;
+            config: components["schemas"]["AiSettingsConfig"];
+            /** @enum {string} */
+            credentialStatus: "environment" | "not-required" | "missing" | "stored" | "unreadable";
+            updatedAt: string | null;
+            encryptionAvailable: boolean;
+            allowedHosts: string[];
+            presets: {
+                /** @enum {string} */
+                id: "custom" | "openai" | "anthropic" | "gemini" | "deepseek" | "openrouter" | "opencode-zen" | "opencode-go";
+                label: string;
+                baseUrl: string;
+                models: {
+                    id: string;
+                    /** @enum {string} */
+                    protocol: "auto" | "chat-completions" | "responses" | "messages" | "generate-content";
+                    temperature: boolean;
+                    topP: boolean;
+                    samplingWithNoneOnly: boolean;
+                    reasoningEfforts: string[];
+                }[];
+            }[];
+        };
+        AiSettingsConfig: {
+            /** @enum {string} */
+            mode: "environment" | "mock" | "real";
+            /** @enum {string} */
+            providerPreset: "custom" | "openai" | "anthropic" | "gemini" | "deepseek" | "openrouter" | "opencode-zen" | "opencode-go";
+            /** @enum {string} */
+            protocol: "auto" | "chat-completions" | "responses" | "messages" | "generate-content";
+            baseUrl: string;
+            model: string;
+            /** @enum {string} */
+            reasoningEffort: "default" | "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
+            thinkingBudget: number | null;
+            temperature: number | null;
+            topP: number | null;
+            maxOutputTokens: number;
+            timeoutMs: number;
+            maxAttempts: number;
+            requestHeaders: {
+                [key: string]: string;
+            };
+            goUserAgent: string;
+        };
+        AiSettingsWrite: {
+            baseVersion: number;
+            config: components["schemas"]["AiSettingsConfig"];
+            apiKey?: string;
+            clearApiKey?: boolean;
         };
         CreateMatch: {
             jobId: components["schemas"]["Uuid"];

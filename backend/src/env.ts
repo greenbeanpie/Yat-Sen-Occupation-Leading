@@ -18,6 +18,22 @@ export interface Env {
   AI_BASE_URL: string;
   AI_MODEL: string;
   AI_API_KEY?: string;
+  /** Optional operator-only config; absent values preserve the legacy adapter. */
+  AI_PROVIDER_PRESET?: string;
+  AI_PROTOCOL?: string;
+  AI_GO_USER_AGENT?: string;
+  /** Additional exact HTTPS hosts allowed for web-configured custom gateways. */
+  AI_ALLOWED_HOSTS?: string;
+  AI_REASONING_EFFORT?: string;
+  AI_THINKING_BUDGET?: string;
+  AI_TEMPERATURE?: string;
+  /** Internal web-config marker; old env adapters retain their 0.2 default. */
+  AI_DISABLE_DEFAULT_TEMPERATURE?: string;
+  AI_TOP_P?: string;
+  AI_MAX_OUTPUT_TOKENS?: string;
+  AI_TIMEOUT_MS?: string;
+  AI_MAX_ATTEMPTS?: string;
+  AI_REQUEST_HEADERS_JSON?: string;
   SESSION_SECRET?: string;
   VAPID_PUBLIC_KEY?: string;
   VAPID_PRIVATE_KEY?: string;

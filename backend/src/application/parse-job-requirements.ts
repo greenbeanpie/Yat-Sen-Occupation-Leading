@@ -1,6 +1,7 @@
+import { getConfiguredAiProvider } from '../infra/ai/settings';
 import { z } from "zod";
 import type { Env } from "../env";
-import { getAiProvider, AiError } from "../infra/ai";
+import { AiError } from "../infra/ai";
 import { verifyQuote } from "../domain/quotes";
 import { nowIso } from "../shared/datetime";
 import type { ProcessorResult } from "./processors";
@@ -46,7 +47,7 @@ export async function processParseJobRequirements(env: Env, operationId: string)
     const jdText = (job.jd_text as string) ?? "";
     if (!jdText.trim()) return { status: "failed", error: "岗位缺少 JD 原文，无法解析" };
 
-    const provider = getAiProvider(env);
+    const provider = await getConfiguredAiProvider(env, userId, operationId);
     const raw = await provider.complete([
       { role: "system", content: "你是岗位要求抽取器。只输出 JSON。每个要求必须带 JD 原文引用 quote，禁止编造。" },
       { role: "user", content: JSON.stringify({ task: "parse_job_requirements", jdText }) },

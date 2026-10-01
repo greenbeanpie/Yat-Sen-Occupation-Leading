@@ -1,6 +1,7 @@
+import { getConfiguredAiProvider } from '../infra/ai/settings';
 import { z } from "zod";
 import type { Env } from "../env";
-import { getAiProvider, AiError } from "../infra/ai";
+import { AiError } from "../infra/ai";
 import { verifyQuote } from "../domain/quotes";
 import { nowIso } from "../shared/datetime";
 import { contextFingerprint, loadRuleContext } from "./freshness";
@@ -40,7 +41,7 @@ export async function processRewriteResume(env: Env, operationId: string): Promi
 
   try {
     const description = experience.description as string;
-    const provider = getAiProvider(env);
+    const provider = await getConfiguredAiProvider(env, userId, operationId);
     const raw = await provider.complete([
       {
         role: "system",

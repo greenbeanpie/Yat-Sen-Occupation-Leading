@@ -182,3 +182,7 @@ curl -X POST https://<worker-domain>/api/v1/session -H 'Content-Type: applicatio
 4. **限流**——未实现速率限制（演示范围外，Cloudflare WAF 可选做）。
 5. **真实账号认证**——当前公开演示身份用于虚构数据体验；接入真实用户前须增加账号认证和用户生命周期管理。
 6. **`.dev.vars` 分发**——`SESSION_SECRET` 等由部署者自行生成，不入库；本仓库提供不含密钥的 `.dev.vars.example`。
+
+### Provider-aware configuration
+
+The optional `AI_PROVIDER_PRESET` now selects OpenAI, Anthropic, Gemini, DeepSeek, OpenRouter, OpenCode Zen/Go, or legacy custom request adapters while keeping `AI_PROVIDER=mock` unchanged by default. Provider-specific effort, sampling, safe attribution headers, bounded output/timeouts/retries and limitations are documented in [AI provider configuration](../../docs/ai-provider-configuration.md). The non-demo super-admin web panel now supports versioned configuration and authenticated-encryption key storage via the existing SESSION_SECRET root. Apply reviewed migration 0008 before deployment. Web credentials are never inherited from AI_API_KEY and destination changes require re-entry; no real-model access is claimed. OpenCode Go's coding-agent positioning requires a separate workload/plan applicability check before business use.

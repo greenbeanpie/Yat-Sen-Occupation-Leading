@@ -1,3 +1,4 @@
+import { aiSettingsFixture } from './ai-settings-fixture.mjs';
 // Three-role UI verification using an isolated, mocked HTTP API.
 // Run against a frontend dev/preview server with WORKBENCH_URL and CHROMIUM_PATH as needed.
 import assert from 'node:assert/strict';
@@ -25,6 +26,7 @@ async function scenario(role, demo = false) {
     const json = (body, status = 200) => route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) });
     if (method !== 'GET') mutations.push({ path, method, body: request.postDataJSON() });
     if (path === '/session') return json({ authenticated: true, user: actor, capabilities: { push: false, offline: true, demoMode: demo } });
+    if (path === '/admin/ai-settings') return json(aiSettingsFixture());
     if (path === '/admin/users' && method === 'GET') return json({ items: users });
     if (path === '/admin/settings') {
       if (method === 'PUT') registrationEnabled = request.postDataJSON().registrationEnabled;

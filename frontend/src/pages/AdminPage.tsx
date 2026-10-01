@@ -1,3 +1,4 @@
+import { AiSettingsPanel } from './AiSettingsPanel';
 import { InvitationsPanel } from './InvitationsPanel';
 import { useEffect, useState } from 'react';
 import { FileSearch, Pencil, Plus, Send, Archive } from 'lucide-react';
@@ -41,7 +42,7 @@ export function AdminPage({ context, user, onRefreshSession }: { context: Action
     {!user.demo && <>
       <UsersPanel context={context} role={user.role} onRefreshSession={onRefreshSession}/>
       <InvitationsPanel context={context}/>
-      {user.role === 'super_admin' && <SystemSettingsPanel context={context}/>}
+      {user.role === 'super_admin' && <><SystemSettingsPanel context={context}/><AiSettingsPanel key={context.userId} context={context}/></>}
     </>}
     {creating && <Modal title="新增公共岗位" onClose={() => setCreating(false)}>
       <ActionForm disabled={context.busy} label="创建草稿" onSubmit={create} fields={jobFields()}/>

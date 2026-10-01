@@ -1,7 +1,8 @@
+import { getConfiguredAiProvider } from '../infra/ai/settings';
 import { z } from "zod";
 import type { Env } from "../env";
 import { logJson } from "../infra/logger";
-import { getAiProvider, AiError } from "../infra/ai";
+import { AiError } from "../infra/ai";
 import { extractText } from "../infra/extract";
 import { fingerprintOf } from "../infra/db/helpers";
 import { verifyQuote } from "../domain/quotes";
@@ -91,7 +92,7 @@ export async function processParseDocument(env: Env, operationId: string): Promi
       .run();
 
     // 模型提取候选字段（只发送必要文本，不发送密钥）
-    const provider = getAiProvider(env);
+    const provider = await getConfiguredAiProvider(env, userId, operationId);
     const raw = await provider.complete([
       {
         role: "system",

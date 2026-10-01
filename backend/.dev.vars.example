@@ -13,3 +13,27 @@ CORS_ORIGIN=http://localhost:5173
 # AI_BASE_URL=http://127.0.0.1:11434/v1
 # AI_MODEL=your-local-model
 # AI_API_KEY= (optional for APIs without authentication)
+
+# Optional provider-aware operator settings (no change to mock unless explicitly selected).
+# AI_PROVIDER stays "openai" for all real providers, for backwards compatibility.
+# AI_PROVIDER_PRESET=custom
+# AI_PROTOCOL=auto
+# AI_GO_USER_AGENT=YatSenOccupationLeading/1.0
+# AI_ALLOWED_HOSTS= (optional exact public hostnames approved for web custom roots)
+# Presets: custom, openai, anthropic, gemini, deepseek, openrouter, opencode-zen, opencode-go
+# Leave AI_BASE_URL blank to use a preset's documented API root; custom needs a root URL.
+# AI_REASONING_EFFORT=default
+# AI_THINKING_BUDGET= (Gemini 2.5 only; numeric, below output cap)
+# AI_TEMPERATURE= (leave unset for reasoning/unknown models)
+# AI_TOP_P= (leave unset unless capability matrix permits it)
+# AI_MAX_OUTPUT_TOKENS=4096
+# AI_TIMEOUT_MS=60000
+# AI_MAX_ATTEMPTS=3
+# AI_REQUEST_HEADERS_JSON={} (OpenRouter attribution only; never credentials)
+# Go identifies this app honestly and generates a stable, opaque session per operation.
+# Confirm Go plan/workload eligibility before separately authorizing real business use.
+# See docs/ai-provider-configuration.md for supported model IDs and capability limits.
+
+# Web AI keys are entered by the user over HTTPS and encrypted using the existing
+# SESSION_SECRET with a dedicated HKDF context. Do not rotate this root casually:
+# rotation invalidates sessions and requires re-entry of saved web AI keys.
