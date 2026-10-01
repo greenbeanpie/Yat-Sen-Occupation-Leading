@@ -387,6 +387,7 @@ CREATE TABLE reminders (
   body TEXT NOT NULL DEFAULT '',
   read_at TEXT,
   dismissed_at TEXT,
+  push_lease_until TEXT,
   sent_at TEXT,
   retry_count INTEGER NOT NULL DEFAULT 0,
   version INTEGER NOT NULL DEFAULT 1,

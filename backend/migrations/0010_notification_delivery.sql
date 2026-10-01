@@ -2,6 +2,7 @@
 ALTER TABLE users ADD COLUMN notify_in_app INTEGER NOT NULL DEFAULT 1 CHECK (notify_in_app IN (0,1));
 ALTER TABLE users ADD COLUMN notify_push INTEGER NOT NULL DEFAULT 1 CHECK (notify_push IN (0,1));
 ALTER TABLE reminders ADD COLUMN dismissed_at TEXT;
+ALTER TABLE reminders ADD COLUMN push_lease_until TEXT;
 ALTER TABLE push_subscriptions ADD COLUMN session_id TEXT;
 -- Legacy subscriptions lack a revocable session binding; re-enable explicitly per device.
 UPDATE push_subscriptions SET status='expired', deleted=1 WHERE session_id IS NULL;

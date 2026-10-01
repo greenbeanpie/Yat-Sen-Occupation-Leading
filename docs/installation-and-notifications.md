@@ -20,6 +20,10 @@
 
 参考：[Push API](https://developer.mozilla.org/en-US/docs/Web/API/Push_API)、[通知权限](https://developer.mozilla.org/en-US/docs/Web/API/Notification/requestPermission_static)、[WebKit iOS/iPadOS Web Push](https://webkit.org/blog/13878/web-push-for-web-apps-on-ios-and-ipados/)、[RFC 8291](https://www.rfc-editor.org/info/rfc8291/)、[RFC 8292](https://www.rfc-editor.org/info/rfc8292/)
 
+## 顶栏图标
+
+更新检查和通知入口已改为可访问图标，嵌入既有主顶栏，保留未读角标、tooltip 和动态更新状态，不再为两个按钮额外占用顶部一行。新版本下载与确认流程保持，窄屏保留两项入口；顶部摘要与通知弹层独立显示。
+
 ## 发布后真机验收
 
 使用测试账户核验安装接受/取消、首次权限允许/拒绝、重复点击、设置投递失败后的重试、通知读/收起历史、网络恢复只提示新事件、退出后旧账户消息不显示。通过已有任务/面试或工单事件产生测试通知，不为验收自动调用收费 AI。真实系统后台推送需要在已授权、支持的平台上单独验证。

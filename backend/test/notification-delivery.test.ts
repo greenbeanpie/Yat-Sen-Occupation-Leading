@@ -52,6 +52,22 @@ describe('notification delivery and lifecycle',()=>{
   await env.DB.prepare('INSERT INTO push_subscriptions(id,user_id,endpoint,p256dh,auth,created_at,updated_at,session_id) VALUES(?1,?2,?3,?4,?5,?6,?6,?7)').bind(crypto.randomUUID(),STUDENT,'https://fcm.googleapis.com/a',receiver.p256dh,receiver.auth,now,session!.id).run();
   await env.DB.prepare('DELETE FROM sessions WHERE id=?1').bind(session!.id).run();const sender=vi.fn(async()=>({ok:true,statusCode:201}));expect((await cronTick(env,now,sender)).sentPush).toBe(0);expect(sender).not.toHaveBeenCalled();
  });
+ it('leases dispatch so simultaneous source events do not send the same notification twice',async()=>{
+  const owner=await actor();const env=owner.env;const now=new Date().toISOString();const session=await env.DB.prepare('SELECT id FROM sessions WHERE user_id=?1').bind(owner.id).first<{id:string}>();
+  await createReminder(env,owner.id,{entity:'task',entityId:crypto.randomUUID(),entityVersion:1,kind:'task_due',fireAt:now,title:'fixture'});
+  await env.DB.prepare('INSERT INTO push_subscriptions(id,user_id,endpoint,p256dh,auth,created_at,updated_at,session_id) VALUES(?1,?2,?3,?4,?5,?6,?6,?7)').bind(crypto.randomUUID(),owner.id,'https://fcm.googleapis.com/a',receiver.p256dh,receiver.auth,now,session!.id).run();
+  let nested=0;const sender=vi.fn(async()=>{nested=(await cronTick(env,now,async()=>({ok:true,statusCode:201}))).sentPush;return {ok:true,statusCode:201};});
+  expect((await cronTick(env,now,sender)).sentPush).toBe(1);expect(nested).toBe(0);expect(sender).toHaveBeenCalledOnce();
+ });
+ it('rechecks ticket access before each device send when staff is demoted mid-dispatch',async()=>{
+  const owner=await actor(),staff=await actor('admin');const env=owner.env;
+  const created=await request(owner.cookie,'/tickets',{method:'POST',headers:headers(owner.cookie),body:JSON.stringify({subject:'fixture',body:'fixture'})});const {id}=await created.json<{id:string}>();
+  const session=await env.DB.prepare('SELECT id FROM sessions WHERE user_id=?1').bind(staff.id).first<{id:string}>();const now=new Date().toISOString();
+  for(const suffix of ['a','b'])await env.DB.prepare('INSERT INTO push_subscriptions(id,user_id,endpoint,p256dh,auth,created_at,updated_at,session_id) VALUES(?1,?2,?3,?4,?5,?6,?6,?7)').bind(crypto.randomUUID(),staff.id,'https://fcm.googleapis.com/'+suffix,receiver.p256dh,receiver.auth,now,session!.id).run();
+  await env.DB.batch(await ticketNotificationStatements(env,id,owner.id,'after-devices','ticket_reply'));
+  const sender=vi.fn(async()=>{await env.DB.prepare("UPDATE users SET access_role='student' WHERE id=?1").bind(staff.id).run();return {ok:true,statusCode:201};});
+  await cronTick(env,new Date(Date.now()+1000).toISOString(),sender,{ticketsOnly:true});expect(sender).toHaveBeenCalledOnce();
+ });
  it('matches RFC8291 published ciphertext and verifies WebCrypto raw VAPID signature',async()=>{
   const pub=decodeBase64url(PUBLIC);const privateKey=await crypto.subtle.importKey('jwk',jwk(),{name:'ECDH',namedCurve:'P-256'},false,['deriveBits']);const publicKey=await crypto.subtle.importKey('raw',pub,{name:'ECDH',namedCurve:'P-256'},true,[]);
   const ciphertext=await encryptPush(new TextEncoder().encode('When I grow up, I want to be a watermelon'),receiver,{keyPair:{privateKey,publicKey},salt:decodeBase64url('DGv6ra1nlYgDCS1FRnbzlw')});

@@ -1,3 +1,4 @@
+import { NotificationControls } from './notifications/NotificationControls';
 import { InstallationNotice } from './notifications/InstallationNotice';
 import { unsubscribeDevice, deviceSubscriptionId } from './notifications/core';
 import { notificationRequest } from './notifications/api';
@@ -346,8 +347,9 @@ export default function App() {
       return;
     }
     await run(async () => {
+      const subscriptionId = session?.user ? deviceSubscriptionId(session.user.id) : '';
       if (session?.user && !session.user.demo) await unsubscribeDevice(session.user.id,notificationRequest);
-      await api('/session', { method: 'DELETE', headers: session?.user ? { 'X-Push-Subscription-Id': deviceSubscriptionId(session.user.id), 'X-Notification-Account': session.user.id } : undefined });
+      await api('/session', { method: 'DELETE', headers: session?.user ? { ...(subscriptionId ? {'X-Push-Subscription-Id':subscriptionId} : {}), 'X-Notification-Account': session.user.id } : undefined });
       await platform.storage.remove(SESSION_CACHE_KEY);
       // 退出后重新读取会话，登录页需要服务端返回的演示身份列表。
       setSession(await get<Session>('/session'));
@@ -401,18 +403,18 @@ export default function App() {
 
   return (
     <div className="app-shell">
-      <ThemeSync/><InstallationNotice/><NotificationRuntime key={session?.user?.id ?? 'anonymous'} userId={session?.user?.id ?? null} enabled={Boolean(session?.authenticated && !session.user?.demo && !guestMode)} settingsUrl="/settings/notifications"/>
+      <ThemeSync/><InstallationNotice/>
       <aside id="workbench-navigation" className={`sidebar ${mobileOpen ? 'open' : ''}`}>
         <div className="brand">
           <div className="brand-mark">实</div>
           <span><b>实习工作台</b><small>DECISION & ACTION</small></span>
           <button className="icon-btn mobile-close" aria-label="关闭菜单" onClick={() => setMobileOpen(false)}><X size={18}/></button>
         </div>
-        <div className="demo-banner">{(() => {
+        {(activeDataSource !== 'http' || user?.demo) && <div className="demo-banner">{(() => {
           if (activeDataSource === 'guest') return '游客体验 · 临时虚构数据';
           if (activeDataSource === 'demo') return usingDemoOverride() ? '演示模式 · 本机虚构数据' : '演示模式 · 虚构数据';
-          return user?.demo ? '演示站 · 虚构数据' : '实习工作台';
-        })()}</div>
+          return '演示站 · 虚构数据';
+        })()}</div>}
         <nav aria-label="主导航">
           {navigation.filter((item) => (!item.admin || isAdmin) && (!item.account || ticketsEnabled)).map(({ to, label, icon: Icon }) => (
             <NavLink key={to} end={to === '/'} to={to} className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
@@ -438,6 +440,7 @@ export default function App() {
           <button className="icon-btn menu-btn" aria-label="打开菜单" aria-expanded={mobileOpen} aria-controls="workbench-navigation" onClick={() => setMobileOpen(true)}><Menu size={20}/></button>
           <div className="breadcrumbs">工作台 <span>/</span> {navigation.find((item) => item.to === location.pathname || (item.to === '/tickets' && location.pathname.startsWith('/tickets/')))?.label ?? '页面'}</div>
           <div className="top-actions">
+            <NotificationControls/>
             <ThemeSelect/>
             <span className="sync-pill"><Cloud size={15}/>{pending ? `${pending} 项待同步` : '已同步'}</span>
             <button className="icon-btn" title="刷新数据" onClick={reload}><RefreshCw size={17}/></button>
@@ -446,6 +449,7 @@ export default function App() {
         </header>
 
         <div className="content" aria-live="polite">
+          <NotificationRuntime key={session?.user?.id ?? 'anonymous'} userId={session?.user?.id ?? null} enabled={Boolean(session?.authenticated && !session.user?.demo && !guestMode)} settingsUrl="/settings/notifications"/>
           {message?.kind === 'error' && <div role="alert">{message.text}<button className="btn small" onClick={() => setMessage(null)}>关闭</button></div>}
           {busy && <div className="busy-line"><LoaderCircle className="spin" size={15}/>正在处理…</div>}
           <Routes>

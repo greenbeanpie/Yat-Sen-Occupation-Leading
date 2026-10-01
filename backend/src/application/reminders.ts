@@ -108,7 +108,7 @@ const ACTIVE_INTERVIEW_REMINDER = `(entity <> 'interview' OR EXISTS (
 export async function cronTick(env: Env, now: string = nowIso(), push = sendWebPush, options: { ticketsOnly?: boolean } = {}): Promise<CronResult> {
   const result: CronResult = { due: 0, sentInApp: 0, sentPush: 0, failed: 0, expiredSubscriptions: 0 };
   const due = await env.DB
-    .prepare(`SELECT * FROM reminders WHERE (status = 'pending' OR (status = 'sent' AND retry_count >= 0 AND retry_count < 3)) AND fire_at <= ?1 AND ${ACTIVE_INTERVIEW_REMINDER} ${options.ticketsOnly ? "AND entity='ticket'" : ''} ORDER BY fire_at LIMIT 50`)
+    .prepare(`SELECT * FROM reminders WHERE (status = 'pending' OR (status = 'sent' AND retry_count >= 0 AND retry_count < 3)) AND fire_at <= ?1 AND (push_lease_until IS NULL OR push_lease_until <= ?1) AND ${ACTIVE_INTERVIEW_REMINDER} ${options.ticketsOnly ? "AND entity='ticket'" : ''} ORDER BY fire_at LIMIT 50`)
     .bind(now)
     .all<Record<string, unknown>>();
   result.due = due.results.length;
@@ -117,7 +117,7 @@ export async function cronTick(env: Env, now: string = nowIso(), push = sendWebP
     // Read the current delivery state too: archive + restore can cancel an
     // elapsed reminder after the due list was read while its parent is active again.
     const reminder = await env.DB.prepare(`SELECT * FROM reminders WHERE id = ?1 AND ${ACTIVE_INTERVIEW_REMINDER}
-      AND (status = 'pending' OR (status = 'sent' AND retry_count >= 0 AND retry_count < 3)) AND fire_at <= ?2`)
+      AND (status = 'pending' OR (status = 'sent' AND retry_count >= 0 AND retry_count < 3)) AND fire_at <= ?2 AND (push_lease_until IS NULL OR push_lease_until <= ?2)`)
       .bind(candidate.id, now).first<Record<string, unknown>>();
     if (!reminder) continue;
     const userId = reminder.user_id as string;
@@ -147,17 +147,22 @@ export async function cronTick(env: Env, now: string = nowIso(), push = sendWebP
     // Reserve an attempt before subscription lookup/network IO; interrupted attempts
     // remain eligible next tick. -1 denotes completed push delivery.
     const attempt = Number(reminder.retry_count ?? 0) + 1;
-    const reserved = await env.DB.prepare(`UPDATE reminders SET retry_count = retry_count + 1 WHERE id = ?1 AND status = 'sent'
-      AND retry_count = ?2 AND retry_count >= 0 AND retry_count < 3 AND ${ACTIVE_INTERVIEW_REMINDER}`).bind(reminder.id, attempt - 1).run();
+    const reserved = await env.DB.prepare(`UPDATE reminders SET retry_count = retry_count + 1, push_lease_until = ?3 WHERE id = ?1 AND status = 'sent'
+      AND retry_count = ?2 AND retry_count >= 0 AND retry_count < 3 AND (push_lease_until IS NULL OR push_lease_until <= ?4) AND ${ACTIVE_INTERVIEW_REMINDER}`).bind(reminder.id, attempt - 1,new Date(new Date(now).getTime()+300_000).toISOString(),now).run();
     if (Number(reserved.meta.changes ?? 0) !== 1) continue;
 
     // 浏览器推送：用户主动授权后（存在 active 订阅）才发
-    const subs = await env.DB
+    let subs: D1Result<Record<string,unknown>>;
+    try { subs = await env.DB
       .prepare(`SELECT s.* FROM push_subscriptions s JOIN sessions a ON a.id=s.session_id AND a.user_id=s.user_id WHERE s.user_id = ?1 AND s.status = 'active' AND s.deleted = 0 AND a.expires_at > ?2 AND s.created_at <= ?3`)
       .bind(userId,Math.floor(Date.now()/1000),String(reminder.sent_at ?? reminder.created_at))
       .all<Record<string, unknown>>();
+    } catch(error) {
+      await env.DB.prepare(`UPDATE reminders SET push_lease_until=NULL WHERE id=?1 AND retry_count=?2`).bind(reminder.id,attempt).run();
+      throw error;
+    }
     if (subs.results.length === 0) {
-      await env.DB.prepare(`UPDATE reminders SET retry_count = -1 WHERE id = ?1 AND status = 'sent'`).bind(reminder.id).run();
+      await env.DB.prepare(`UPDATE reminders SET retry_count = -1,push_lease_until=NULL WHERE id = ?1 AND status = 'sent'`).bind(reminder.id).run();
       continue;
     }
 
@@ -170,7 +175,8 @@ export async function cronTick(env: Env, now: string = nowIso(), push = sendWebP
     for (const sub of subs.results) {
       const delivered = await env.DB.prepare(`SELECT reminder_id FROM reminder_push_deliveries WHERE reminder_id = ?1 AND subscription_id = ?2`).bind(reminder.id, sub.id).first();
       if (delivered) continue;
-      const stillEligible = await env.DB.prepare(`SELECT id FROM reminders WHERE id = ?1 AND status = 'sent' AND retry_count = ?2 AND ${ACTIVE_INTERVIEW_REMINDER}`)
+      const stillEligible = await env.DB.prepare(`SELECT id FROM reminders WHERE id = ?1 AND status = 'sent' AND retry_count = ?2 AND read_at IS NULL AND dismissed_at IS NULL AND ${ACTIVE_INTERVIEW_REMINDER}
+        AND (entity<>'ticket' OR EXISTS(SELECT 1 FROM support_tickets t JOIN users u ON u.id=reminders.user_id WHERE t.id=reminders.entity_id AND u.deleted=0 AND u.disabled=0 AND u.is_demo=0 AND (t.user_id=u.id OR COALESCE(u.access_role,u.role) IN ('admin','super_admin'))))`)
         .bind(reminder.id, attempt).first();
       if (!stillEligible) break;
       try {
@@ -200,7 +206,7 @@ export async function cronTick(env: Env, now: string = nowIso(), push = sendWebP
       }
     }
     const retries = temporaryFailure ? Number(reminder.retry_count ?? 0) + 1 : -1;
-    await env.DB.prepare(`UPDATE reminders SET retry_count = ?2, updated_at = ?3 WHERE id = ?1 AND status = 'sent' AND retry_count = ?4`).bind(reminder.id, retries, nowIso(), attempt).run();
+    await env.DB.prepare(`UPDATE reminders SET retry_count = ?2, push_lease_until=NULL, updated_at = ?3 WHERE id = ?1 AND status = 'sent' AND retry_count = ?4`).bind(reminder.id, retries, nowIso(), attempt).run();
     if (retries >= 3) result.failed++;
   }
   if (options.ticketsOnly) return result;
