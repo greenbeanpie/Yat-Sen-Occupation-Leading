@@ -82,6 +82,13 @@ function panel(title) {
   return page.locator('section.panel').filter({ has: page.getByRole('heading', { name: title, exact: true }) });
 }
 
+async function chooseDate(scope, label, value) {
+  await scope.getByRole('button', { name: new RegExp(`^${label}`) }).click();
+  const picker = page.getByRole('dialog', { name: `选择${label}`, exact: true });
+  await picker.getByLabel(label, { exact: true }).fill(value);
+  await picker.getByRole('button', { name: '确定', exact: true }).click();
+}
+
 async function goNav(label) {
   // 导航项在有离线操作时会追加角标数字，所以按前缀匹配。
   await page.getByRole('link', { name: new RegExp(`^${label}`) }).first().click();
@@ -165,8 +172,8 @@ await step('经历：新增一段经历（POST /evidence/experiences）', async 
   await form.getByLabel('经历标题').fill(experienceTitle);
   await form.getByLabel('组织 / 公司').fill('中山大学数据科学学院');
   await form.getByLabel('类型').selectOption('project');
-  await form.getByLabel('开始日期').fill('2025-03-01');
-  await form.getByLabel('结束日期').fill('2025-06-30');
+  await chooseDate(form, '开始日期', '2025-03-01');
+  await chooseDate(form, '结束日期', '2025-06-30');
   await form.getByLabel('经历原文描述').fill('使用 SQL 清洗 3 万条订单数据，搭建看板后把周报整理时间从 6 小时降到 1 小时。');
   await form.getByRole('button', { name: '添加经历' }).click();
   const call = await waitForCall('POST', /^\/evidence\/experiences$/);
@@ -264,7 +271,7 @@ await step('岗位：粘贴私人 JD（POST /jobs）', async () => {
   await modal.getByLabel('岗位名称').fill(jobTitle);
   await modal.getByLabel('公司名称').fill('广州橙子科技有限公司');
   await modal.getByLabel('工作地点').fill('广州');
-  await modal.getByLabel('截止日期').fill('2026-11-30');
+  await chooseDate(modal, '截止日期', '2026-11-30');
   await modal.getByLabel('来源链接').fill('https://example.com/jobs/data-analyst-growth');
   await modal.getByLabel('JD 原文').fill(
     '岗位职责：负责增长业务的数据分析，搭建指标体系并输出周报。任职要求：本科及以上在读，2026 至 2028 年毕业；熟练使用 SQL 完成数据提取；掌握 Excel 与可视化工具；每周可投入 8 小时以上。',
@@ -395,7 +402,7 @@ await step('投递：创建投递记录（POST /applications）', async () => {
 await step('工时：记录实际投入（POST /time-entries）', async () => {
   const target = panel('新增投递和记录工时');
   await target.getByLabel('投入分钟').fill('90');
-  await target.getByLabel('日期').fill(new Date().toISOString().slice(0, 10));
+  await chooseDate(target, '日期', new Date().toISOString().slice(0, 10));
   await target.getByLabel('说明').fill('整理岗位要求与简历匹配点');
   await target.getByRole('button', { name: '记录工时' }).click();
   const call = await waitForCall('POST', /^\/time-entries$/);

@@ -478,7 +478,7 @@ button.upload-box:disabled { color: var(--muted); background: var(--theme-surfac
   .portfolio-row .button-row { margin-top: 0; }
   .interview-form { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .interview-form > button { grid-column: 1 / -1; }
-  .interview-form .field:has(input[type="datetime-local"]) { grid-column: 1 / -1; }
+  .interview-form .field:has(.date-selection) { grid-column: 1 / -1; }
   .interview-result { grid-template-columns: minmax(0, .75fr) 1fr; }
   .interview-result button { grid-column: 1 / -1; }
   .mobile-bottom-nav { position: fixed; z-index: 20; inset: auto 0 0; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); padding: 6px 5px calc(6px + env(safe-area-inset-bottom)); background: var(--mobile-nav); border-top: 1px solid var(--theme-line, #e5e9ef); box-shadow: 0 -5px 20px rgb(29 40 61 / 5%); backdrop-filter: blur(14px); }

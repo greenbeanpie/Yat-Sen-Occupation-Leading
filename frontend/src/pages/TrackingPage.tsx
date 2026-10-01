@@ -1,3 +1,4 @@
+import { DateInput } from '../DateInput';
 import { useMemo, useRef, useState } from 'react';
 import { Archive, ArchiveRestore, CalendarPlus, MessageSquareText, Trash2 } from 'lucide-react';
 import { del, get, patch, post } from '../api/client';
@@ -233,7 +234,7 @@ export function ApplicationCard({ application, context }: { application: Applica
     {archived && archiveError && <InlineError>{archiveError}</InlineError>}
     {!archived && <><div className="interview-form">
       <label className="field"><span>面试阶段</span><input value={stage} onChange={(event) => setStage(event.target.value)} placeholder="初试、复试…"/></label>
-      <label className="field"><span>面试时间</span><input type="datetime-local" value={when} onChange={(event) => setWhen(event.target.value)}/></label>
+      <label className="field"><span>面试时间</span><DateInput label="面试时间" type="datetime-local" value={when} onChange={setWhen} disabled={context.busy}/></label>
       <label className="field"><span>地点或链接</span><input value={location} onChange={(event) => setLocation(event.target.value)} placeholder="可选"/></label>
       <button className="btn small secondary" disabled={!when || context.busy} onClick={() => void scheduleInterview()}><CalendarPlus size={14}/>安排面试</button>
     </div>

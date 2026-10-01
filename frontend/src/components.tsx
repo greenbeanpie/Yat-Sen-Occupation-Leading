@@ -1,3 +1,4 @@
+import { DateInput } from './DateInput';
 import { useSettingsDirty } from './pages/settings-dirty';
 import { useEffect, useRef, useId, useState, type FormEvent, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
@@ -247,6 +248,10 @@ export function ActionForm({
               value={values[field.name]}
               onChange={(event) => setValues((current) => ({ ...current, [field.name]: event.target.value }))}
             />
+          ) : field.type === 'date' || field.type === 'datetime-local' ? (
+            <DateInput label={field.label} type={field.type} value={values[field.name]}
+              onChange={value => setValues(current => ({ ...current, [field.name]: value }))}
+              required={field.required} disabled={disabled || submitting} min={field.min} max={field.max} step={field.step} describedBy={invalid ? errorId : undefined}/>
           ) : (
             <input
               type={field.type ?? 'text'}
