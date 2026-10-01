@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { Monitor } from 'lucide-react';
 import { applyTheme, parseTheme, readTheme, saveTheme, THEME_KEY, type ThemePreference } from './theme';
 
 function useThemePreference() {
@@ -33,10 +34,11 @@ export function ThemeSync() {
   return null;
 }
 
-export function ThemeSelect() {
+export function ThemeSelect({ variant = 'toolbar' }: { variant?: 'toolbar' | 'field' }) {
   const [preference, setPreference] = useThemePreference();
-  return <label className="theme-select">
-    <span className="visually-hidden">外观主题</span>
+  return <label className={`theme-select ${variant === 'field' ? 'field' : 'theme-select-toolbar'}`}>
+    {variant === 'toolbar' && <Monitor size={16} aria-hidden="true"/>}
+    <span className={variant === 'toolbar' ? 'visually-hidden' : undefined}>外观主题</span>
     <select value={preference} onChange={event => {
       const next = parseTheme(event.target.value);
       setPreference(next);

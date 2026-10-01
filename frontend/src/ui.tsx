@@ -23,6 +23,8 @@ import { PlanningPage } from './pages/PlanningPage';
 import { TrackingPage } from './pages/TrackingPage';
 import { AdminPage } from './pages/AdminPage';
 import { SettingsHub } from './pages/SettingsHub';
+import { AccountSettings } from './pages/AccountSettings';
+import { SettingsEditGuard } from './pages/SettingsEditGuard';
 import { canAccessAdmin, canAccessTickets, roleLabel } from './roles';
 import { TicketsPage } from './pages/TicketsPage';
 import { TicketDetailPage } from './pages/TicketDetailPage';
@@ -36,6 +38,7 @@ const SESSION_CACHE_KEY = 'session:last';
 const navigation = [
   { to: '/', label: '工作台', icon: House },
   { to: '/profile', label: '画像与证据', icon: UserRound },
+  { to: '/personal-profile', label: '个人资料', icon: UserRound },
   { to: '/jobs', label: '岗位库', icon: BriefcaseBusiness },
   { to: '/match', label: '匹配与组合', icon: ChartNoAxesCombined },
   { to: '/plan', label: '计划与改写', icon: CalendarDays },
@@ -430,6 +433,7 @@ export default function App() {
           <button className="icon-btn menu-btn" aria-label="打开菜单" aria-expanded={mobileOpen} aria-controls="workbench-navigation" onClick={() => setMobileOpen(true)}><Menu size={20}/></button>
           <div className="breadcrumbs">工作台 <span>/</span> {navigation.find((item) => item.to === location.pathname || (item.to === '/tickets' && location.pathname.startsWith('/tickets/')))?.label ?? '页面'}</div>
           <div className="top-actions">
+            <ThemeSelect/>
             <span className="sync-pill"><Cloud size={15}/>{pending ? `${pending} 项待同步` : '已同步'}</span>
             <button className="icon-btn" title="刷新数据" onClick={reload}><RefreshCw size={17}/></button>
             <span className="avatar mini" title={user?.displayName}>{user?.displayName.slice(0, 1) ?? '演'}</span>
@@ -442,6 +446,7 @@ export default function App() {
           <Routes>
             <Route path="/" element={<Dashboard context={actionContext} pending={pending}/>}/>
             <Route path="/profile" element={<ProfilePage context={actionContext}/>}/>
+            <Route path="/personal-profile" element={<SettingsEditGuard key={`${user?.id}:${user?.role}`}><PageHead kicker="我的账户" title="个人资料" description="先查看已保存的资料，需要修改时再进入编辑。"/><AccountSettings demo={Boolean(user?.demo) || getActiveDataSource() !== 'http'} onRefreshSession={refreshAccountSession} onSessionEnded={accountSessionEnded}/></SettingsEditGuard>}/>
             <Route path="/jobs" element={<JobsPage context={actionContext}/>}/>
             <Route path="/match" element={<MatchingPage context={actionContext}/>}/>
             <Route path="/plan" element={<PlanningPage context={actionContext}/>}/>
