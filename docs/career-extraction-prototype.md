@@ -55,3 +55,9 @@ First establish an allowed reliable source (manual pasted body text is sufficien
 - Independent reviewer reproduced and rechecked rejection of oversized evidence spans, wrong source paths and credential-bearing URLs
 - Initial full backend suite: 146 passed, 1 skipped, 1 failed (before three additional extraction tests). Failure in the existing plans statistics test at line 395 was independently reproduced on released commit `1685216b3a0d7cd7bc5d30966b7b5a8944c22090`: it queries September 2026 while generated interview events use the current October clock. It is unrelated to this unregistered standalone module
 - No frontend files changed; frontend checks not applicable. No deployment planned; deployment preflight/live smoke tests not run. No live LLM test performed
+
+### Separate test-fixture clock correction
+
+The pre-existing statistics test has a separate test-only correction: use one captured current UTC anchor for `spentOn` and a one-day-padded query window because Workerd timestamps status transitions with its real clock. The test resets its database and creates exactly one interviewed application, so the padding does not aggregate unrelated records. This avoids month rollover failures without changing any application logic; it is not a frozen-clock or date-boundary test.
+
+After this correction, final backend checks passed: TypeScript; all 22 test files, 150 tests passed and 1 pre-existing test skipped (151 total), including all 18 extraction tests. `git diff --check` passed. No live model calls or production deployment occurred.

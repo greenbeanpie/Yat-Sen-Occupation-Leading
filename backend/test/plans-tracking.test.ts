@@ -344,6 +344,14 @@ describe("投递跟踪与效率统计", () => {
   });
 
   it("面试安排 + 工时录入 + 效率统计（含零工时→null）", async () => {
+    // Workerd timestamps status events with its real clock. Keep the query and
+    // time-entry fixture in the same UTC window instead of hardcoding Sep 2026.
+    // One-day padding avoids midnight races between the test and Worker clocks.
+    const anchor = Date.now();
+    const spentOn = new Date(anchor).toISOString().slice(0, 10);
+    const from = new Date(anchor - 86_400_000).toISOString().slice(0, 10);
+    const to = new Date(anchor + 86_400_000).toISOString().slice(0, 10);
+    const statsUrl = `/applications/stats?from=${from}&to=${to}`;
     const cookie = await loginAs(STUDENT);
     const create = await requestAs(cookie, "/applications", {
       method: "POST",
@@ -353,7 +361,7 @@ describe("投递跟踪与效率统计", () => {
     const app = await create.json<{ id: string }>();
 
     // 零工时 → efficiency null
-    const stats0 = await requestAs(cookie, "/applications/stats?from=2026-09-01&to=2026-09-30");
+    const stats0 = await requestAs(cookie, statsUrl);
     const stats0Body = await stats0.json<{ efficiency: number | null; interviewedCount: number }>();
     expect(stats0Body.efficiency).toBeNull();
 
@@ -368,7 +376,7 @@ describe("投递跟踪与效率统计", () => {
     // 工时
     const entry = await requestAs(cookie, "/time-entries", {
       method: "POST",
-      body: JSON.stringify({ applicationId: app.id, minutes: 120, spentOn: "2026-09-20" }),
+      body: JSON.stringify({ applicationId: app.id, minutes: 120, spentOn }),
       headers: { "Content-Type": "application/json" },
     });
     expect(entry.status).toBe(201);
@@ -390,7 +398,7 @@ describe("投递跟踪与效率统计", () => {
     });
     void v;
 
-    const stats = await requestAs(cookie, "/applications/stats?from=2026-09-01&to=2026-09-30");
+    const stats = await requestAs(cookie, statsUrl);
     const statsBody = await stats.json<{ interviewedCount: number; totalHours: number; efficiency: number | null }>();
     expect(statsBody.interviewedCount).toBe(1);
     expect(statsBody.totalHours).toBeCloseTo(2, 5);
