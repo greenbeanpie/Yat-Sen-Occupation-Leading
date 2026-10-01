@@ -20,6 +20,13 @@ function setup(overrides: Partial<CareerReviewApi> = {}, now = Date.parse('2026-
   return { api, controller: createCareerReviewController(api, () => now) };
 }
 describe('manual career review controller, fixture-only network', () => {
+  it('requires explicit temporary diagnostic budget and keeps it out of ordinary requests/config',async()=>{
+    const {api,controller}=setup({status:vi.fn().mockResolvedValue({...status,configurationVersion:2,diagnosticTokenLimit:32768})});
+    await controller.readStatus();await controller.preview('997448');const a=controller.extract(16384),b=controller.extract(16384);expect(a).toBe(b);await a;
+    expect(api.extract).toHaveBeenCalledExactlyOnceWith({id:'997448',sourceVersionHash:hash,diagnosticBudget:{requestId:expect.any(String),baseVersion:2,maxOutputTokens:16384}});
+    expect(controller.getState().status?.configurationVersion).toBe(2);await controller.extract();
+    expect(vi.mocked(api.extract).mock.calls[1]![0]).toEqual({id:'997448',sourceVersionHash:hash});
+  });
   it('does nothing until requested and initial status reads cached data without source/model calls', async () => {
     const { api, controller } = setup();
     expect(api.status).not.toHaveBeenCalled(); await controller.readStatus();

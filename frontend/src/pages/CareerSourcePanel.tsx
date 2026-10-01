@@ -7,7 +7,7 @@ import {
 } from './career-source-review';
 import './career-source-review.css';
 
-export function CareerSourcePanel({ context }: { context: ActionContext }) {
+export function CareerSourcePanel({ context, canTest = false }: { context: ActionContext; canTest?: boolean }) {
   const [controller] = useState(() => createCareerReviewController({
     status: () => get('/admin/career-source'),
     refresh: () => post('/admin/career-source/refresh', {}),
@@ -18,13 +18,15 @@ export function CareerSourcePanel({ context }: { context: ActionContext }) {
   useEffect(() => { void controller.readStatus(); }, [controller]);
   return <CareerSourceReview state={state} disabled={context.busy}
     onReadStatus={() => void controller.readStatus()} onRefresh={() => void controller.refresh()}
-    onPreview={id => void controller.preview(id)} onExtract={() => void controller.extract()}/>;
+    onPreview={id => void controller.preview(id)} onExtract={() => void controller.extract()}
+    onDiagnostic={canTest?tokens=>void controller.extract(tokens):undefined}/>;
 }
 
-export function CareerSourceReview({ state, disabled, onReadStatus, onRefresh, onPreview, onExtract }: {
+export function CareerSourceReview({ state, disabled, onReadStatus, onRefresh, onPreview, onExtract, onDiagnostic }: {
   state: CareerReviewState; disabled: boolean; onReadStatus: () => void; onRefresh: () => void;
-  onPreview: (id: string) => void; onExtract: () => void;
+  onPreview: (id: string) => void; onExtract: () => void; onDiagnostic?: (maxOutputTokens:number) => void;
 }) {
+  const [testTokens, setTestTokens] = useState(16384);
   const busy = disabled || state.operation !== null;
   const fresh = state.preview && Date.parse(state.preview.expiresAt) > Date.now() && !state.requiresPreview;
   return <Panel title="中大就业网公告" description="读取公开校园招聘公告，生成带原文证据的待审核候选。此入口不创建或发布公共岗位。">
@@ -51,6 +53,13 @@ export function CareerSourceReview({ state, disabled, onReadStatus, onRefresh, o
         <p className="muted">提取只发送这条公开公告正文，使用已保存的真实模型，可能消耗少量额度。每次最多一次请求，无自动重试；同一来源版本有缓存时复用候选。证据校验不是准确性保证，需要逐条人工审核。</p>
         {!fresh && <InlineError>来源缓存已过期或版本变化，请点击这条公告的“预览来源”重新读取。</InlineError>}
         <button className="btn primary" disabled={busy || !state.status?.extractionAvailable || !fresh} onClick={onExtract}><FileSearch size={16}/>{state.operation === 'extract' ? '提取中…' : state.draft ? '读取同版本审核候选' : '提取待审核候选'}</button>
+        {onDiagnostic && !!state.status?.diagnosticTokenLimit && <div className="career-source-snapshot">
+          <h4>超级管理员临时诊断提取</h4><p>仅本次采用临时输出预算，思考保持已保存默认设置；不会保存到全局配置，也不改变其它功能。最多一次模型请求、120 秒，无自动重试，可能消耗更多额度。</p>
+          <label className="field"><span>本次输出 token 上限</span><select value={testTokens} disabled={busy} onChange={event=>setTestTokens(Number(event.target.value))}>
+            <option value={16384}>16,384（先验证）</option><option value={32768}>32,768（需要时手动选择）</option>
+          </select></label>
+          <button className="btn secondary" disabled={busy || !fresh} onClick={()=>onDiagnostic(testTokens)}>按临时预算诊断提取一次</button>
+        </div>}
       </>}
       {state.draft && <CareerCandidateReview draft={state.draft}/>}
     </div>
@@ -97,6 +106,7 @@ export function CareerCandidateReview({ draft }: { draft: CareerDraft }) {
   return <section className="career-candidate-review" aria-label="待人工审核候选">
     <h3>待人工审核候选</h3><p>模型：{draft.provider} · {candidate.positions.length} 个岗位分组。逐条核对事实、引用与岗位归属；候选未导入或发布到公共岗位库。</p>
     <Warnings warnings={draft.warnings}/>
+    {draft.diagnostic && <p className="resource-notice">本候选来自临时诊断：{draft.diagnostic.maxOutputTokens} token / {draft.diagnostic.timeoutMs / 1000} 秒；配置版本 {draft.diagnostic.configurationVersion} 未修改。请求 {draft.diagnostic.requestId}；用量输入 {draft.diagnostic.usage.inputTokens ?? '未提供'} / 输出 {draft.diagnostic.usage.outputTokens ?? '未提供'} / 思考 {draft.diagnostic.usage.reasoningTokens ?? '未提供'} token</p>}
     <p>固定信息清单：有原文依据才填值；未提供或不确定保留未知，冲突保留原文候选待核实。不会创造字段或事实。</p>
     <h4>公告信息清单</h4>
     <EvidenceSlot label="公告标题" information={candidate.information?.title} fallback={candidate.title}/>

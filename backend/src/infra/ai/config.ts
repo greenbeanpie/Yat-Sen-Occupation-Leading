@@ -11,6 +11,14 @@ export const AI_PROVIDER_PRESETS = {
   'opencode-zen': { label: 'OpenCode Zen', baseUrl: 'https://opencode.ai/zen/v1' },
   'opencode-go': { label: 'OpenCode Go（请先核对套餐用途）', baseUrl: 'https://opencode.ai/zen/go/v1' },
 } as const;
+
+/** Conservative operation-only test limit for the currently verified Go model.
+ * Anomaly models.dev lists its inherited output limit as 384k; we request at most 32k.
+ * https://raw.githubusercontent.com/anomalyco/models.dev/dev/providers/opencode-go/models/deepseek-v4.1-flash.toml
+ */
+export function careerDiagnosticTokenLimit(config: Pick<AiConfig, 'preset'|'model'>): number {
+  return config.preset === 'opencode-go' && config.model === 'deepseek-v4.1-flash' ? 32768 : 0;
+}
 export type ProviderPreset = keyof typeof AI_PROVIDER_PRESETS;
 export type AiProtocol = 'chat-completions' | 'responses' | 'messages' | 'generate-content';
 export type ReasoningEffort = 'none' | 'minimal' | 'low' | 'medium' | 'high' | 'xhigh' | 'max';

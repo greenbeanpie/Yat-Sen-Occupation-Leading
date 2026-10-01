@@ -1,6 +1,7 @@
 import type { Env } from "../../env";
 import { AiError } from './errors';
-import { boundedNumber, resolveAiConfig, type AiConfig } from './config';
+import { boundedNumber, careerDiagnosticTokenLimit, resolveAiConfig, type AiConfig } from './config';
+import { modelUsage, type AiUsage } from './usage';
 import { buildAiRequest, completionText } from './request';
 import { writeAiDiagnostic, networkDiagnosticCode, type DiagnosticEvent } from './diagnostics';
 export { AiError } from './errors';
@@ -23,6 +24,9 @@ export interface CompletionOptions {
   maxAttempts?: number;
   maxResponseBytes?: number;
   rejectRedirects?: boolean;
+  /** Internal, explicitly authorized super-admin career test only; never saved config. */
+  careerDiagnosticBudget?: { maxOutputTokens: number; timeoutMs: number };
+  onUsage?: (usage: AiUsage) => void;
 }
 
 /** Text-only provider adapter + mock; callers retain structured-output validation. */
@@ -64,14 +68,22 @@ export class OpenAiCompatProvider implements AiProvider {
     if (messages.reduce((size, message) => size + new TextEncoder().encode(message.content).length, 0) > 100_000) {
       throw new AiError("模型输入超过 100KB 上限，请缩小文档或岗位内容", false);
     }
-    const timeoutMs = Math.min(this.config.timeoutMs, boundedNumber(opts?.timeoutMs, 'timeoutMs', 1, 60_000, this.config.timeoutMs, true)!);
+    let config = this.config;
+    if (opts?.careerDiagnosticBudget) {
+      const cap = careerDiagnosticTokenLimit(config);
+      if (!cap) throw new AiError('当前模型未验证公告临时测试预算，未发出请求',false);
+      config = { ...config, maxOutputTokens: boundedNumber(opts.careerDiagnosticBudget.maxOutputTokens,'careerTestMaxOutputTokens',1,cap,undefined,true)!,
+        timeoutMs: boundedNumber(opts.careerDiagnosticBudget.timeoutMs,'careerTestTimeoutMs',1,120000,undefined,true)! };
+    }
+    const timeoutMs = Math.min(config.timeoutMs, boundedNumber(opts?.timeoutMs, 'timeoutMs', 1, opts?.careerDiagnosticBudget?120000:60000, config.timeoutMs, true)!);
     const maxAttempts = Math.min(this.config.maxAttempts, boundedNumber(opts?.maxAttempts, 'maxAttempts', 1, 3, this.config.maxAttempts, true)!);
     const maxResponseBytes = boundedNumber(opts?.maxResponseBytes, 'maxResponseBytes', 1, 1_000_000, 1_000_000, true)!;
-    const request = buildAiRequest(this.config, messages, this.env.AI_API_KEY, opts?.sessionId ?? this.sessionId, opts);
+    const request = buildAiRequest(config, messages, this.env.AI_API_KEY, opts?.sessionId ?? this.sessionId, opts);
     const traceId = opts?.sessionId ?? this.sessionId;
     const requestId = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(traceId) ? traceId : crypto.randomUUID();
     const started = Date.now();
-    const trace = (stage: DiagnosticEvent['stage'], code: DiagnosticEvent['code'], attempt = 0, httpStatus?: number) => writeAiDiagnostic(this.env,{requestId,stage,code,attempt,httpStatus,provider:this.config.preset,model:this.config.model,protocol:this.config.protocol,timeoutMs,maxOutputTokens:this.config.maxOutputTokens,elapsedMs:Date.now()-started});
+    let usage: AiUsage|undefined;
+    const trace = (stage: DiagnosticEvent['stage'], code: DiagnosticEvent['code'], attempt = 0, httpStatus?: number) => writeAiDiagnostic(this.env,{requestId,stage,code,attempt,httpStatus,provider:config.preset,model:config.model,protocol:config.protocol,timeoutMs,maxOutputTokens:config.maxOutputTokens,elapsedMs:Date.now()-started,...(usage?{usage}:{})});
     await trace('config_validated','ok');
     let lastError: AiError = new AiError("模型请求失败", false);
     for (let attempt = 0; attempt < maxAttempts; attempt++) {
@@ -111,6 +123,8 @@ export class OpenAiCompatProvider implements AiProvider {
         try { body = JSON.parse(responseText); }
         catch { await trace('parse','invalid_response',attempt+1,httpStatus); throw new AiError('模型响应不是有效 JSON', false); }
         let text: string;
+        usage = modelUsage(body,config.protocol);
+        try { opts?.onUsage?.(usage); } catch { /* Numeric observability callback never changes the model outcome. */ }
         try { text = completionText(this.config, body); }
         catch(error) { await trace('parse',error instanceof AiError&&error.message.includes('token 上限')?'output_limit':'invalid_response',attempt+1,httpStatus);throw error; }
         outcome = 'ok';

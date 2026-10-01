@@ -11,6 +11,14 @@ describe('administrator announcement review presentation', () => {
     expect(html).toContain('不创建或发布公共岗位'); expect(html).toContain('不会自动请求学校网站或模型');
     expect(html).not.toContain('提取待审核候选</button>');
   });
+  it('shows an explicit temporary budget action only when the super-admin callback and verified model limit are present',()=>{
+    const current:CareerReviewState={...state,status:{schemaVersion:1,sourceId:'sysu-campus',cachedList:null,extractionAvailable:true,extractionUnavailableReason:null,cacheTtlSeconds:900,publicationSupported:false,configurationVersion:2,diagnosticTokenLimit:32768},preview:{schemaVersion:1,title:'Fixture公告',employer:null,warnings:[],expiresAt:'2100-01-01T00:00:00Z',source:{text:'Fixture',versionHash:'a'.repeat(64),metadata:{url:'https://career.sysu.edu.cn/campus/view/id/1',numericId:'1',retrievedAt:'2026-10-01T12:00:00Z',originalDate:null,sourceExpiry:null,captureMethod:'static-html-text',partial:true}}}};
+    const props={state:current,disabled:false,onReadStatus:()=>{},onRefresh:()=>{},onPreview:()=>{},onExtract:()=>{}};
+    const ordinary=renderToStaticMarkup(<CareerSourceReview {...props}/>);expect(ordinary).not.toContain('临时诊断提取');
+    const privileged=renderToStaticMarkup(<CareerSourceReview {...props} onDiagnostic={()=>{}}/>);
+    expect(privileged).toContain('按临时预算诊断提取一次');expect(privileged).toContain('value="16384"');expect(privileged).toContain('value="32768"');
+    expect(privileged).toContain('不会保存到全局配置');expect(privileged).toContain('120 秒');expect(privileged).toContain('无自动重试');
+  });
   it('renders source and model output as text, with unknown facts and original evidence for human review', () => {
     const draft: CareerDraft = { status: 'needs-human-review', provider: 'fixture-only', source: { metadata: {
       url: 'https://career.sysu.edu.cn/campus/view/id/1', numericId: '1', retrievedAt: '2026-10-01T12:00:00Z', originalDate: null, sourceExpiry: null, captureMethod: 'static-html-text', partial: true }, text: '<script>bad()</script>', versionHash: 'a'.repeat(64) },

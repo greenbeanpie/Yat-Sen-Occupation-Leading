@@ -19,7 +19,7 @@ export interface CareerReviewApi {
   status: () => Promise<CareerStatus>;
   refresh: () => Promise<CareerListing>;
   preview: (body: { id: string }) => Promise<CareerPreview>;
-  extract: (body: { id: string; sourceVersionHash: string }) => Promise<CareerDraft>;
+  extract: (body: { id: string; sourceVersionHash: string; diagnosticBudget?: {requestId:string;baseVersion:number;maxOutputTokens:number} }) => Promise<CareerDraft>;
 }
 
 /** In-memory, explicit-click controller. No URLs, personal profile, job writes or retries. */
@@ -71,7 +71,7 @@ export function createCareerReviewController(api: CareerReviewApi, now = Date.no
         update({ preview });
       });
     },
-    extract() {
+    extract(testMaxOutputTokens?: number) {
       if (pending) return pending;
       const preview = state.preview;
       if (!state.status?.extractionAvailable) return reject('尚未配置真实模型；不会以模拟结果替代公告提取。');
@@ -80,8 +80,11 @@ export function createCareerReviewController(api: CareerReviewApi, now = Date.no
         return reject('来源缓存已过期或版本变化，请先重新预览。');
       }
       const body = { id: preview.source.metadata.numericId, sourceVersionHash: preview.source.versionHash };
+      if (testMaxOutputTokens !== undefined && (!Number.isInteger(testMaxOutputTokens) || !state.status?.configurationVersion && state.status?.configurationVersion !== 0
+        || !state.status.diagnosticTokenLimit || testMaxOutputTokens < 4097 || testMaxOutputTokens > state.status.diagnosticTokenLimit)) return reject('当前账户或模型不支持此临时测试预算，请重新读取状态。');
+      const diagnosticBudget = testMaxOutputTokens === undefined ? undefined : {requestId:crypto.randomUUID(),baseVersion:state.status!.configurationVersion!,maxOutputTokens:testMaxOutputTokens};
       return perform('extract', async () => {
-        const draft = await api.extract(body);
+        const draft = await api.extract({...body,...(diagnosticBudget?{diagnosticBudget}:{})});
         if (draft.source.versionHash !== body.sourceVersionHash || draft.source.metadata.numericId !== body.id) {
           update({ draft: null, requiresPreview: true });
           throw new Error('候选与当前来源版本不一致，请重新预览。');

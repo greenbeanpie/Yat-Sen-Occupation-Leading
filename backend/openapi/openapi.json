@@ -1277,6 +1277,12 @@
             "enum": [
               false
             ]
+          },
+          "configurationVersion": {
+            "type": "integer"
+          },
+          "diagnosticTokenLimit": {
+            "type": "integer"
           }
         },
         "required": [
@@ -3367,6 +3373,55 @@
             "items": {
               "type": "string"
             }
+          },
+          "diagnostic": {
+            "type": "object",
+            "properties": {
+              "requestId": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "configurationVersion": {
+                "type": "integer"
+              },
+              "maxOutputTokens": {
+                "type": "integer"
+              },
+              "timeoutMs": {
+                "type": "integer"
+              },
+              "usage": {
+                "type": "object",
+                "properties": {
+                  "inputTokens": {
+                    "type": "integer",
+                    "nullable": true
+                  },
+                  "outputTokens": {
+                    "type": "integer",
+                    "nullable": true
+                  },
+                  "reasoningTokens": {
+                    "type": "integer",
+                    "nullable": true
+                  }
+                },
+                "required": [
+                  "inputTokens",
+                  "outputTokens",
+                  "reasoningTokens"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "requestId",
+              "configurationVersion",
+              "maxOutputTokens",
+              "timeoutMs",
+              "usage"
+            ],
+            "additionalProperties": false
           }
         },
         "required": [
@@ -3714,12 +3769,41 @@
           "timeoutMs": {
             "type": "integer",
             "minimum": 0,
-            "maximum": 90000
+            "maximum": 120000
           },
           "maxOutputTokens": {
             "type": "integer",
             "minimum": 0,
-            "maximum": 4096
+            "maximum": 32768
+          },
+          "usage": {
+            "type": "object",
+            "properties": {
+              "inputTokens": {
+                "type": "integer",
+                "nullable": true,
+                "minimum": 0,
+                "maximum": 10000000
+              },
+              "outputTokens": {
+                "type": "integer",
+                "nullable": true,
+                "minimum": 0,
+                "maximum": 10000000
+              },
+              "reasoningTokens": {
+                "type": "integer",
+                "nullable": true,
+                "minimum": 0,
+                "maximum": 10000000
+              }
+            },
+            "required": [
+              "inputTokens",
+              "outputTokens",
+              "reasoningTokens"
+            ],
+            "additionalProperties": false
           }
         },
         "required": [
@@ -8702,6 +8786,30 @@
                   "sourceVersionHash": {
                     "type": "string",
                     "pattern": "^[a-f0-9]{64}$"
+                  },
+                  "diagnosticBudget": {
+                    "type": "object",
+                    "properties": {
+                      "requestId": {
+                        "type": "string",
+                        "format": "uuid"
+                      },
+                      "baseVersion": {
+                        "type": "integer",
+                        "minimum": 0
+                      },
+                      "maxOutputTokens": {
+                        "type": "integer",
+                        "minimum": 4097,
+                        "maximum": 32768
+                      }
+                    },
+                    "required": [
+                      "requestId",
+                      "baseVersion",
+                      "maxOutputTokens"
+                    ],
+                    "additionalProperties": false
                   }
                 },
                 "required": [
@@ -8715,7 +8823,7 @@
         },
         "responses": {
           "200": {
-            "description": "仅待人工审核候选，不写岗位；相同来源版本复用结果",
+            "description": "仅待人工审核候选；可选临时诊断预算仅超级管理员，配置不变且不复用模型缓存",
             "content": {
               "application/json": {
                 "schema": {

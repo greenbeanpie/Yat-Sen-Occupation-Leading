@@ -121,3 +121,38 @@ locations. Title-year contradictions keep both source-backed alternatives and no
 chosen title. Website expiry cannot become a deadline, even as a purported conflict
 alternative. Role evidence cannot become announcement-wide count/remuneration or
 common hard conditions. Semantic correctness remains a human-review responsibility.
+
+## Explicit temporary diagnostic budget
+
+The compact production retry still exhausted 4096 tokens. Its trace identified
+the newly saved version 2 destination as OpenCode Go `deepseek-v4.1-flash`, rather
+than the native DeepSeek provider used by the first attempt: one request, HTTP 200,
+27.4 seconds, `output_limit`, no draft and no published job. No response text was
+retained, so the split between reasoning and final JSON cannot be inferred.
+
+After explicit user authorization for higher test token usage, a non-demo super
+administrator can choose 16,384 (first test) or 32,768 tokens and click the separate
+temporary diagnostic action. The operation is bounded to 120 seconds and one
+request with no retries, uses the current saved destination/key/model and reasoning
+settings, and does not save or alter global configuration. Ordinary extraction and
+other model features retain the administrator's saved limits. The approved current
+model is constrained to a conservative 32k project test cap below its published
+inherited model limit. Unsupported/unverified models do not get a guessed override.
+
+The request includes the current configuration version and a random request ID.
+Server-side current super-admin permission/version/source freshness checks run
+before dispatch; duplicate request IDs cannot create a second paid attempt. The
+existing global model lease protects against concurrent extraction. Successful
+test output remains review-only and may populate the same source-revision cache;
+it carries the explicit diagnostic limits/request ID so cached reuse is not
+represented as another model request.
+
+Logs and reports now include only whitelisted numeric input/output/reasoning token
+counts when the provider supplies them, otherwise null. Malformed values, arbitrary
+usage keys, response text, private reasoning text and headers are not copied. The
+same 1000-entry/1,000,000-byte retention and logging-failure isolation still apply.
+The next real temporary-budget test remains pending after deployment.
+
+Protocol references: [OpenCode Go endpoints](https://opencode.ai/docs/go/),
+[official Go model registry](https://raw.githubusercontent.com/anomalyco/models.dev/dev/providers/opencode-go/models/deepseek-v4.1-flash.toml),
+[model limits database](https://models.dev/).

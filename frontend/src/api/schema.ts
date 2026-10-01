@@ -3041,11 +3041,17 @@ export interface paths {
                     "application/json": {
                         id: string;
                         sourceVersionHash: string;
+                        diagnosticBudget?: {
+                            /** Format: uuid */
+                            requestId: string;
+                            baseVersion: number;
+                            maxOutputTokens: number;
+                        };
                     };
                 };
             };
             responses: {
-                /** @description 仅待人工审核候选，不写岗位；相同来源版本复用结果 */
+                /** @description 仅待人工审核候选；可选临时诊断预算仅超级管理员，配置不变且不复用模型缓存 */
                 200: {
                     headers: {
                         [name: string]: unknown;
@@ -6455,6 +6461,8 @@ export interface components {
             cacheTtlSeconds: 900;
             /** @enum {boolean} */
             publicationSupported: false;
+            configurationVersion?: number;
+            diagnosticTokenLimit?: number;
         };
         NullableCareerSourceListing: {
             /** @enum {number} */
@@ -6867,6 +6875,18 @@ export interface components {
                 ambiguities: string[];
             };
             warnings: string[];
+            diagnostic?: {
+                /** Format: uuid */
+                requestId: string;
+                configurationVersion: number;
+                maxOutputTokens: number;
+                timeoutMs: number;
+                usage: {
+                    inputTokens: number | null;
+                    outputTokens: number | null;
+                    reasoningTokens: number | null;
+                };
+            };
         };
         ManagedUser: {
             id: components["schemas"]["Uuid"];
@@ -6945,6 +6965,11 @@ export interface components {
             httpStatus: number | null;
             timeoutMs: number;
             maxOutputTokens: number;
+            usage?: {
+                inputTokens: number | null;
+                outputTokens: number | null;
+                reasoningTokens: number | null;
+            };
         };
         AiSettingsResponse: {
             version: number;

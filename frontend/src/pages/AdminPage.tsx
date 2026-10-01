@@ -36,7 +36,7 @@ export function AdminPage({ context, user }: { context: ActionContext; user: Adm
         {(job) => <AdminJobCard job={job} context={context} onEdit={() => setEditing(job)}/>}
       </DataRows>
     </Panel>
-    {!user.demo && <CareerSourcePanel key={user.id} context={context}/>}
+    {!user.demo && <CareerSourcePanel key={user.id} context={context} canTest={user.role==='super_admin'}/>}
     {creating && <Modal title="新增公共岗位" onClose={() => setCreating(false)}>
       <ActionForm disabled={context.busy} label="创建草稿" onSubmit={create} fields={jobFields()}/>
     </Modal>}

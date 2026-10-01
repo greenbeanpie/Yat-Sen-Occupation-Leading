@@ -9,13 +9,15 @@ export const DiagnosticEventSchema = z.object({
   provider: z.enum(['custom','openai','anthropic','gemini','deepseek','openrouter','opencode-zen','opencode-go','mock','unknown']),
   model: z.string().max(80), protocol: z.enum(['chat-completions','responses','messages','generate-content','none']),
   elapsedMs: z.number().int().min(0).max(600000), attempt: z.number().int().min(0).max(3),
-  httpStatus: z.number().int().min(100).max(599).nullable(), timeoutMs: z.number().int().min(0).max(90000), maxOutputTokens: z.number().int().min(0).max(4096),
+  httpStatus: z.number().int().min(100).max(599).nullable(), timeoutMs: z.number().int().min(0).max(120000), maxOutputTokens: z.number().int().min(0).max(32768),
+  usage: z.object({inputTokens:z.number().int().min(0).max(10000000).nullable(),outputTokens:z.number().int().min(0).max(10000000).nullable(),reasoningTokens:z.number().int().min(0).max(10000000).nullable()}).strict().optional(),
 }).strict().openapi('AiDiagnosticEvent');
 export type DiagnosticEvent = z.infer<typeof DiagnosticEventSchema>;
 export interface DiagnosticInput {
   requestId: string; stage: DiagnosticEvent['stage']; code: DiagnosticEvent['code']; provider?: ProviderPreset|'mock';
   model?: string; protocol?: AiProtocol; elapsedMs?: number; attempt?: number; httpStatus?: number;
   timeoutMs?: number; maxOutputTokens?: number;
+  usage?: {inputTokens:number|null;outputTokens:number|null;reasoningTokens:number|null};
 }
 /** Read only standard error hints; return a fixed category, never the raw text/cause/stack. */
 export function networkDiagnosticCode(error: unknown): DiagnosticEvent['code'] {
@@ -46,7 +48,8 @@ export async function writeAiDiagnostic(env: Env, input: DiagnosticInput): Promi
       time: new Date().toISOString(), stage: input.stage, code: input.code, provider: input.provider ?? 'unknown', model,
       protocol: input.protocol ?? 'none', elapsedMs: bounded(input.elapsedMs,600000), attempt: bounded(input.attempt,3),
       httpStatus: input.httpStatus && input.httpStatus>=100 && input.httpStatus<=599 ? Math.floor(input.httpStatus) : null,
-      timeoutMs: bounded(input.timeoutMs,90000), maxOutputTokens: bounded(input.maxOutputTokens,4096),
+      timeoutMs: bounded(input.timeoutMs,120000), maxOutputTokens: bounded(input.maxOutputTokens,32768),
+      ...(input.usage?{usage:{inputTokens:input.usage.inputTokens,outputTokens:input.usage.outputTokens,reasoningTokens:input.usage.reasoningTokens}}:{}),
     });
     const payload = JSON.stringify(event), bytes = new TextEncoder().encode(payload).length;
     // D1 batch is one transaction: concurrent writers cannot expose an untrimmed committed tail.
