@@ -284,7 +284,7 @@ export async function parseCareerDetail(html: string, id: string): Promise<Caree
     }).transform(new Response(safeHtml)).text();
   if (titleCount !== 1 || bodyCount !== 1 || employerCount > 1 || expiryCount > 1 || node) fail("Announcement detail structure changed");
   title = boundedText(title, 500, "title");
-  if (!body) fail("Missing announcement body text");
+  if (!body && !images && !embeds) fail("Missing announcement body text");
   const dates = Array.from(plain(operation).matchAll(/发布时间[：:]\s*(\d{4}-\d{2}-\d{2} \d{2}:\d{2}(?::\d{2})?)(?![\d:])/g));
   if (dates.length > 1 || (operation.includes("发布时间") && dates.length !== 1)) fail("Announcement publication date format changed");
   const sourceExpiry = expiryCount ? boundedText(expiry, 100, "expiry") : null;
@@ -293,6 +293,7 @@ export async function parseCareerDetail(html: string, id: string): Promise<Caree
   if (images) warnings.push(`${images} source image(s), including possible QR codes or image-only requirements, were not fetched or interpreted.`);
   if (embeds) warnings.push(`${embeds} embedded/visual element(s) were not fetched or interpreted.`);
   if (hidden) warnings.push("Hidden source content was omitted from the static text capture.");
+  if (!body) warnings.push("Announcement body is image/embedded-only; no text facts or image content were inferred.");
   if (!employerCount) warnings.push("Employer is missing from the source metadata.");
   if (!dates.length) warnings.push("Original publication date is missing from the source metadata.");
   if (!sourceExpiry) warnings.push("Website expiry is missing from the source metadata.");

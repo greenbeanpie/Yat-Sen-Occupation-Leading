@@ -3,6 +3,7 @@ import { getMf } from './helpers';
 import { createSnapshot } from '../src/prototypes/career-announcement';
 import { createApp } from '../src/app';
 import type { Env } from '../src/env';
+import { AiError } from '../src/infra/ai/errors';
 const fake=vi.hoisted(()=>({complete:vi.fn()}));
 vi.mock('../src/infra/ai',()=>({getAiProvider:()=>({name:'test-real-provider',complete:fake.complete})}));
 vi.mock('../src/middleware/auth',()=>({
@@ -17,7 +18,7 @@ async function setup(){
  const source=await createSnapshot({url:'https://career.sysu.edu.cn/campus/view/id/997448',numericId:'997448',retrievedAt:new Date().toISOString(),originalDate:null,sourceExpiry:null,captureMethod:'static-html-text',partial:true},'招聘公告\n工程师');
  const preview={schemaVersion:1,source,title:'招聘公告',employer:null,warnings:[],expiresAt:new Date(Date.now()+900000).toISOString()};
  await DB.prepare('INSERT INTO career_source_cache(cache_key,payload,expires_at) VALUES(?1,?2,?3)').bind('detail:997448',JSON.stringify(preview),Date.now()+900000).run();
- const app=createApp();fake.complete.mockReset().mockResolvedValue(JSON.stringify(empty));
+ const app=createApp();fake.complete.mockReset().mockResolvedValue(JSON.stringify({...empty,schemaVersion:2}));
  const extract=(hash=source.versionHash)=>app.request('http://yso.test/api/v1/admin/career-source/extract',{method:'POST',headers:{'Content-Type':'application/json',Origin:'http://yso.test'},body:JSON.stringify({id:'997448',sourceVersionHash:hash})},env);
  return {DB,source,extract};
 }
@@ -31,7 +32,7 @@ describe('configured extraction route with test-only fake provider',()=>{
  });
  it('rejects a wrong version before model and an expired source after model',async()=>{
   const {DB,extract}=await setup();expect((await extract('a'.repeat(64))).status).toBe(409);expect(fake.complete).not.toHaveBeenCalled();
-  fake.complete.mockImplementationOnce(async()=>{await DB.prepare("UPDATE career_source_cache SET expires_at=0 WHERE cache_key='detail:997448'").run();return JSON.stringify(empty);});
+  fake.complete.mockImplementationOnce(async()=>{await DB.prepare("UPDATE career_source_cache SET expires_at=0 WHERE cache_key='detail:997448'").run();return JSON.stringify({...empty,schemaVersion:2});});
   expect((await extract()).status).toBe(409);
   expect(await DB.prepare("SELECT count(*) AS n FROM career_source_cache WHERE cache_key LIKE 'draft:%'").first()).toEqual({n:0});
  });
@@ -39,5 +40,11 @@ describe('configured extraction route with test-only fake provider',()=>{
   const {DB,extract}=await setup();fake.complete.mockResolvedValueOnce('{"schemaVersion":1}');
   const response=await extract();expect(response.status).toBe(502);expect(await response.json()).toMatchObject({error:{code:'career_extraction_failed'}});
   expect(await DB.prepare("SELECT count(*) AS n FROM career_source_cache WHERE cache_key LIKE 'draft:%'").first()).toEqual({n:0});
+ });
+ it('reports the known output-limit failure without a retry or fake candidate',async()=>{
+  const {DB,extract}=await setup();fake.complete.mockRejectedValueOnce(new AiError('模型未完整完成文本输出：达到 token 上限',false));
+  const response=await extract();expect(response.status).toBe(502);expect(await response.json()).toMatchObject({error:{code:'career_output_limit',message:expect.stringContaining('不会自动重试或提高预算')}});
+  expect(fake.complete).toHaveBeenCalledOnce();expect(await DB.prepare("SELECT count(*) AS n FROM career_source_cache WHERE cache_key LIKE 'draft:%'").first()).toEqual({n:0});
+  expect(await DB.prepare('SELECT count(*) AS n FROM jobs').first()).toEqual({n:0});
  });
 });

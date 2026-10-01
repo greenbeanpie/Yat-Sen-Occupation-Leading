@@ -10,6 +10,7 @@ import { readCareerCache, writeCareerCache, withCareerLease, SOURCE_TTL_MS } fro
 import { fetchCareerHtml, parseCareerList, parseCareerDetail } from '../infra/career-source';
 import { rateLimit } from '../infra/rate-limit';
 import { getAiProvider } from '../infra/ai';
+import { AiError } from '../infra/ai/errors';
 import { runtimeAiEnv } from '../infra/ai/settings';
 import { hasConfiguredRealAi } from '../infra/ai/config';
 import { AnnouncementCandidate, SourceMetadataSchema, createSnapshot, extractAnnouncement, type Snapshot, type ReviewDraft } from '../prototypes/career-announcement';
@@ -74,7 +75,10 @@ export function registerCareerSourceRoutes(app:App):void{
       await rateLimit(c.env,`career-extract:${id}`,3,3600);
       await rateLimit(c.env,'career-extract:global',10,3600);
       const source=await getSource();let result:ReviewDraft;
-      try{result=await extractAnnouncement(source,getAiProvider(aiEnv));}catch{throw new AppError(502,'career_extraction_failed','模型请求或证据校验失败，未产生可用候选');}
+      try{result=await extractAnnouncement(source,getAiProvider(aiEnv));}catch(error){
+        if(error instanceof AiError && error.message.includes('token 上限'))throw new AppError(502,'career_output_limit','本次提取达到已保存的输出 token 上限（思考 token 也可能占用预算），未产生完整候选；不会自动重试或提高预算');
+        throw new AppError(502,'career_extraction_failed','模型请求或证据校验失败，未产生可用候选');
+      }
       await getSource(); // Never return/store a result for a changed or expired snapshot.
       await writeCareerCache(c.env,key,result);return result;
     });return c.json(draft,200) as never;

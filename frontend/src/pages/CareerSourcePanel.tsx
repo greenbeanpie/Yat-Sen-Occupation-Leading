@@ -75,6 +75,7 @@ function CareerSourcePreview({ preview }: { preview: CareerPreview }) {
 }
 
 type Fact = NonNullable<CareerDraft['candidate']['title']>;
+type Information = NonNullable<CareerDraft['candidate']['information']>['title'];
 function EvidenceFact({ label, fact }: { label: string; fact: Fact | null }) {
   return <div className="career-evidence-fact"><strong>{label}：{fact?.value ?? '未知，需人工核对'}</strong>
     {fact && <details><summary>原文证据 · {fact.evidence.start}–{fact.evidence.end}</summary><pre className="career-source-text">{fact.evidence.quote}</pre></details>}
@@ -83,16 +84,43 @@ function EvidenceFact({ label, fact }: { label: string; fact: Fact | null }) {
 function Warnings({ warnings }: { warnings: string[] }) {
   return warnings.length ? <ul className="career-source-warnings">{warnings.map((warning, index) => <li key={index}>{warning}</li>)}</ul> : null;
 }
+function EvidenceSlot({ label, information, fallback }: { label: string; information?: Information; fallback?: Fact | Fact[] | null }) {
+  const facts = Array.isArray(fallback) ? fallback : fallback ? [fallback] : [];
+  const item = information ?? { status: facts.length ? 'known' : 'unknown', facts };
+  return <div className="career-evidence-slot">
+    <strong>{label}：{item.status === 'unknown' ? '未提供/待核实' : item.status === 'conflict' ? '信息冲突，待核实' : '有原文依据，仍需审核'}</strong>
+    {item.facts.length > 0 && <ul>{item.facts.map((fact, index) => <li key={index}><EvidenceFact label={item.status === 'conflict' ? `冲突候选 ${index + 1}` : `条目 ${index + 1}`} fact={fact}/></li>)}</ul>}
+  </div>;
+}
 export function CareerCandidateReview({ draft }: { draft: CareerDraft }) {
   const candidate = draft.candidate;
   return <section className="career-candidate-review" aria-label="待人工审核候选">
     <h3>待人工审核候选</h3><p>模型：{draft.provider} · {candidate.positions.length} 个岗位分组。逐条核对事实、引用与岗位归属；候选未导入或发布到公共岗位库。</p>
     <Warnings warnings={draft.warnings}/>
-    <EvidenceFact label="公告标题" fact={candidate.title}/><EvidenceFact label="用人单位" fact={candidate.employer}/><EvidenceFact label="申请截止日期" fact={candidate.applicationDeadline}/>
-    <h4>公告共同要求</h4>{candidate.sharedRequirements.length ? candidate.sharedRequirements.map((fact, index) => <EvidenceFact key={index} label={`共同要求 ${index + 1}`} fact={fact}/>) : <p>没有已提取的共同要求，不能据此断言没有要求。</p>}
+    <p>固定信息清单：有原文依据才填值；未提供或不确定保留未知，冲突保留原文候选待核实。不会创造字段或事实。</p>
+    <h4>公告信息清单</h4>
+    <EvidenceSlot label="公告标题" information={candidate.information?.title} fallback={candidate.title}/>
+    <EvidenceSlot label="用人单位" information={candidate.information?.employer} fallback={candidate.employer}/>
+    <EvidenceSlot label="申请截止日期" information={candidate.information?.applicationDeadline} fallback={candidate.applicationDeadline}/>
+    <EvidenceSlot label="招聘总人数" information={candidate.information?.recruitmentCount} fallback={candidate.recruitmentCount}/>
+    <EvidenceSlot label="公告薪资待遇" information={candidate.information?.salary} fallback={candidate.salary}/>
+    <EvidenceSlot label="申请渠道" information={candidate.information?.applicationChannels} fallback={candidate.applicationChannels}/>
+    <EvidenceSlot label="申请材料" information={candidate.information?.requiredMaterials} fallback={candidate.requiredMaterials}/>
+    <EvidenceSlot label="公告共同要求" information={candidate.information?.sharedRequirements} fallback={candidate.sharedRequirements}/>
+    {candidate.partial && <p className="resource-notice">本候选信息不完整：来源图片未读、未知条目或数组超过展示上限时均需核对完整原网页。</p>}
+    {!!candidate.truncatedFields?.length && <Warnings warnings={candidate.truncatedFields.map(field => `${field}：部分内容未展示或未知，请核对原网页`)}/>}
+    {!!candidate.missingInformation?.length && <details><summary>缺失或待核实信息（{candidate.missingInformation.length}）</summary><Warnings warnings={candidate.missingInformation}/></details>}
+    {!candidate.positions.length && <p>岗位分组：未提供/待核实。图片中的岗位信息未推断。</p>}
     {candidate.positions.map((position, index) => <section className="career-position-review" key={index}>
-      <h4>岗位 {index + 1}：{position.title.value}</h4><EvidenceFact label="岗位名称" fact={position.title}/><EvidenceFact label="工作地点" fact={position.location}/><EvidenceFact label="学历" fact={position.degree}/>
-      {position.requirements?.length ? position.requirements.map((fact, requirement) => <EvidenceFact key={requirement} label={`岗位要求 ${requirement + 1}`} fact={fact}/>) : <p>岗位要求未知或未提取，需核对完整原网页。</p>}
+      <h4>岗位 {index + 1}：{position.information?.title.status === 'conflict' ? '岗位名称冲突，待核实' : position.title?.value ?? '名称未提供/待核实'}</h4>
+      <EvidenceSlot label="岗位名称" information={position.information?.title} fallback={position.title}/>
+      <EvidenceSlot label="工作地点（可多值）" information={position.information?.locations} fallback={position.locations ?? position.location}/>
+      <EvidenceSlot label="学历" information={position.information?.degree} fallback={position.degree}/>
+      <EvidenceSlot label="招聘人数" information={position.information?.headcount} fallback={position.headcount}/>
+      <EvidenceSlot label="专业要求（可多值）" information={position.information?.majors} fallback={position.majors}/>
+      <EvidenceSlot label="岗位薪资待遇" information={position.information?.salary} fallback={position.salary}/>
+      <EvidenceSlot label="岗位申请材料" information={position.information?.requiredMaterials} fallback={position.requiredMaterials}/>
+      <EvidenceSlot label="岗位要求" information={position.information?.requirements} fallback={position.requirements}/>
       <details><summary>岗位原文分段 · {position.section.start}–{position.section.end}</summary><pre className="career-source-text">{position.section.quote}</pre></details>
     </section>)}
     <h4>歧义与待核对事项</h4>{candidate.ambiguities.length ? <Warnings warnings={candidate.ambiguities}/> : <p>模型未列出歧义，不代表来源准确或信息完整。</p>}

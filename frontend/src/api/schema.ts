@@ -6546,6 +6546,139 @@ export interface components {
                         quote: string;
                     };
                 } | null;
+                recruitmentCount?: {
+                    value: string;
+                    evidence: {
+                        start: number;
+                        end: number;
+                        quote: string;
+                    };
+                } | null;
+                salary?: {
+                    value: string;
+                    evidence: {
+                        start: number;
+                        end: number;
+                        quote: string;
+                    };
+                } | null;
+                applicationChannels?: {
+                    value: string;
+                    evidence: {
+                        start: number;
+                        end: number;
+                        quote: string;
+                    };
+                }[] | null;
+                requiredMaterials?: {
+                    value: string;
+                    evidence: {
+                        start: number;
+                        end: number;
+                        quote: string;
+                    };
+                }[] | null;
+                information?: {
+                    title: {
+                        /** @enum {string} */
+                        status: "known" | "unknown" | "conflict";
+                        facts: {
+                            value: string;
+                            evidence: {
+                                start: number;
+                                end: number;
+                                quote: string;
+                            };
+                        }[];
+                    };
+                    employer: {
+                        /** @enum {string} */
+                        status: "known" | "unknown" | "conflict";
+                        facts: {
+                            value: string;
+                            evidence: {
+                                start: number;
+                                end: number;
+                                quote: string;
+                            };
+                        }[];
+                    };
+                    applicationDeadline: {
+                        /** @enum {string} */
+                        status: "known" | "unknown" | "conflict";
+                        facts: {
+                            value: string;
+                            evidence: {
+                                start: number;
+                                end: number;
+                                quote: string;
+                            };
+                        }[];
+                    };
+                    recruitmentCount: {
+                        /** @enum {string} */
+                        status: "known" | "unknown" | "conflict";
+                        facts: {
+                            value: string;
+                            evidence: {
+                                start: number;
+                                end: number;
+                                quote: string;
+                            };
+                        }[];
+                    };
+                    salary: {
+                        /** @enum {string} */
+                        status: "known" | "unknown" | "conflict";
+                        facts: {
+                            value: string;
+                            evidence: {
+                                start: number;
+                                end: number;
+                                quote: string;
+                            };
+                        }[];
+                    };
+                    applicationChannels: {
+                        /** @enum {string} */
+                        status: "known" | "unknown" | "conflict";
+                        facts: {
+                            value: string;
+                            evidence: {
+                                start: number;
+                                end: number;
+                                quote: string;
+                            };
+                        }[];
+                    };
+                    requiredMaterials: {
+                        /** @enum {string} */
+                        status: "known" | "unknown" | "conflict";
+                        facts: {
+                            value: string;
+                            evidence: {
+                                start: number;
+                                end: number;
+                                quote: string;
+                            };
+                        }[];
+                    };
+                    sharedRequirements: {
+                        /** @enum {string} */
+                        status: "known" | "unknown" | "conflict";
+                        facts: {
+                            value: string;
+                            evidence: {
+                                start: number;
+                                end: number;
+                                quote: string;
+                            };
+                        }[];
+                    };
+                };
+                missingInformation?: string[];
+                partial?: boolean;
+                truncatedFields?: string[];
                 sharedRequirements: {
                     value: string;
                     evidence: {
@@ -6562,7 +6695,7 @@ export interface components {
                             end: number;
                             quote: string;
                         };
-                    };
+                    } | null;
                     section: {
                         start: number;
                         end: number;
@@ -6584,6 +6717,144 @@ export interface components {
                             quote: string;
                         };
                     } | null;
+                    headcount?: {
+                        value: string;
+                        evidence: {
+                            start: number;
+                            end: number;
+                            quote: string;
+                        };
+                    } | null;
+                    salary?: {
+                        value: string;
+                        evidence: {
+                            start: number;
+                            end: number;
+                            quote: string;
+                        };
+                    } | null;
+                    locations?: {
+                        value: string;
+                        evidence: {
+                            start: number;
+                            end: number;
+                            quote: string;
+                        };
+                    }[] | null;
+                    majors?: {
+                        value: string;
+                        evidence: {
+                            start: number;
+                            end: number;
+                            quote: string;
+                        };
+                    }[] | null;
+                    requiredMaterials?: {
+                        value: string;
+                        evidence: {
+                            start: number;
+                            end: number;
+                            quote: string;
+                        };
+                    }[] | null;
+                    information?: {
+                        title: {
+                            /** @enum {string} */
+                            status: "known" | "unknown" | "conflict";
+                            facts: {
+                                value: string;
+                                evidence: {
+                                    start: number;
+                                    end: number;
+                                    quote: string;
+                                };
+                            }[];
+                        };
+                        locations: {
+                            /** @enum {string} */
+                            status: "known" | "unknown" | "conflict";
+                            facts: {
+                                value: string;
+                                evidence: {
+                                    start: number;
+                                    end: number;
+                                    quote: string;
+                                };
+                            }[];
+                        };
+                        degree: {
+                            /** @enum {string} */
+                            status: "known" | "unknown" | "conflict";
+                            facts: {
+                                value: string;
+                                evidence: {
+                                    start: number;
+                                    end: number;
+                                    quote: string;
+                                };
+                            }[];
+                        };
+                        headcount: {
+                            /** @enum {string} */
+                            status: "known" | "unknown" | "conflict";
+                            facts: {
+                                value: string;
+                                evidence: {
+                                    start: number;
+                                    end: number;
+                                    quote: string;
+                                };
+                            }[];
+                        };
+                        majors: {
+                            /** @enum {string} */
+                            status: "known" | "unknown" | "conflict";
+                            facts: {
+                                value: string;
+                                evidence: {
+                                    start: number;
+                                    end: number;
+                                    quote: string;
+                                };
+                            }[];
+                        };
+                        salary: {
+                            /** @enum {string} */
+                            status: "known" | "unknown" | "conflict";
+                            facts: {
+                                value: string;
+                                evidence: {
+                                    start: number;
+                                    end: number;
+                                    quote: string;
+                                };
+                            }[];
+                        };
+                        requiredMaterials: {
+                            /** @enum {string} */
+                            status: "known" | "unknown" | "conflict";
+                            facts: {
+                                value: string;
+                                evidence: {
+                                    start: number;
+                                    end: number;
+                                    quote: string;
+                                };
+                            }[];
+                        };
+                        requirements: {
+                            /** @enum {string} */
+                            status: "known" | "unknown" | "conflict";
+                            facts: {
+                                value: string;
+                                evidence: {
+                                    start: number;
+                                    end: number;
+                                    quote: string;
+                                };
+                            }[];
+                        };
+                    };
                     requirements: {
                         value: string;
                         evidence: {

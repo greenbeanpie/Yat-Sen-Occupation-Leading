@@ -75,6 +75,12 @@ describe("SYSU static source parser in real Workers runtime", () => {
     const result = await parse("detail", '<div class="title-message"><h5>Title</h5></div><div class="details-mge"><div class="aContent">Body</div></div>');
     expect(result).toMatchObject({ employer: null, originalDate: null, sourceExpiry: null, partial: true });
   });
+  it("keeps image-only announcements as partial unknown text instead of inventing or fetching image facts", async () => {
+    const result = await parse('detail', detail('<img src="https://image.test/jobs.png">'));
+    expect(result).toMatchObject({ text: '', partial: true });
+    expect(JSON.stringify(result)).toContain('image/embedded-only');
+    expect(JSON.stringify(result)).not.toContain('image.test');
+  });
   it.each([
     ["empty list", "list", "<html></html>", "No announcements"],
     ["challenge", "list", "<title>Access Forbidden</title>", "access challenge"],
