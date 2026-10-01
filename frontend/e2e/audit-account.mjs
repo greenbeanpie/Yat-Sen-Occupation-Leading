@@ -42,6 +42,7 @@ for (const width of [1440, 390, 320]) for (const theme of ['light', 'dark']) {
  await page.locator('.nav-item[href="/settings"]').first().evaluate(e => e.click());
  await page.getByLabel('昵称', { exact: true }).waitFor();
  await page.screenshot({ path: `${dir}/nickname-${width}-${theme}.png`, fullPage: true });
+ await page.getByRole('navigation', { name: '设置分类' }).getByRole('link', { name: '账户安全', exact: true }).click();
  await page.getByRole('button', { name: '修改密码', exact: true }).click();
  await page.getByLabel('新密码', { exact: true }).fill('LocalFixture123!');
  await page.getByLabel('确认新密码', { exact: true }).fill('Mismatch123!');
@@ -53,9 +54,11 @@ for (const width of [1440, 390, 320]) for (const theme of ['light', 'dark']) {
  results.push({ width, theme, overflow });
  assert.equal(overflow, 0);
  if (width <= 700) await page.locator('.menu-btn').click();
+ page.once('dialog', dialog => dialog.accept());
  await page.locator('.who button.icon-btn').click();
  await page.locator('.user-choice').last().click();
- await page.locator('.nav-item[href="/admin"]').evaluate(e => e.click());
+ await page.locator('.nav-item[href="/settings"]').evaluate(e => e.click());
+ await page.getByRole('navigation', { name: '设置分类' }).getByRole('link', { name: '管理', exact: true }).click();
  await page.getByRole('heading', { name: '邀请注册', exact: true }).waitFor();
  await page.getByRole('button', { name: '创建邀请码', exact: true }).click();
  await page.getByText('LOCAL_TEST_ONLY_1', { exact: true }).waitFor();

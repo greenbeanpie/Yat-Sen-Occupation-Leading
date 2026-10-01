@@ -41,6 +41,7 @@ await check('mobile menu keyboard range, Escape and focus restoration', async ()
  assert.equal(await trigger.getAttribute('aria-expanded'), 'false');
 });
 await check('theme preference light/dark/system and demo admin permission boundary', async () => {
+ await go('/settings/notifications');
  const select = page.locator('.theme-select select');
  await select.selectOption('dark');
  await page.waitForFunction(() => document.documentElement.dataset.theme === 'dark');
@@ -55,7 +56,7 @@ await check('theme preference light/dark/system and demo admin permission bounda
  assert.equal(await page.locator('html').getAttribute('data-theme'), 'dark');
  await select.selectOption('light');
  await go('/admin');
- assert.equal(new URL(page.url()).pathname, '/');
+ assert.equal(new URL(page.url()).pathname, '/settings/profile');
 });
 await check('long job title and URL fit mobile page and details', async () => {
  await page.evaluate(async () => {
@@ -168,8 +169,8 @@ await check('admin page and both admin modals with browser-only permission fixtu
  await page.locator('.who button.icon-btn').click();
  await page.evaluate(() => { const json = Response.prototype.json; Response.prototype.json = async function () { const b = await json.call(this); if (b?.user?.role === 'admin') b.user.demo = false; return b; }; });
  await page.locator('.user-choice').last().click();
- await page.locator('.nav-item[href="/admin"]').first().evaluate(e => e.click());
- await page.getByRole('heading', { name: '维护公共岗位', exact: true }).waitFor();
+ await page.locator('.nav-item[href="/admin/jobs"]').first().evaluate(e => e.click());
+ await page.getByRole('heading', { name: '公共岗位管理', exact: true }).waitFor();
  await shot('admin');
  await page.getByRole('button', { name: '新增公共岗位', exact: true }).click();
  await shot('admin-create');

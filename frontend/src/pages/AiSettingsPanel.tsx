@@ -1,3 +1,4 @@
+import { useSettingsDirty } from './settings-dirty';
 import { aiDestinationChanged, aiFormCapabilities } from './ai-settings-form';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { put } from '../api/client';
@@ -17,7 +18,7 @@ export function AiSettingsPanel({ context }: { context: ActionContext }) {
   const [message, setMessage] = useState('');
   const active = useRef(true);
   useEffect(() => { active.current = true; return () => { active.current = false; }; }, []);
-  return <Panel title="AI 模型配置" description="仅超级管理员可修改。网页配置对后续非演示任务生效；演示账户始终使用 mock。保存不会试调用模型。">
+  return <Panel title="AI 配置 · 统一模型" description="仅超级管理员可修改。网页配置对后续非演示任务生效；演示账户始终使用 mock。保存不会试调用模型。">
     <ResourceNotice error={settings.error}/>
     {settings.loading && <Loading/>}
     {message && <p className="success-note" role="status">{message}</p>}
@@ -36,6 +37,7 @@ export function AiSettingsEditor({ settings, busy, onSave, onReload }: { setting
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const submitting = useRef(false);
+  useSettingsDirty(JSON.stringify(config) !== JSON.stringify(settings.config) || Boolean(apiKey) || clearApiKey);
   const active = useRef(true);
   useEffect(() => { active.current = true; return () => { active.current = false; }; }, []);
   const capabilities = aiFormCapabilities(settings, config);
@@ -61,6 +63,8 @@ export function AiSettingsEditor({ settings, busy, onSave, onReload }: { setting
     finally { submitting.current = false; if (active.current) setSaving(false); }
   }
   return <form className="ai-settings-form" onSubmit={event => void save(event)} autoComplete="off">
+    <p className="muted">统一模型：文档解析、岗位要求提取、匹配分析、行动计划、简历改写和招聘公告提取共用这一套端点、协议、模型及参数。每次操作读取已保存配置；演示账户仍使用 mock。</p>
+    <p className="muted">当前仅支持文本输入，不提供图像识别或图像模型路由。能力不足或调用失败时不会自动改用其他端点；请由管理员核对所选模型的能力。</p>
     <div className="ai-settings-status"><span>版本 {settings.version}</span><span>{credentialLabels[settings.credentialStatus]}</span></div>
     <label className="field"><span>配置来源</span><select value={config.mode} disabled={disabled} onChange={event => update({ mode: event.target.value as Config['mode'] })}>
       <option value="environment">沿用部署环境配置</option><option value="mock">仅模拟（mock）</option><option value="real">网页真实模型配置</option>

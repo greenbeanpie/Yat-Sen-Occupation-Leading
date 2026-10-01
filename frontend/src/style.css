@@ -70,7 +70,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 .app-shell { min-height: 100vh; }
 .sidebar {
   position: fixed;
-  inset: 0 auto 0 0;
+  inset: var(--app-notification-height, 0px) auto 0 0;
   z-index: 30;
   display: flex;
   flex-direction: column;
@@ -136,7 +136,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 .topbar {
   position: sticky;
   z-index: 15;
-  top: 0;
+  top: var(--app-notification-height, 0px);
   height: 68px;
   display: flex;
   align-items: center;
@@ -540,3 +540,7 @@ input, textarea, select { accent-color: var(--blue); }
 .ai-settings-form .field small { font-size: 10px; font-weight: 400; line-height: 1.7; }
 .ai-settings-form .admin-registration-toggle { align-items: flex-start; font-size: 11px; line-height: 1.7; }
 .ai-settings-form .admin-registration-toggle input { flex-shrink: 0; margin-top: 2px; }
+
+.settings-tabs { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 20px; }
+.settings-tabs .btn { text-decoration: none; }
+@media (max-width: 600px) { .settings-tabs { gap: 6px; } .settings-tabs .btn { padding: 9px 12px; } }

@@ -1,5 +1,3 @@
-import { AiSettingsPanel } from './AiSettingsPanel';
-import { InvitationsPanel } from './InvitationsPanel';
 import { useEffect, useState } from 'react';
 import { FileSearch, Pencil, Plus, Send, Archive } from 'lucide-react';
 import { get, pollOperation, post, put } from '../api/client';
@@ -7,14 +5,12 @@ import type { components } from '../api/schema';
 import { ActionForm, Badge, DataRows, InlineError, JsonPreview, Modal, PageHead, Panel, ResourceNotice, useResource } from '../components';
 import type { ActionContext } from '../components';
 import { roleLabel } from '../roles';
-import { UsersPanel } from './UsersPanel';
-import { SystemSettingsPanel } from './SystemSettingsPanel';
 
 type Job = components['schemas']['Job'];
 type JobDraft = components['schemas']['JobRequirementsDraft'];
 type AdminUser = NonNullable<components['schemas']['SessionResponse']['user']>;
 
-export function AdminPage({ context, user, onRefreshSession }: { context: ActionContext; user: AdminUser; onRefreshSession: () => Promise<void> }) {
+export function AdminPage({ context, user }: { context: ActionContext; user: AdminUser }) {
   const jobs = useResource<components['schemas']['JobListResponse']>('/admin/jobs', context.refresh, context.userId);
   const [creating, setCreating] = useState(false);
   const [editing, setEditing] = useState<Job | null>(null);
@@ -28,8 +24,8 @@ export function AdminPage({ context, user, onRefreshSession }: { context: Action
   return <>
     <PageHead
       kicker={roleLabel(user.role)}
-      title="管理中心"
-      description={`当前账户：${user.displayName}。管理公共岗位、用户与邀请注册${user.role === 'super_admin' ? '，并配置角色权限和系统设置' : ''}。`}
+      title="公共岗位管理"
+      description={`当前账户：${user.displayName}。管理公共岗位的草稿、要求与发布状态。`}
       action={<button className="btn primary" onClick={() => setCreating(true)}><Plus size={16}/>新增公共岗位</button>}
     />
     <Panel title="公共岗位" description="支持编辑 JD、解析并确认要求、发布、下架或归档。公共岗位发布后才对一般用户可见。">
@@ -39,11 +35,6 @@ export function AdminPage({ context, user, onRefreshSession }: { context: Action
         {(job) => <AdminJobCard job={job} context={context} onEdit={() => setEditing(job)}/>}
       </DataRows>
     </Panel>
-    {!user.demo && <>
-      <UsersPanel context={context} role={user.role} onRefreshSession={onRefreshSession}/>
-      <InvitationsPanel context={context}/>
-      {user.role === 'super_admin' && <><SystemSettingsPanel context={context}/><AiSettingsPanel key={context.userId} context={context}/></>}
-    </>}
     {creating && <Modal title="新增公共岗位" onClose={() => setCreating(false)}>
       <ActionForm disabled={context.busy} label="创建草稿" onSubmit={create} fields={jobFields()}/>
     </Modal>}

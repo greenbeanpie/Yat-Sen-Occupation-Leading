@@ -50,8 +50,8 @@ async function scenario(role, demo = false) {
 try {
   for (const [role, demo] of [['student', false], ['admin', true], ['super_admin', true]]) {
     const { page } = await scenario(role, demo);
-    await page.waitForURL(`${BASE_URL}/`);
-    assert.equal(await page.getByRole('link', { name: '管理中心', exact: true }).count(), 0);
+    await page.waitForURL(`${BASE_URL}/settings/profile`);
+    assert.equal(await page.getByRole('link', { name: '公共岗位管理', exact: true }).count(), 0);
     assert.equal(await page.getByRole('heading', { name: '用户管理', exact: true }).count(), 0);
     await page.close();
   }
@@ -66,6 +66,7 @@ try {
   await row.getByRole('button', { name: '编辑昵称', exact: true }).click();
   const nameDialog = admin.page.getByRole('dialog', { name: '编辑用户昵称' });
   await nameDialog.getByRole('textbox', { name: '昵称', exact: true }).fill('一般用户新昵称');
+  admin.page.once('dialog', dialog => dialog.accept());
   await nameDialog.getByRole('button', { name: '取消', exact: true }).click();
   assert.equal(admin.mutations.length, 0);
   await row.getByRole('button', { name: '编辑昵称', exact: true }).click();
@@ -105,6 +106,7 @@ try {
   await page.getByRole('dialog').getByRole('button', { name: '保存修改', exact: true }).click();
   await page.getByRole('dialog').getByText('至少保留一名启用的超级管理员。', { exact: true }).waitFor();
   assert.equal(await page.getByRole('dialog', { name: '记录版本已变化' }).count(), 0);
+  page.once('dialog', dialog => dialog.accept());
   await page.getByRole('dialog').getByRole('button', { name: '取消', exact: true }).click();
   console.log('PASS 超级管理员系统设置可保存；最后一名超级管理员错误就地显示');
 

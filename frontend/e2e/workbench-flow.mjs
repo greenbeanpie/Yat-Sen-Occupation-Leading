@@ -445,7 +445,8 @@ await step('离线：切换页面后仍显示本机缓存内容', async () => {
 });
 
 await step('同步：恢复网络后提交离线操作（POST /sync/operations）', async () => {
-  await goNav('设置与同步');
+  await goNav('设置');
+  await page.getByRole('navigation', { name: '设置分类' }).getByRole('link', { name: '外观与通知', exact: true }).click();
   await waitForText(page, '同步、提醒与离线状态');
   const target = panel('离线同步');
   await page.context().setOffline(false);
@@ -520,8 +521,8 @@ await step('管理员：切换身份后维护公共岗位', async () => {
   if (!body.includes('管理员身份')) {
     throw new Error(`管理员登录后没有进入工作台：${body.replace(/\s+/g, ' ').slice(0, 300)}`);
   }
-  await goNav('管理员岗位');
-  await waitForText(page, '维护公共岗位');
+  await goNav('公共岗位管理');
+  await waitForText(page, '公共岗位管理');
   await waitForCall('GET', /^\/admin\/jobs$/);
   const text = await panel('公共岗位').innerText();
   return text.split('\n').slice(0, 2).join(' / ');
@@ -531,7 +532,8 @@ await step('设置：重置演示数据（POST /demo/reset）并清空本机缓�
   await page.locator('.who button.icon-btn').click();
   await page.getByRole('heading', { name: '进入实习工作台' }).waitFor({ state: 'visible', timeout: 20000 });
   await page.getByRole('button', { name: /演示学生/ }).first().click();
-  await goNav('设置与同步');
+  await goNav('设置');
+  await page.getByRole('navigation', { name: '设置分类' }).getByRole('link', { name: '外观与通知', exact: true }).click();
   await waitForText(page, '同步、提醒与离线状态');
   page.once('dialog', (dialog) => void dialog.accept());
   await page.getByRole('button', { name: '重置我的演示数据' }).click();

@@ -1,3 +1,4 @@
+import { confirmDiscardSettings, useSettingsDirty } from './settings-dirty';
 import { useRef, useState, type FormEvent } from 'react';
 import { patch, put } from '../api/client';
 import type { components } from '../api/schema';
@@ -24,6 +25,9 @@ export function UsersPanel({ context, role, onRefreshSession }: {
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
   const submitting = useRef(false);
+  const dirty = Boolean(action && ((action.kind === 'name' && name !== action.user.displayName) || (action.kind === 'role' && nextRole !== action.user.role)));
+  useSettingsDirty(dirty);
+  function cancel() { if (!submitting.current && confirmDiscardSettings(dirty)) setAction(null); }
   const superAdmin = role === 'super_admin';
   const query = search.trim().toLocaleLowerCase();
   const items = (users.data?.items ?? []).filter(user => canManageUser(role, user.role))
@@ -67,7 +71,7 @@ export function UsersPanel({ context, role, onRefreshSession }: {
     <DataRows items={items} loading={users.loading} empty={query ? '没有匹配的用户。' : '暂无可管理的用户。'}>
       {user => <UserManagementRow user={user} currentUserId={context.userId} actorRole={role} busy={saving || context.busy} onAction={kind => open(user, kind)}/>}
     </DataRows>
-    {action && <Modal title={action.kind === 'name' ? '编辑用户昵称' : action.kind === 'role' ? '调整用户角色' : action.user.disabled ? '启用账户' : '停用账户'} onClose={() => { if (!submitting.current) setAction(null); }}>
+    {action && <Modal title={action.kind === 'name' ? '编辑用户昵称' : action.kind === 'role' ? '调整用户角色' : action.user.disabled ? '启用账户' : '停用账户'} onClose={cancel}>
       <p>{action.user.displayName} · {action.user.username ?? '未设置用户名'}</p>
       <form className="form-grid" onSubmit={event => void submit(event)}>
         {action.kind === 'name' && <label className="field"><span>昵称</span><input required maxLength={64} value={name} disabled={saving} onChange={event => setName(event.target.value)}/></label>}
@@ -80,7 +84,7 @@ export function UsersPanel({ context, role, onRefreshSession }: {
         {error && <div className="form-notice"><InlineError>{error}</InlineError></div>}
         <div className="button-row form-notice">
           <button className={`btn ${action.kind === 'status' && !action.user.disabled ? 'danger' : 'primary'}`} disabled={saving || context.busy || (action.kind === 'name' && (!name.trim() || name.trim() === action.user.displayName)) || (action.kind === 'role' && nextRole === action.user.role)}>{saving ? '正在保存…' : action.kind === 'status' ? action.user.disabled ? '确认启用' : '确认停用' : '保存修改'}</button>
-          <button className="btn secondary" type="button" disabled={saving} onClick={() => setAction(null)}>取消</button>
+          <button className="btn secondary" type="button" disabled={saving} onClick={cancel}>取消</button>
         </div>
       </form>
     </Modal>}

@@ -1,8 +1,8 @@
-import { ThemeSelect } from './ThemeSelect';
+import { ThemeSelect, ThemeSync } from './ThemeSelect';
 import { useCallback, useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { NavLink, Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import {
-  Activity, BriefcaseBusiness, CalendarDays, ChartNoAxesCombined, CheckCheck,
+  Activity, BriefcaseBusiness, CalendarDays, ChartNoAxesCombined,
   ChevronRight, ClipboardList, Cloud, House, LoaderCircle, LogOut, Menu,
   RefreshCw, Settings, Shield, Ticket, UserRound, X,
 } from 'lucide-react';
@@ -16,14 +16,13 @@ import type { components } from './api/schema';
 import { ActionContext, Modal, PageHead, Panel, useResource } from './components';
 import { queueCount, synchronizeUser } from './offline';
 import { platform } from './platform';
-import { registerServiceWorker } from './pwa';
 import { ProfilePage } from './pages/ProfilePage';
 import { JobsPage } from './pages/JobsPage';
 import { MatchingPage } from './pages/MatchingPage';
 import { PlanningPage } from './pages/PlanningPage';
 import { TrackingPage } from './pages/TrackingPage';
 import { AdminPage } from './pages/AdminPage';
-import { SettingsPage } from './pages/SettingsPage';
+import { SettingsHub } from './pages/SettingsHub';
 import { canAccessAdmin, canAccessTickets, roleLabel } from './roles';
 import { TicketsPage } from './pages/TicketsPage';
 import { TicketDetailPage } from './pages/TicketDetailPage';
@@ -41,9 +40,9 @@ const navigation = [
   { to: '/match', label: '匹配与组合', icon: ChartNoAxesCombined },
   { to: '/plan', label: '计划与改写', icon: CalendarDays },
   { to: '/applications', label: '投递跟踪', icon: ClipboardList },
-  { to: '/admin', label: '管理中心', icon: Shield, admin: true },
+  { to: '/admin/jobs', label: '公共岗位管理', icon: Shield, admin: true },
   { to: '/tickets', label: '支持工单', icon: Ticket, account: true },
-  { to: '/settings', label: '账户与设置', icon: Settings },
+  { to: '/settings', label: '设置', icon: Settings },
 ];
 
 export default function App() {
@@ -58,7 +57,6 @@ export default function App() {
   const [conflict, setConflict] = useState<{ message: string; server?: unknown } | null>(null);
   const [pending, setPending] = useState(0);
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [pendingUpdate, setPendingUpdate] = useState<((reloadPage?: boolean) => Promise<void>) | null>(null);
   const location = useLocation();
 
   useEffect(() => {
@@ -87,14 +85,14 @@ export default function App() {
   const reload = useCallback(() => setRefresh((current) => current + 1), []);
 
   useEffect(() => {
-    let update: ((reloadPage?: boolean) => Promise<void>) | null = null;
-    update = registerServiceWorker({
-      onNeedRefresh: () => setPendingUpdate(() => update),
-      onOfflineReady: () => setMessage({ kind: 'success', text: '应用外壳已缓存，可以离线打开工作台。' }),
-      onError: () => setMessage({ kind: 'error', text: '离线缓存或应用更新失败，请刷新页面后重试。' }),
-    });
-    return () => setPendingUpdate(null);
-  }, []);
+    window.dispatchEvent(new CustomEvent('app-notification-scope', { detail: 'yso:' + (guestMode ? 'guest:' : 'account:') + (session?.user?.id ?? 'anonymous') }));
+  }, [session?.user?.id, guestMode]);
+
+  useEffect(() => {
+    if (!message) return;
+    // Do not retain raw server/provider errors or private submitted text in history.
+    window.dispatchEvent(new CustomEvent('app-notification', { detail: { kind: message.kind, text: message.kind === 'error' ? '操作未完成，请检查当前表单并重试。未提交内容仍保留。' : '操作已完成。' } }));
+  }, [message]);
 
   useEffect(() => {
     let active = true;
@@ -136,7 +134,11 @@ export default function App() {
 
   useEffect(() => {
     if (!guestMode) return;
+    let updating = false;
+    const updateReload = () => { updating = true; };
+    window.addEventListener('app-update-reload', updateReload);
     const clearGuestOnPageHide = () => {
+      if (updating) return;
       // endGuestSession drops sessionStorage synchronously before IndexedDB cleanup.
       void endGuestSession();
     };
@@ -161,6 +163,7 @@ export default function App() {
     window.addEventListener('pagehide', clearGuestOnPageHide);
     window.addEventListener('pageshow', leaveGuestAfterRestore);
     return () => {
+      window.removeEventListener('app-update-reload', updateReload);
       window.removeEventListener('pagehide', clearGuestOnPageHide);
       window.removeEventListener('pageshow', leaveGuestAfterRestore);
     };
@@ -309,6 +312,7 @@ export default function App() {
   }
 
   async function logout() {
+    if (!window.dispatchEvent(new Event('settings-before-leave', { cancelable: true }))) return;
     if (getActiveDataSource() === 'guest') {
       setSession(null);
       setGuestMode(false);
@@ -367,7 +371,6 @@ export default function App() {
   if (sessionLoading) return <div className="app-loading"><LoaderCircle className="spin"/>正在连接工作台…</div>;
   if (!session?.authenticated) {
     return <>
-      {pendingUpdate && <UpdateBanner onUpdate={() => void pendingUpdate(true)}/>}
       <LoginScreen
         session={session}
         error={sessionError}
@@ -390,6 +393,7 @@ export default function App() {
 
   return (
     <div className="app-shell">
+      <ThemeSync/>
       <aside id="workbench-navigation" className={`sidebar ${mobileOpen ? 'open' : ''}`}>
         <div className="brand">
           <div className="brand-mark">实</div>
@@ -429,13 +433,11 @@ export default function App() {
             <span className="sync-pill"><Cloud size={15}/>{pending ? `${pending} 项待同步` : '已同步'}</span>
             <button className="icon-btn" title="刷新数据" onClick={reload}><RefreshCw size={17}/></button>
             <span className="avatar mini" title={user?.displayName}>{user?.displayName.slice(0, 1) ?? '演'}</span>
-            <ThemeSelect/>
           </div>
         </header>
 
         <div className="content" aria-live="polite">
-          {pendingUpdate && <UpdateBanner onUpdate={() => void pendingUpdate(true)}/>}
-          {message && <div className={`toast ${message.kind}`} role="status"><CheckCheck size={16}/>{message.text}</div>}
+          {message?.kind === 'error' && <div role="alert">{message.text}<button className="btn small" onClick={() => setMessage(null)}>关闭</button></div>}
           {busy && <div className="busy-line"><LoaderCircle className="spin" size={15}/>正在处理…</div>}
           <Routes>
             <Route path="/" element={<Dashboard context={actionContext} pending={pending}/>}/>
@@ -444,10 +446,13 @@ export default function App() {
             <Route path="/match" element={<MatchingPage context={actionContext}/>}/>
             <Route path="/plan" element={<PlanningPage context={actionContext}/>}/>
             <Route path="/applications" element={<TrackingPage context={actionContext}/>}/>
-            <Route path="/admin" element={isAdmin && user ? <AdminPage context={actionContext} user={user} onRefreshSession={refreshAccountSession}/> : <Navigate to="/" replace/>}/>
+            <Route path="/admin" element={<Navigate to="/settings/management" replace/>}/>
+            <Route path="/admin/ai-settings" element={<Navigate to="/settings/ai" replace/>}/>
+            <Route path="/admin/settings" element={<Navigate to="/settings/management" replace/>}/>
+            <Route path="/admin/jobs" element={isAdmin && user ? <AdminPage context={actionContext} user={user}/> : <Navigate to="/" replace/>}/>
             <Route path="/tickets" element={ticketsEnabled && user ? <TicketsPage key={ticketAccessScope(user.id, user.role)} context={actionContext} access={{ userId: user.id, role: user.role, onSessionChange: onTicketSessionChange }}/> : <Navigate to="/" replace/>}/>
             <Route path="/tickets/:id" element={ticketsEnabled && user ? <TicketDetailPage key={ticketAccessScope(user.id, user.role)} context={actionContext} access={{ userId: user.id, role: user.role, onSessionChange: onTicketSessionChange }}/> : <Navigate to="/" replace/>}/>
-            <Route path="/settings" element={<SettingsPage context={actionContext} pending={pending} demo={Boolean(user?.demo) || getActiveDataSource() !== 'http'} onRefreshSession={refreshAccountSession} onSessionEnded={accountSessionEnded}/>}/>
+            <Route path="/settings/:tab?" element={<SettingsHub key={`${user?.id}:${user?.role}`} user={user} context={actionContext} pending={pending} demo={Boolean(user?.demo) || getActiveDataSource() !== 'http'} onRefreshSession={refreshAccountSession} onSessionEnded={accountSessionEnded}/>}/>
             <Route path="*" element={<Navigate to="/" replace/>}/>
           </Routes>
         </div>
@@ -462,13 +467,6 @@ export default function App() {
       />}
     </div>
   );
-}
-
-function UpdateBanner({ onUpdate }: { onUpdate: () => void }) {
-  return <div className="update-banner" role="status">
-    <span>工作台有新版本可用</span>
-    <button className="btn small primary" onClick={onUpdate}>立即更新</button>
-  </div>;
 }
 
 function MobileNavigation() {
@@ -645,7 +643,7 @@ function Dashboard({ context, pending }: { context: ActionContext; pending: numb
       <Panel title="提醒与同步" description="到期任务和面试提醒都可以在设置中管理">
         <div className="dashboard-metric"><strong>{notifications.data?.unreadCount ?? '—'}</strong><span>条未读站内提醒</span></div>
         <p className="muted">本机等待同步：{pending} 项</p>
-        <div className="button-row"><NavLink className="btn secondary" to="/settings">打开同步中心 <ChevronRight size={15}/></NavLink></div>
+        <div className="button-row"><NavLink className="btn secondary" to="/settings/notifications">打开同步中心 <ChevronRight size={15}/></NavLink></div>
       </Panel>
     </div>
     <Panel title="下一步" description="一条完整工作流：确认画像 → 选择岗位 → 查看解释 → 建立计划 → 记录投递与工时">

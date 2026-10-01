@@ -53,8 +53,17 @@ try {
   // Enter only local fictitious demo data; never submit credentials or invitations.
   await page.getByRole('button', { name: /演示学生/ }).first().click();
   await page.locator('.app-shell').waitFor();
+  // Select themes through the settings entry in a second tab so the page under
+  // inspection retains unsaved forms, charts, and its current route.
+  await second.goto(`${base}/settings/notifications`);
+  const settingsTheme = second.getByRole('combobox', { name: '外观主题' });
+  await settingsTheme.waitFor();
+  async function setWorkbenchTheme(target, mode) {
+    await settingsTheme.selectOption(mode);
+    await theme(target, mode);
+  }
   for (const mode of ['light', 'dark']) {
-    await select.selectOption(mode);
+    await setWorkbenchTheme(page, mode);
     const contrast = await page.evaluate(() => {
       const style = getComputedStyle(document.documentElement);
       const luminance = name => {
@@ -74,11 +83,11 @@ try {
         });
     });
     for (const pair of contrast) assert.ok(pair.ratio >= 4.5, `${mode} ${JSON.stringify(pair)}`);
-    for (const route of ['/', '/profile', '/jobs', '/match', '/plan', '/applications', '/settings', '/admin']) {
+    for (const route of ['/', '/profile', '/jobs', '/match', '/plan', '/applications', '/settings/profile', '/settings/notifications']) {
       await page.goto(`${base}${route}`);
       await page.locator('h1').first().waitFor();
       await theme(page, mode);
-      await screenshot(page, `${route === '/' ? 'dashboard' : route.slice(1)}-${mode}`);
+      await screenshot(page, `${route === '/' ? 'dashboard' : route.slice(1).replaceAll('/', '-')}-${mode}`);
     }
   }
   results.push('PASS semantic text/status/button palette WCAG AA contrast >= 4.5:1');
@@ -87,7 +96,7 @@ try {
   await page.locator('.modal').waitFor();
   await screenshot(page, 'modal-dark');
   await page.locator('.modal').getByRole('button', { name: /关闭/ }).click();
-  await select.selectOption('light');
+  await setWorkbenchTheme(page, 'light');
   await page.getByRole('button', { name: /添加私人 JD/ }).click();
   await screenshot(page, 'modal-light');
   results.push('PASS desktop business pages and modal in both themes');
@@ -98,7 +107,7 @@ try {
   await page.getByRole('button', { name: '开始分析' }).click();
   await page.locator('.match-result').waitFor({ timeout: 30000 });
   for (const mode of ['light', 'dark']) {
-    await select.selectOption(mode);
+    await setWorkbenchTheme(page, mode);
     await screenshot(page, `match-chart-states-${mode}`);
   }
   results.push('PASS local demo matching score charts and condition states both themes');
@@ -107,12 +116,13 @@ try {
   await mobile.setViewportSize({ width: 390, height: 844 });
   for (const mode of ['light', 'dark']) {
     await mobile.goto(base);
-    await mobile.getByRole('combobox', { name: '外观主题' }).selectOption(mode);
-    for (const route of ['/', '/profile', '/jobs', '/match', '/plan', '/applications', '/settings']) {
+    await mobile.locator('.app-shell').waitFor();
+    await setWorkbenchTheme(mobile, mode);
+    for (const route of ['/', '/profile', '/jobs', '/match', '/plan', '/applications', '/settings/profile', '/settings/notifications']) {
       await mobile.goto(`${base}${route}`);
       await mobile.locator('h1').first().waitFor();
       assert.equal(await mobile.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, route);
-      await screenshot(mobile, `mobile-${route === '/' ? 'dashboard' : route.slice(1)}-${mode}`);
+      await screenshot(mobile, `mobile-${route === '/' ? 'dashboard' : route.slice(1).replaceAll('/', '-')}-${mode}`);
     }
   }
   results.push('PASS mobile 390x844 business pages without horizontal overflow');

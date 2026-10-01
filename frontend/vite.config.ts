@@ -39,7 +39,7 @@ export default defineConfig({
         navigateFallback: 'index.html',
         runtimeCaching: [],
         cleanupOutdatedCaches: true,
-        clientsClaim: true,
+        clientsClaim: false,
       },
     }),
   ],

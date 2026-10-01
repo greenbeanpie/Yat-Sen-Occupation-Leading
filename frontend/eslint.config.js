@@ -9,6 +9,7 @@ export default tseslint.config(
     ignores: ['dist/**', 'node_modules/**', '.wrangler/**', 'e2e/.artifacts/**', 'src/api/schema.ts'],
   },
   js.configs.recommended,
+  { files: ['public/app-updates.js', 'src/app-updates.test.js'], languageOptions: { globals: { ...globals.browser, ...globals.es2022 } } },
   ...tseslint.configs.recommended,
   {
     files: ['**/*.{ts,tsx}'],

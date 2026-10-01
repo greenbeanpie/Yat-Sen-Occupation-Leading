@@ -10,6 +10,9 @@ const fixture: Settings = { version:0,credentialStatus:'missing',updatedAt:null,
 };
 const render=(settings=fixture)=>renderToStaticMarkup(<AiSettingsEditor settings={settings} busy={false} onSave={async()=>{}} onReload={()=>{}}/>);
 describe('AI web settings form',()=>{
+ it('explains the shared text-only model without inventing advanced routes',()=>{
+  const html=render();expect(html).toContain('统一模型：文档解析');expect(html).toContain('招聘公告提取共用');expect(html).toContain('当前仅支持文本输入');expect(html).toContain('不会自动改用其他端点');
+ });
  it('offers independent protocols, redacted password and supported effort only',()=>{
   const html=render();expect(html).toContain('Responses');expect(html).toContain('OpenAI Compatible');expect(html).toContain('Anthropic');expect(html).toContain('思考强度');expect(html).not.toContain('<span>Temperature</span>');expect(html).toContain('type="password"');expect(html).toContain('autoComplete="new-password"');expect(html).not.toContain('value="secret');
  });

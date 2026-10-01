@@ -1,3 +1,4 @@
+import { useSettingsDirty } from './pages/settings-dirty';
 import { useEffect, useRef, useId, useState, type FormEvent, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { FolderKanban, LoaderCircle, X } from 'lucide-react';
@@ -171,11 +172,15 @@ export function ActionForm({
   const [invalid, setInvalid] = useState('');
   const errorId = useId();
   const dirty = JSON.stringify(values) !== JSON.stringify(initial());
+  useSettingsDirty(dirty);
   useEffect(() => {
     if (!dirty) return;
-    const warn = (event: BeforeUnloadEvent) => { event.preventDefault(); event.returnValue = ''; };
+    let confirmedUpdate = false;
+    const update = () => { confirmedUpdate = true; };
+    const warn = (event: BeforeUnloadEvent) => { if (!confirmedUpdate) { event.preventDefault(); event.returnValue = ''; } };
     window.addEventListener('beforeunload', warn);
-    return () => window.removeEventListener('beforeunload', warn);
+    window.addEventListener('app-update-reload', update);
+    return () => { window.removeEventListener('beforeunload', warn); window.removeEventListener('app-update-reload', update); };
   }, [dirty]);
 
   useEffect(() => {

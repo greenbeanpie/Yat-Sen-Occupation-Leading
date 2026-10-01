@@ -7,14 +7,14 @@ import { Badge, DataRows, JsonPreview, Loading, PageHead, Panel, ResourceNotice,
 import type { ActionContext } from '../components';
 import { cacheKey, clearOrphanedOperations, db, listUserConflicts, orphanedOperationCount, queueOperation, removeQueuedOperation, synchronizeUser, type SyncConflict } from '../offline';
 import { platform } from '../platform';
-import { AccountSettings } from './AccountSettings';
+import { useSettingsDirty } from './settings-dirty';
 
 type Settings = components['schemas']['UserSettingsResponse'];
 type NotificationList = components['schemas']['NotificationListResponse'];
 type SyncChanges = components['schemas']['SyncChangesResponse'];
 type PushSubscription = components['schemas']['PushSubscription'];
 
-export function SettingsPage({ context, pending, demo, onRefreshSession, onSessionEnded }: { context: ActionContext; pending: number; demo: boolean; onRefreshSession: () => Promise<void>; onSessionEnded: (message: string) => Promise<void> }) {
+export function SettingsPage({ context, pending }: { context: ActionContext; pending: number }) {
   const settings = useResource<Settings>('/notifications/settings', context.refresh, context.userId);
   const notifications = useResource<NotificationList>('/notifications', context.refresh, context.userId);
   const changes = useResource<SyncChanges>(`/sync/changes?since=${String(0)}&limit=100`, context.refresh, context.userId);
@@ -48,6 +48,8 @@ export function SettingsPage({ context, pending, demo, onRefreshSession, onSessi
     setNotifyInterview(settings.data.notifyInterview);
     setTimezone(settings.data.timezone);
   }, [settings.data]);
+
+  useSettingsDirty(Boolean(settings.data && (timezone !== settings.data.timezone || notifyTaskDue !== settings.data.notifyTaskDue || notifyInterview !== settings.data.notifyInterview)));
 
   async function synchronize() {
     setSyncing(true);
@@ -178,7 +180,6 @@ export function SettingsPage({ context, pending, demo, onRefreshSession, onSessi
 
   return <>
     <PageHead kicker="设置与数据" title="同步、提醒与离线状态" description="应用外壳由 Service Worker 缓存；简历文件和 API 响应不做全量缓存。离线编辑保存在本机，恢复网络后提交。"/>
-    <AccountSettings demo={demo} onRefreshSession={onRefreshSession} onSessionEnded={onSessionEnded}/>
     <div className="two-col">
       <Panel title="离线同步" description="每次操作有唯一 ID 和基础版本，重复提交不会重复写入">
         <div className="sync-overview">

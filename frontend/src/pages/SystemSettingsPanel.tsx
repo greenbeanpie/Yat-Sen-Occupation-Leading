@@ -1,3 +1,4 @@
+import { useSettingsDirty } from './settings-dirty';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { put } from '../api/client';
 import type { components } from '../api/schema';
@@ -14,6 +15,7 @@ export function SystemSettingsPanel({ context }: { context: ActionContext }) {
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
   const submitting = useRef(false);
+  useSettingsDirty(Boolean(settings.data && enabled !== settings.data.registrationEnabled));
   useEffect(() => {
     if (settings.data) setEnabled(settings.data.registrationEnabled);
   }, [settings.data]);

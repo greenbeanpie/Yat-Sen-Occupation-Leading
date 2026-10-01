@@ -29,7 +29,7 @@ await page.route('**/api/v1/**',async route=>{
  return json({items:[],changes:[],results:[],unreadCount:0,nextCursor:null});
 });
 try{
- await page.goto(`${BASE_URL}/admin`,{waitUntil:'networkidle'});
+ await page.goto(`${BASE_URL}/settings/ai`,{waitUntil:'networkidle'});
  await page.getByRole('heading',{name:'AI 模型配置',exact:true}).waitFor();
  await page.getByLabel('配置来源',{exact:true}).selectOption('real');
  await page.getByLabel('供应商预设',{exact:true}).selectOption('openai');
