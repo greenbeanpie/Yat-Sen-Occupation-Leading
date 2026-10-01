@@ -8,7 +8,7 @@ async function call(path, options={}){
  const response=await fetch(`${base}/api/v1${path}`,{...options,signal:AbortSignal.timeout(15000),redirect:'manual'});
  return {response,body:await response.json()};
 }
-const health=await call('/health');check(health.response.status===200,'Public backend health');
+const health=await call('/healthz');check(health.response.status===200,'Public backend health');
 const contract=await call('/openapi.json');
 for(const suffix of ['', '/refresh','/preview','/extract'])check(Boolean(contract.body.paths?.[`/api/v1/admin/career-source${suffix}`]),`Contract ${suffix||'status'}`);
 for(const [suffix,body]of [['',null],['/refresh',{}],['/preview',{id:'997448'}],['/extract',{id:'997448',sourceVersionHash:'a'.repeat(64)}]]){
