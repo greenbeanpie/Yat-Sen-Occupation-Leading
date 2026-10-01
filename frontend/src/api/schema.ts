@@ -6421,6 +6421,8 @@ export interface components {
             registrationEnabled: boolean;
         };
         AiSettingsTestResponse: {
+            /** Format: uuid */
+            requestId: string;
             version: number;
             /** @enum {string} */
             status: "passed" | "failed" | "not_run";
@@ -6473,7 +6475,7 @@ export interface components {
             /** @enum {string} */
             stage: "config_validated" | "dispatch" | "response" | "parse" | "end";
             /** @enum {string} */
-            code: "ok" | "mock_mode" | "timeout" | "network_error" | "output_limit" | "provider_http" | "invalid_response" | "invalid_configuration" | "internal_error";
+            code: "ok" | "mock_mode" | "timeout" | "network_error" | "dns_error" | "tls_error" | "connection_reset" | "connection_refused" | "redirect_rejected" | "output_limit" | "provider_http" | "invalid_response" | "invalid_configuration" | "internal_error";
             /** @enum {string} */
             provider: "custom" | "openai" | "anthropic" | "gemini" | "deepseek" | "openrouter" | "opencode-zen" | "opencode-go" | "mock" | "unknown";
             model: string;

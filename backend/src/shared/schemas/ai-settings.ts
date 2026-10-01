@@ -35,6 +35,7 @@ export const AiSettingsTestRequestSchema = z.object({
   baseVersion: z.number().int().min(0), requestId: z.string().uuid(),
 }).strict().openapi('AiSettingsTestRequest');
 export const AiSettingsTestResponseSchema = z.object({
+  requestId: z.string().uuid(),
   version: z.number().int().min(0), status: z.enum(['passed','failed','not_run']),
   realRequestAttempted: z.boolean(), provider: z.string().nullable(), model: z.string().nullable(), protocol: AiProtocolSchema.nullable(),
   limits: z.object({ maxRequests: z.literal(1), timeoutMs: z.number().int().min(0).max(90000), maxOutputTokens: z.number().int().min(0).max(4096), maxResponseBytes: z.literal(8192) }),

@@ -1992,6 +1992,10 @@
       "AiSettingsTestResponse": {
         "type": "object",
         "properties": {
+          "requestId": {
+            "type": "string",
+            "format": "uuid"
+          },
           "version": {
             "type": "integer",
             "minimum": 0
@@ -2106,6 +2110,7 @@
           }
         },
         "required": [
+          "requestId",
           "version",
           "status",
           "realRequestAttempted",
@@ -2216,6 +2221,11 @@
               "mock_mode",
               "timeout",
               "network_error",
+              "dns_error",
+              "tls_error",
+              "connection_reset",
+              "connection_refused",
+              "redirect_rejected",
               "output_limit",
               "provider_http",
               "invalid_response",

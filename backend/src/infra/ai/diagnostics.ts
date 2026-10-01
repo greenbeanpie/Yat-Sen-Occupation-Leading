@@ -3,7 +3,7 @@ import type { Env } from '../../env';
 import { AI_MODELS_BY_PRESET, type AiProtocol, type ProviderPreset } from './config';
 
 export const DiagnosticStage = z.enum(['config_validated','dispatch','response','parse','end']);
-export const DiagnosticCode = z.enum(['ok','mock_mode','timeout','network_error','output_limit','provider_http','invalid_response','invalid_configuration','internal_error']);
+export const DiagnosticCode = z.enum(['ok','mock_mode','timeout','network_error','dns_error','tls_error','connection_reset','connection_refused','redirect_rejected','output_limit','provider_http','invalid_response','invalid_configuration','internal_error']);
 export const DiagnosticEventSchema = z.object({
   requestId: z.string().uuid(), time: z.string().max(30), stage: DiagnosticStage, code: DiagnosticCode,
   provider: z.enum(['custom','openai','anthropic','gemini','deepseek','openrouter','opencode-zen','opencode-go','mock','unknown']),
@@ -17,9 +17,27 @@ export interface DiagnosticInput {
   model?: string; protocol?: AiProtocol; elapsedMs?: number; attempt?: number; httpStatus?: number;
   timeoutMs?: number; maxOutputTokens?: number;
 }
+/** Read only standard error hints; return a fixed category, never the raw text/cause/stack. */
+export function networkDiagnosticCode(error: unknown): DiagnosticEvent['code'] {
+  try {
+    const e=error&&typeof error==='object'?error as {code?:unknown;cause?:unknown;message?:unknown}:{};
+    const cause=e.cause&&typeof e.cause==='object'?e.cause as {code?:unknown}:{};
+    const code=typeof e.code==='string'?e.code:typeof cause.code==='string'?cause.code:'';
+    if(['ENOTFOUND','EAI_AGAIN'].includes(code))return'dns_error';
+    if(['CERT_HAS_EXPIRED','DEPTH_ZERO_SELF_SIGNED_CERT','UNABLE_TO_VERIFY_LEAF_SIGNATURE','ERR_TLS_CERT_ALTNAME_INVALID','ERR_SSL_PROTOCOL_ERROR'].includes(code))return'tls_error';
+    if(code==='ECONNRESET')return'connection_reset';
+    if(code==='ECONNREFUSED')return'connection_refused';
+    const hint=typeof e.message==='string'?e.message.slice(0,512):'';
+    if(/\bDNS\b|name resolution|getaddrinfo/i.test(hint))return'dns_error';
+    if(/TLS handshake|SSL handshake|certificate verify|certificate has expired/i.test(hint))return'tls_error';
+    if(/redirect(?:ion)? (?:is not allowed|mode|limit)|too many redirects/i.test(hint))return'redirect_rejected';
+    return'network_error';
+  } catch{return'network_error';}
+}
 const bounded = (value: number|undefined, max: number) => Number.isFinite(value) ? Math.max(0,Math.min(max,Math.floor(value!))) : 0;
 /** No text/header/URL/error passthrough. Unknown user-selected model identifiers are not logged. */
 export async function writeAiDiagnostic(env: Env, input: DiagnosticInput): Promise<boolean> {
+  let timer: ReturnType<typeof setTimeout>|undefined;
   try {
     const preset = input.provider && Object.hasOwn(AI_MODELS_BY_PRESET,input.provider) ? input.provider as ProviderPreset : null;
     const model = preset && input.model && AI_MODELS_BY_PRESET[preset].includes(input.model) ? input.model.slice(0,80) : input.model ? '(unlisted)' : '';
@@ -32,15 +50,17 @@ export async function writeAiDiagnostic(env: Env, input: DiagnosticInput): Promi
     });
     const payload = JSON.stringify(event), bytes = new TextEncoder().encode(payload).length;
     // D1 batch is one transaction: concurrent writers cannot expose an untrimmed committed tail.
-    await env.DB.batch([
+    const transaction = env.DB.batch([
       env.DB.prepare('INSERT INTO ai_diagnostics(created_at,event_json,bytes) VALUES(?1,?2,?3)').bind(event.time,payload,bytes),
       env.DB.prepare(`DELETE FROM ai_diagnostics WHERE seq IN (
         SELECT seq FROM (SELECT seq,ROW_NUMBER() OVER(ORDER BY seq DESC) AS n,
         SUM(bytes) OVER(ORDER BY seq DESC ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS retained_bytes FROM ai_diagnostics)
         WHERE n>1000 OR retained_bytes>1000000)`),
     ]);
+    await Promise.race([transaction,new Promise((_,reject)=>{timer=setTimeout(()=>reject(new Error('diagnostic_timeout')),1000);})]);
     return true;
   } catch { return false; } // Logging failure never replaces the provider/business outcome.
+  finally { if(timer!==undefined)clearTimeout(timer); }
 }
 export const AiDiagnosticsResponseSchema = z.object({
   items: z.array(z.object({ seq: z.number().int(), event: DiagnosticEventSchema })), nextBeforeSeq: z.number().int().nullable(),

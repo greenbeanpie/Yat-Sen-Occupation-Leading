@@ -2,7 +2,7 @@ import type { Env } from "../../env";
 import { AiError } from './errors';
 import { boundedNumber, resolveAiConfig, type AiConfig } from './config';
 import { buildAiRequest, completionText } from './request';
-import { writeAiDiagnostic, type DiagnosticEvent } from './diagnostics';
+import { writeAiDiagnostic, networkDiagnosticCode, type DiagnosticEvent } from './diagnostics';
 export { AiError } from './errors';
 
 export interface ChatMessage {
@@ -92,7 +92,7 @@ export class OpenAiCompatProvider implements AiProvider {
           signal: controller.signal,
         });
         httpStatus = res.status;
-        await trace('response',res.ok?'ok':'provider_http',attempt+1,res.status);
+        await trace('response',res.ok?'ok':res.status>=300&&res.status<400?'redirect_rejected':'provider_http',attempt+1,res.status);
         if (res.status === 429 || res.status >= 500) {
           outcome = 'provider_http';
           lastError = new AiError(`模型服务暂时不可用（HTTP ${res.status}）`, true);
@@ -115,7 +115,7 @@ export class OpenAiCompatProvider implements AiProvider {
         return text;
       } catch (e) {
         if (e instanceof AiError) {
-          outcome = httpStatus && httpStatus>=400 ? 'provider_http' : e.message.includes('token 上限') ? 'output_limit' : 'invalid_response';
+          outcome = httpStatus && httpStatus>=300&&httpStatus<400 ? 'redirect_rejected' : httpStatus && httpStatus>=400 ? 'provider_http' : e.message.includes('token 上限') ? 'output_limit' : 'invalid_response';
           lastError = e;
           if (!e.retryable) throw e;
         } else if (controller.signal.aborted || (e instanceof Error && ["AbortError", "TimeoutError"].includes(e.name))) {
@@ -123,7 +123,7 @@ export class OpenAiCompatProvider implements AiProvider {
           lastError = new AiError(`模型请求超时（${timeoutMs / 1000} 秒）`, true);
           if (attempt + 1 < maxAttempts) await backoff(attempt);
         } else {
-          outcome = 'network_error';
+          outcome = networkDiagnosticCode(e);
           lastError = new AiError("网络错误", true);
           if (attempt + 1 < maxAttempts) await backoff(attempt);
         }

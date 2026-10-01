@@ -3,10 +3,10 @@ import type { Env } from '../src/env';
 import { getMf, loginAs, loginRealAdmin, request, STUDENT, ADMIN } from './helpers';
 import { defaultSettings } from '../src/infra/ai/settings';
 import { testSavedAiSettings } from '../src/infra/ai/probe';
-import { writeAiDiagnostic, readAiDiagnostics } from '../src/infra/ai/diagnostics';
+import { writeAiDiagnostic, readAiDiagnostics, networkDiagnosticCode } from '../src/infra/ai/diagnostics';
 import type { AiSettingsConfig } from '../src/shared/schemas/ai-settings';
 const KEY='synthetic-provider-key-only';
-afterEach(()=>vi.unstubAllGlobals());
+afterEach(()=>{vi.unstubAllGlobals();vi.useRealTimers();});
 async function owner(){
  const cookie=await loginRealAdmin(),session=await(await request(cookie,'/session')).json<{user:{id:string}}>();
  const {mf}=await getMf(),DB=await mf.getD1Database('DB');
@@ -82,6 +82,16 @@ describe('explicit saved AI probes',()=>{
  });
 });
 describe('bounded diagnostic metadata',()=>{
+ it('classifies safe network causes without retaining their secret-bearing raw diagnostics',()=>{
+  expect(networkDiagnosticCode({cause:{code:'ENOTFOUND'},message:KEY,stack:KEY})).toBe('dns_error');
+  expect(networkDiagnosticCode({code:'ERR_TLS_CERT_ALTNAME_INVALID',message:KEY})).toBe('tls_error');
+  expect(networkDiagnosticCode({code:'ECONNRESET',message:KEY})).toBe('connection_reset');
+  expect(networkDiagnosticCode(new Error(KEY))).toBe('network_error');
+ });
+ it('bounds a hung logging backend so it cannot hang a model operation',async()=>{
+  vi.useFakeTimers();const statement={bind:()=>statement};const env={DB:{prepare:()=>statement,batch:()=>new Promise(()=>{})}} as unknown as Env;
+  const result=writeAiDiagnostic(env,{requestId:crypto.randomUUID(),stage:'end',code:'ok'});await vi.advanceTimersByTimeAsync(1000);expect(await result).toBe(false);
+ });
  it('whitelists fields and model IDs instead of storing secrets, prompts, URLs, or errors',async()=>{
   const a=await owner();await writeAiDiagnostic(a.env,{requestId:'https://bad.test?key='+KEY,stage:'end',code:'network_error',provider:'custom',model:KEY,prompt:'private prompt',response:'private answer',headers:{Authorization:KEY},error:new Error(KEY)} as never);
   const logs=await readAiDiagnostics(a.env,undefined,10);expect(logs.items).toHaveLength(1);const text=JSON.stringify(logs);for(const s of [KEY,'private prompt','private answer','bad.test','Authorization'])expect(text).not.toContain(s);

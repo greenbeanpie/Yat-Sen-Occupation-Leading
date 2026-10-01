@@ -25,7 +25,7 @@ export async function testSavedAiSettings(env: Env, actorId: string, input: { ba
   if (!actor) throw forbidden('仅超级管理员可执行真实模型测试');
   const row = await readAiSettings(env);
   if (!row || row.version !== input.baseVersion) throw conflict('模型配置已更新，请重新加载后测试',null);
-  const report: AiSettingsTestResponse = { version: row.version, status: 'not_run', realRequestAttempted: false, provider: null, model: null, protocol: null, limits: emptyLimits, checks: [], error: null };
+  const report: AiSettingsTestResponse = { requestId: input.requestId, version: row.version, status: 'not_run', realRequestAttempted: false, provider: null, model: null, protocol: null, limits: emptyLimits, checks: [], error: null };
   let runtime: Env;
   try { runtime = await runtimeAiEnv(env,actorId,row.version); }
   catch (error) {
@@ -37,7 +37,7 @@ export async function testSavedAiSettings(env: Env, actorId: string, input: { ba
     await writeAiDiagnostic(env,{requestId:input.requestId,stage:'end',code:'mock_mode',provider:'mock'});
     return { ...report, provider: 'mock', error: { code: 'mock_mode', message: '当前使用 mock 模拟模式，未发起真实模型请求，不能作为真实连接成功' } };
   }
-  if (runtime.AI_PROVIDER !== 'openai' || !runtime.AI_API_KEY?.trim()) return { ...report, error: { code: 'real_model_unconfigured', message: '尚未配置可用的真实模型与密钥；未发出模型请求' } };
+  if (runtime.AI_PROVIDER !== 'openai' || !runtime.AI_API_KEY?.trim()) {await writeAiDiagnostic(env,{requestId:input.requestId,stage:'end',code:'invalid_configuration'});return { ...report, error: { code: 'real_model_unconfigured', message: '尚未配置可用的真实模型与密钥；未发出模型请求' } };}
   let provider: ReturnType<typeof getAiProvider>;
   try {
     const config = resolveAiConfig(runtime);
@@ -46,7 +46,7 @@ export async function testSavedAiSettings(env: Env, actorId: string, input: { ba
     provider = getAiProvider(runtime);
     report.provider = config.preset; report.model = config.model; report.protocol = config.protocol;
     report.limits = { ...emptyLimits, timeoutMs: Math.min(config.timeoutMs,90000), maxOutputTokens: config.maxOutputTokens };
-  } catch (error) { return { ...report, status: 'failed', error: failure(error) }; }
+  } catch (error) { await writeAiDiagnostic(env,{requestId:input.requestId,stage:'end',code:'invalid_configuration'});return { ...report, status: 'failed', error: failure(error) }; }
   const now = Math.floor(Date.now()/1000);
   const marker = await fingerprintOf(['ai-settings-test-request',actorId,input.requestId]);
   if (await env.DB.prepare('SELECT 1 FROM rate_limits WHERE key=?1 AND window=0 AND expires_at>?2').bind(marker,now).first()) throw new AppError(409,'ai_test_already_requested','此测试请求已发起，不能重复付费发送；如需再次测试，请明确发起新测试');

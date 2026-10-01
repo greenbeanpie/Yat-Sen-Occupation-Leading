@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { createAiProbeRunner, type AiProbeReport, type AiProbeRequest } from './ai-settings-probe';
-const result:AiProbeReport={version:3,status:'passed',realRequestAttempted:true,provider:'deepseek',model:'deepseek-flash',protocol:'chat-completions',limits:{maxRequests:1,timeoutMs:60000,maxOutputTokens:4096,maxResponseBytes:8192},checks:[],error:null};
+const result:AiProbeReport={requestId:'00000000-0000-4000-8000-000000000000',version:3,status:'passed',realRequestAttempted:true,provider:'deepseek',model:'deepseek-flash',protocol:'chat-completions',limits:{maxRequests:1,timeoutMs:60000,maxOutputTokens:4096,maxResponseBytes:8192},checks:[],error:null};
 describe('explicit probe click controller',()=>{
  it('has no automatic call and collapses rapid repeated clicks to one saved-version request',async()=>{
   let resolve!:(r:AiProbeReport)=>void;const send=vi.fn<(body:AiProbeRequest)=>Promise<AiProbeReport>>(()=>new Promise<AiProbeReport>(r=>{resolve=r;})),runner=createAiProbeRunner(send);
