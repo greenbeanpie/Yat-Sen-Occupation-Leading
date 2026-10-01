@@ -1,3 +1,4 @@
+import { requestSettingsLeave } from './dialogs/settings-leave';
 import { NotificationControls } from './notifications/NotificationControls';
 import { InstallationNotice } from './notifications/InstallationNotice';
 import { unsubscribeDevice, deviceSubscriptionId } from './notifications/core';
@@ -54,6 +55,7 @@ const navigation = [
 ];
 
 export default function App() {
+  const logoutLock = useRef(false);
   const [session, setSession] = useState<Session | null>(null);
   const [sessionLoading, setSessionLoading] = useState(true);
   const [sessionError, setSessionError] = useState('');
@@ -320,7 +322,10 @@ export default function App() {
   }
 
   async function logout() {
-    if (!window.dispatchEvent(new Event('settings-before-leave', { cancelable: true }))) return;
+    if (logoutLock.current) return;
+    logoutLock.current = true;
+    try {
+      if (!await requestSettingsLeave()) return;
     if (getActiveDataSource() === 'guest') {
       setSession(null);
       setGuestMode(false);
@@ -346,7 +351,7 @@ export default function App() {
       window.location.assign('/');
       return;
     }
-    await run(async () => {
+    const loggedOut = await run(async () => {
       const subscriptionId = session?.user ? deviceSubscriptionId(session.user.id) : '';
       if (session?.user && !session.user.demo) await unsubscribeDevice(session.user.id,notificationRequest);
       await api('/session', { method: 'DELETE', headers: session?.user ? { ...(subscriptionId ? {'X-Push-Subscription-Id':subscriptionId} : {}), 'X-Notification-Account': session.user.id } : undefined });
@@ -356,6 +361,8 @@ export default function App() {
       setSessionError('');
       setRefresh((current) => current + 1);
     }, '已退出');
+    if (!loggedOut) window.dispatchEvent(new Event('settings-leave-failed'));
+    } finally { logoutLock.current = false; }
   }
 
   async function refreshAccountSession() {

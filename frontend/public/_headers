@@ -19,3 +19,6 @@
 
 /push-worker.js
   Cache-Control: no-cache
+
+/in-page-dialog.js
+  Cache-Control: no-cache

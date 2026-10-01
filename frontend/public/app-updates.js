@@ -1,3 +1,4 @@
+import { confirmInPage } from './in-page-dialog.js';
 // Shared by authenticated, login and static guest shells. No account data is persisted.
 export class UpdateController {
   constructor(env, publish) {
@@ -71,9 +72,14 @@ export class UpdateController {
     } catch { this.set(this.env.online() ? 'error' : 'offline'); }
     finally { this.checking = false; }
   }
-  apply() {
-    if (this.applying || this.state !== 'ready') return;
-    if (!this.env.confirm('更新将重新加载页面。请先保存未提交的编辑、草稿和附件。确认现在更新？')) return;
+  async apply() {
+    if (this.applying || this.confirming || this.state !== 'ready') return;
+    this.confirming = true;
+    let confirmed;
+    try { confirmed = await this.env.confirm('更新将重新加载页面。请先保存未提交的编辑、草稿和附件。确认现在更新？'); }
+    catch { this.set('error'); return; }
+    finally { this.confirming = false; }
+    if (!confirmed || this.applying || this.state !== 'ready') return;
     const worker = this.registration?.waiting;
     if (!worker && !this.changedElsewhere) { this.set('error'); return; }
     this.applying = true;
@@ -177,7 +183,7 @@ export function mountUpdates() {
   let open = false, timer, remaining = 5000, started = 0, active = null, sequence = 0;
   const panelHistoryKey = `notifications-${Date.now()}`;
   const env = { sw: navigator.serviceWorker, enabled: !document.querySelector('script[src*="/@vite/client"]') && window.isSecureContext,
-    online: () => navigator.onLine, confirm: message => window.confirm(message),
+    online: () => navigator.onLine, confirm: confirmInPage,
     setTimeout: (callback, delay) => window.setTimeout(callback, delay), clearTimeout: timer => window.clearTimeout(timer),
     reload: () => { window.dispatchEvent(new Event('app-update-reload')); location.reload(); } };
   const controller = new UpdateController(env, state => {

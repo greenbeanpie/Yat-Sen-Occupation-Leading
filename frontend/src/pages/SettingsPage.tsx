@@ -1,3 +1,4 @@
+import { usePageDialogs } from '../dialogs/usePageDialogs';
 import { useEffect, useState } from 'react';
 import { RefreshCw, Trash2, WifiOff } from 'lucide-react';
 import { post } from '../api/client';
@@ -11,6 +12,7 @@ import { platform } from '../platform';
 type SyncChanges = components['schemas']['SyncChangesResponse'];
 
 export function SettingsPage({ context, pending }: { context: ActionContext; pending: number }) {
+  const dialogs = usePageDialogs(context.userId);
   const changes = useResource<SyncChanges>(`/sync/changes?since=${String(0)}&limit=100`, context.refresh, context.userId);
   const [syncing, setSyncing] = useState(false);
   const [syncMessage, setSyncMessage] = useState('');
@@ -67,7 +69,7 @@ export function SettingsPage({ context, pending }: { context: ActionContext; pen
   }
 
   async function clearLocalQueue() {
-    if (!window.confirm('清空本机待同步操作和冲突记录？未同步的本地修改将无法恢复。')) return;
+    if (!await dialogs.confirm('清空本机待同步操作和冲突记录？未同步的本地修改将无法恢复。')) return;
     await db.queue.where('userId').equals(context.userId).delete();
     await db.conflicts.where('userId').equals(context.userId).delete();
     setConflicts([]);
@@ -75,14 +77,14 @@ export function SettingsPage({ context, pending }: { context: ActionContext; pen
   }
 
   async function discardOrphanedOperations() {
-    if (!window.confirm('这些操作来自旧版未按账号隔离的本机队列，无法安全确定所属账号。清除后不能恢复。')) return;
+    if (!await dialogs.confirm('这些操作来自旧版未按账号隔离的本机队列，无法安全确定所属账号。清除后不能恢复。')) return;
     await clearOrphanedOperations();
     setOrphanCount(0);
   }
 
   /** 服务端清空当前身份的业务数据，同时丢弃本机缓存，避免界面继续显示旧数据。 */
   async function resetDemoData() {
-    if (!window.confirm('清空当前演示身份的业务数据？本机缓存和待同步操作也会一并清除，且无法恢复。')) return;
+    if (!await dialogs.confirm('清空当前演示身份的业务数据？本机缓存和待同步操作也会一并清除，且无法恢复。')) return;
     setResetting(true);
     setResetMessage(null);
     try {
