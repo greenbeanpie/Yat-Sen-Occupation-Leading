@@ -167,6 +167,7 @@ export function ActionForm({
   const initial = () => initialFormValues(fields);
   const [values, setValues] = useState<Record<string, string>>(initial);
   const [submitting, setSubmitting] = useState(false);
+  const submissionPending = useRef(false);
   const [invalid, setInvalid] = useState('');
   const errorId = useId();
   const dirty = JSON.stringify(values) !== JSON.stringify(initial());
@@ -185,6 +186,8 @@ export function ActionForm({
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (disabled || submissionPending.current) return;
+    submissionPending.current = true;
     setInvalid('');
     setSubmitting(true);
     try {
@@ -199,6 +202,7 @@ export function ActionForm({
       }
       if (await onSubmit(effective)) setValues(initial());
     } finally {
+      submissionPending.current = false;
       setSubmitting(false);
     }
   }

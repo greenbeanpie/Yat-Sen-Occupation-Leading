@@ -149,7 +149,7 @@ export async function clearOrphanedOperations(): Promise<void> {
 
 export async function withOfflineQueue(
   onlineAction: () => Promise<unknown>,
-  operation: Omit<QueuedOperation, 'opId' | 'createdAt'>,
+  operation: Omit<QueuedOperation, 'opId' | 'createdAt'> & { opId?: string },
   updateLocalSnapshot: () => Promise<void>,
 ): Promise<void> {
   try {

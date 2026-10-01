@@ -2,6 +2,8 @@ import type { Env } from "../env";
 import { SYNC_ENTITIES, type SyncEntity } from "../shared/constants";
 import { nowIso, uuid } from "../shared/datetime";
 import { getRow } from "../infra/db/helpers";
+import { ApplicationPayloadSchema } from "../shared/schemas/tracking";
+import { initialApplicationEvent } from "./tracking";
 import {
   createEntity,
   deleteEntity,
@@ -58,11 +60,16 @@ export interface SyncOpResult {
 }
 
 /** 简单字段校验（离线路径要求与在线 Zod 相同约束，这里做结构级校验 + 必填项）。 */
-function validatePayload(entity: SyncEntity, payload: unknown): { ok: true; data: Record<string, unknown> } | { ok: false; details: { field: string; issue: string }[] } {
+function validatePayload(entity: SyncEntity, payload: unknown, creating: boolean): { ok: true; data: Record<string, unknown> } | { ok: false; details: { field: string; issue: string }[] } {
   if (payload === null || typeof payload !== "object" || Array.isArray(payload)) {
     return { ok: false, details: [{ field: "payload", issue: "payload 必须是对象" }] };
   }
   const data = payload as Record<string, unknown>;
+  if (entity === "application") {
+    const parsed = (creating ? ApplicationPayloadSchema : ApplicationPayloadSchema.partial()).safeParse(data);
+    if (!parsed.success) return { ok: false, details: parsed.error.issues.map((item) => ({ field: item.path.join("."), issue: item.message })) };
+    return { ok: true, data: creating ? { jobId: null, company: "", notes: "", status: "preparing", ...parsed.data } : parsed.data };
+  }
   const required: Record<SyncEntity, string[]> = {
     profile: [],
     experience: ["title", "description"],
@@ -96,12 +103,16 @@ function validatePayload(entity: SyncEntity, payload: unknown): { ok: true; data
 export async function applySyncOperation(env: Env, userId: string, op: SyncOpInput): Promise<SyncOpResult> {
   // 1) 幂等去重：重复提交返回 duplicate + 原回执信息（数据只写一次）
   const existing = await env.DB
-    .prepare(`SELECT result_json FROM sync_operations WHERE user_id = ?1 AND op_id = ?2`)
+    .prepare(`SELECT request_json, result_json FROM sync_operations WHERE user_id = ?1 AND op_id = ?2`)
     .bind(userId, op.opId)
-    .first<{ result_json: string }>();
+    .first<{ request_json: string; result_json: string }>();
   if (existing) {
+    const request = JSON.parse(existing.request_json) as SyncOpInput;
+    if (request.entity !== op.entity || request.entityId !== op.entityId || request.action !== op.action || request.baseVersion !== op.baseVersion) {
+      return { opId: op.opId, status: "rejected", error: "操作 ID 已被其他请求使用" };
+    }
     const stored = JSON.parse(existing.result_json) as SyncOpResult;
-    return { ...stored, status: "duplicate" };
+    return replayResult(env, userId, op, stored);
   }
 
   const persist = async (result: SyncOpResult): Promise<SyncOpResult> => persistResult(env, userId, op, result);
@@ -140,7 +151,7 @@ export async function applySyncOperation(env: Env, userId: string, op: SyncOpInp
       return await readReceipt(env, userId, op.opId);
     } catch (error) {
       const prior = await readReceiptOrNull(env, userId, op.opId);
-      if (prior) return { ...prior, status: "duplicate" };
+      if (prior) return replayResult(env, userId, op, prior);
       throw error;
     }
   }
@@ -151,7 +162,7 @@ export async function applySyncOperation(env: Env, userId: string, op: SyncOpInp
     return persist({ opId: op.opId, status: "rejected", error: "upsert 操作需要 entityId（离线新建由客户端生成 UUID）" });
   }
 
-  const validation = validatePayload(entity, op.payload);
+  const validation = validatePayload(entity, op.payload, op.baseVersion === 0);
   if (!validation.ok) {
     return persist({ opId: op.opId, status: "rejected", details: validation.details, error: "参数校验失败" });
   }
@@ -163,12 +174,15 @@ export async function applySyncOperation(env: Env, userId: string, op: SyncOpInp
       // 离线新建：客户端生成 UUID + baseVersion 0
       try {
         await createEntity(env, userId, registry.cfg, validation.data, undefined, op.entityId, {
-          completionStatements: (result) => [receiptStmt(env, userId, op, { opId: op.opId, status: "applied", version: result.version, record: result.record })],
+          completionStatements: (result) => [
+            ...(entity === "application" ? initialApplicationEvent(env, userId, result) : []),
+            receiptStmt(env, userId, op, { opId: op.opId, status: "applied", version: result.version, record: result.record }),
+          ],
         });
         return await readReceipt(env, userId, op.opId);
       } catch (error) {
         const prior = await readReceiptOrNull(env, userId, op.opId);
-        if (prior) return { ...prior, status: "duplicate" };
+        if (prior) return replayResult(env, userId, op, prior);
         const latest = await getRow(env.DB, registry.cfg.table, op.entityId, userId);
         if (latest) {
           return persist({ opId: op.opId, status: "conflict", version: Number(latest.version), record: serializeRow(registry.cfg, latest), error: "实体已存在" });
@@ -198,7 +212,7 @@ export async function applySyncOperation(env: Env, userId: string, op: SyncOpInp
     return await readReceipt(env, userId, op.opId);
   } catch (error) {
     const prior = await readReceiptOrNull(env, userId, op.opId);
-    if (prior) return { ...prior, status: "duplicate" };
+    if (prior) return replayResult(env, userId, op, prior);
     throw error;
   }
 }
@@ -209,9 +223,21 @@ async function persistResult(env: Env, userId: string, op: SyncOpInput, result: 
     return result;
   } catch (error) {
     const prior = await readReceiptOrNull(env, userId, op.opId);
-    if (prior) return { ...prior, status: "duplicate" };
+    if (prior) return replayResult(env, userId, op, prior);
     throw error;
   }
+}
+
+/** A creation retry must not hand an old active snapshot back after archive. */
+async function replayResult(env: Env, userId: string, op: SyncOpInput, stored: SyncOpResult): Promise<SyncOpResult> {
+  if (op.entity === "application" && op.action === "upsert" && op.baseVersion === 0 && op.entityId) {
+    // Failure receipts are idempotent failures, never successful creations.
+    if (stored.status !== "applied") return stored;
+    const current = await getRow(env.DB, APPLICATION_CFG.table, op.entityId, userId);
+    if (current) return { ...stored, status: "duplicate", version: Number(current.version), record: rowToJson(APPLICATION_CFG, current) };
+    return { opId: op.opId, status: "rejected", error: "创建记录不存在，请重新发起" };
+  }
+  return { ...stored, status: "duplicate" };
 }
 
 function receiptStmt(env: Env, userId: string, op: SyncOpInput, result: SyncOpResult): D1PreparedStatement {

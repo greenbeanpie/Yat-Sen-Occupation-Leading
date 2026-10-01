@@ -1,11 +1,12 @@
 import { safeHttpUrl } from "../safe-url";
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { ArrowUpRight, FileSearch, Plus, Trash2 } from 'lucide-react';
 import { del, get, pollOperation, post } from '../api/client';
 import type { components } from '../api/schema';
 import { ActionForm, Badge, DataRows, InlineError, JsonPreview, Loading, Modal, PageHead, Panel, ResourceNotice, useResource } from '../components';
 import type { ActionContext } from '../components';
 import { cacheKey, cacheValue, readCached, withOfflineQueue } from '../offline';
+import { CreationAttempt, createTrackedApplication } from '../application-creation';
 
 type Job = components['schemas']['Job'];
 type JobList = components['schemas']['JobListResponse'];
@@ -16,12 +17,33 @@ export function JobsPage({ context }: { context: ActionContext }) {
   const [search, setSearch] = useState('');
   const [selected, setSelected] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
+  const applicationAttempts = useRef(new Map<string, CreationAttempt>());
+  const completedApplications = useRef(new Set<string>());
+  const [applicationStates, setApplicationStates] = useState<Record<string, 'pending' | 'added' | undefined>>({});
   const publicPath = `/jobs?scope=public${search ? `&q=${encodeURIComponent(search)}` : ''}`;
   const privatePath = '/jobs?scope=mine';
   const publicJobs = useResource<JobList>(publicPath, context.refresh, context.userId);
   const privateJobs = useResource<JobList>(privatePath, context.refresh, context.userId);
   const publicItems = publicJobs.data?.items ?? [];
   const privateItems = privateJobs.data?.items ?? [];
+
+  async function addApplication(job: Job) {
+    if (completedApplications.current.has(job.id)) return false;
+    let attempt = applicationAttempts.current.get(job.id);
+    if (!attempt) {
+      attempt = new CreationAttempt();
+      applicationAttempts.current.set(job.id, attempt);
+    }
+    return attempt.run(async (creationId) => {
+      setApplicationStates((current) => ({ ...current, [job.id]: 'pending' }));
+      const saved = await context.run(() => createTrackedApplication(context.userId, creationId, {
+        jobId: job.id, jobTitle: job.title, company: job.company, status: 'preparing', notes: '',
+      }), '已加入投递跟踪；离线新增已进入同步队列');
+      if (saved) completedApplications.current.add(job.id);
+      setApplicationStates((current) => ({ ...current, [job.id]: saved ? 'added' : undefined }));
+      return saved;
+    });
+  }
 
   async function createPrivateJob(values: Record<string, string>) {
     const payload = jobPayload(values);
@@ -69,7 +91,7 @@ export function JobsPage({ context }: { context: ActionContext }) {
           </div>
           <div className="button-row">
             <button className="btn small secondary" onClick={() => setSelected(job.id)}>查看条件</button>
-            <button className="btn small primary" disabled={context.busy} onClick={() => void addApplication(job, context)}>加入投递跟踪</button>
+            <button className="btn small primary" disabled={context.busy || !!applicationStates[job.id]} onClick={() => void addApplication(job)}>{trackingLabel(applicationStates[job.id])}</button>
           </div>
         </div>}
       </DataRows>
@@ -82,7 +104,7 @@ export function JobsPage({ context }: { context: ActionContext }) {
       </DataRows>
     </Panel>
 
-    {selected && <JobDetail id={selected} context={context} onClose={() => setSelected(null)}/>}
+    {selected && <JobDetail id={selected} context={context} applicationState={applicationStates[selected]} onTrack={addApplication} onClose={() => setSelected(null)}/>}
     {creating && <Modal title="添加私人 JD" onClose={() => setCreating(false)}>
       <ActionForm
         disabled={context.busy}
@@ -139,7 +161,7 @@ function PrivateJobCard({ job, context, onOpen }: { job: Job; context: ActionCon
   </article>;
 }
 
-function JobDetail({ id, context, onClose }: { id: string; context: ActionContext; onClose: () => void }) {
+function JobDetail({ id, context, applicationState, onTrack, onClose }: { id: string; context: ActionContext; applicationState?: 'pending' | 'added'; onTrack: (job: Job) => Promise<boolean>; onClose: () => void }) {
   const job = useResource<Job>(`/jobs/${id}`, context.refresh, context.userId);
   return <Modal title="岗位详情" onClose={onClose}>
     <ResourceNotice error={job.error}/>
@@ -153,7 +175,8 @@ function JobDetail({ id, context, onClose }: { id: string; context: ActionContex
       </li>)}</ul> : <p className="empty small-empty">没有已确认条件。私人岗位需先解析并确认要求。</p>}
       <h4>JD 原文</h4>
       <pre className="jd-text">{job.data.jdText || '未提供 JD 原文。'}</pre>
-      <div className="button-row"><button className="btn primary" onClick={() => void addApplication(job.data!, context)}>加入投递跟踪</button></div>
+      <div className="button-row"><button className="btn primary" disabled={context.busy || !!applicationState} onClick={() => void onTrack(job.data!)}>{trackingLabel(applicationState)}</button></div>
+      {applicationState === 'added' && <p className="muted">已建立记录。如需记录同一岗位的另一次投递，可在投递跟踪页新增。</p>}
     </> : null}
   </Modal>;
 }
@@ -180,12 +203,6 @@ function jobPayload(values: Record<string, string>) {
   };
 }
 
-async function addApplication(job: Job, context: ActionContext) {
-  return context.run(() => post('/applications', {
-    jobId: job.id,
-    jobTitle: job.title,
-    company: job.company,
-    status: 'preparing',
-    notes: '',
-  }), '已加入投递跟踪');
+function trackingLabel(state?: 'pending' | 'added') {
+  return state === 'pending' ? '正在加入…' : state === 'added' ? '已加入投递跟踪' : '加入投递跟踪';
 }

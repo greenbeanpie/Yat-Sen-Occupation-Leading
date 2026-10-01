@@ -18,6 +18,7 @@
     "e2e:guest": "node e2e/guest-session.mjs",
     "e2e:offline": "node e2e/offline-reload.mjs",
     "e2e:roles": "node e2e/roles.mjs",
+    "e2e:tracking": "node e2e/tracking-recovery.mjs",
     "deploy": "npm run build && wrangler deploy --config wrangler.jsonc"
   },
   "dependencies": {

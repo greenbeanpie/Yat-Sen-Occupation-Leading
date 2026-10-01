@@ -205,6 +205,8 @@ export interface SyncReceiptRecord {
   userId: string;
   opId: string;
   result: Schema['SyncResult'];
+  /** Older persisted demo snapshots may not include the original request. */
+  request?: { entity: string; entityId?: string | null; action: string; baseVersion?: number | null };
 }
 
 /** 演示适配器的全部状态；写入 localStorage 时整体序列化。 */

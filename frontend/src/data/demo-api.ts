@@ -1485,6 +1485,27 @@ function maybeCreateAdjustment(
 // 投递、面试与工时
 // ---------------------------------------------------------------------------
 
+function activeApplication(db: DemoDatabase, userId: string, id: string): ApplicationRecord {
+  return requireRow(db.applications.find((row) => row.id === id && row.userId === userId && !row.deleted));
+}
+
+function archiveApplication(db: DemoDatabase, application: ApplicationRecord, now: string): void {
+  if (!application.deleted) tombstone(db, 'application', application, now);
+}
+
+function scheduleInterview(db: DemoDatabase, interview: InterviewRecord): void {
+  schedulePendingReminder(db, {
+    userId: interview.userId,
+    entity: 'interview',
+    entityId: interview.id,
+    kind: 'interview_1h_before',
+    fireAt: new Date(new Date(interview.scheduledAt).getTime() - 3_600_000).toISOString(),
+    title: `面试提醒：${interview.stage}`,
+    body: '一小时后开始',
+    dedupeKey: `interview-1h:${interview.id}`,
+  });
+}
+
 function trackingRoutes(): Route[] {
   return [
     {
@@ -1494,11 +1515,13 @@ function trackingRoutes(): Route[] {
       handler: ({ db, user, request }) => {
         const from = request.query.get('from') ?? '';
         const to = request.query.get('to') ?? '';
+        const activeIds = new Set(db.applications.filter((row) => row.userId === user.id && !row.deleted).map((row) => row.id));
         const interviewed = new Set(
           db.applicationEvents
             .filter(
               (row) =>
                 row.userId === user.id &&
+                activeIds.has(row.applicationId) &&
                 !row.deleted &&
                 row.type === 'status_change' &&
                 row.toStatus === 'interviewing' &&
@@ -1509,7 +1532,7 @@ function trackingRoutes(): Route[] {
         );
         const totalHours =
           db.timeEntries
-            .filter((row) => row.userId === user.id && !row.deleted && (row.spentOn ?? '') >= from && (row.spentOn ?? '') <= to)
+            .filter((row) => row.userId === user.id && !row.deleted && (!row.applicationId || activeIds.has(row.applicationId)) && (row.spentOn ?? '') >= from && (row.spentOn ?? '') <= to)
             .reduce((sum, row) => sum + row.minutes, 0) / 60;
         return {
           status: 200,
@@ -1530,48 +1553,23 @@ function trackingRoutes(): Route[] {
       handler: ({ store, db, user, request }) => {
         const payload = stripInternal((request.body ?? {}) as Record<string, unknown>);
         if (!payload.jobTitle) throw invalidRequest([{ field: 'jobTitle', issue: '该字段为必填' }]);
-        const now = store.nowIso();
-        const status = (payload.status as string) ?? 'preparing';
-        const created: ApplicationRecord = {
-          id: store.uuid(),
-          userId: user.id,
-          version: 1,
-          deleted: false,
-          createdAt: now,
-          updatedAt: now,
-          jobId: (payload.jobId as string | null) ?? null,
-          jobTitle: String(payload.jobTitle),
-          company: String(payload.company ?? ''),
-          status: status as ApplicationRecord['status'],
-          notes: String(payload.notes ?? ''),
-        };
-        db.applications.push(created);
-        appendChange(db, { userId: user.id, entity: 'application', entityId: created.id, version: 1, changeType: 'upsert', record: clone(created), changedAt: now });
-        const event: ApplicationEventRecord = {
-          id: store.uuid(),
-          userId: user.id,
-          version: 1,
-          deleted: false,
-          createdAt: now,
-          updatedAt: now,
-          applicationId: created.id,
-          type: 'status_change',
-          fromStatus: '',
-          toStatus: status,
-          note: '创建投递记录',
-          occurredAt: now,
-        };
-        db.applicationEvents.push(event);
-        return { status: 201, body: clone(created) };
+        if (payload.creationId !== undefined && (typeof payload.creationId !== 'string' || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(payload.creationId))) {
+          throw invalidRequest([{ field: 'creationId', issue: '必须为 UUID' }]);
+        }
+        const id = (payload.creationId as string | undefined) ?? store.uuid();
+        const result = applySyncOperation(store, db, user.id, { opId: id, entity: 'application', entityId: id, baseVersion: 0, action: 'upsert', payload });
+        if (result.status === 'conflict') throw conflict(result.error ?? '创建标识已被使用', result.record);
+        if (result.status === 'rejected') throw invalidRequest(result.details ?? [{ field: 'creationId', issue: result.error ?? '创建失败' }]);
+        return { status: 201, body: result.record };
       },
     },
     {
       method: 'GET',
       path: '/applications',
       auth: true,
-      handler: ({ db, user }) => ({
+      handler: ({ db, user, request }) => ({
         status: 200,
-        body: { items: db.applications.filter((row) => row.userId === user.id && !row.deleted).sort((a, b) => b.createdAt.localeCompare(a.createdAt)).map(clone) },
+        body: { items: db.applications.filter((row) => row.userId === user.id && row.deleted === (request.query.get('archived') === 'true')).sort((a, b) => b.createdAt.localeCompare(a.createdAt)).map(clone) },
       }),
     },
     {
@@ -1580,7 +1578,7 @@ function trackingRoutes(): Route[] {
       auth: true,
       handler: ({ db, user, params }) => ({
         status: 200,
-        body: clone(requireRow(db.applications.find((row) => row.id === params.id && row.userId === user.id && !row.deleted))),
+        body: clone(requireRow(db.applications.find((row) => row.id === params.id && row.userId === user.id))),
       }),
     },
     {
@@ -1621,9 +1619,31 @@ function trackingRoutes(): Route[] {
       path: '/applications/:id',
       auth: true,
       handler: ({ store, db, user, params }) => {
-        const row = requireRow(db.applications.find((item) => item.id === params.id && item.userId === user.id && !item.deleted));
-        tombstone(db, 'application', row, store.nowIso());
+        const row = requireRow(db.applications.find((item) => item.id === params.id && item.userId === user.id));
+        archiveApplication(db, row, store.nowIso());
         return { status: 204 };
+      },
+    },
+    {
+      method: 'POST',
+      path: '/applications/:id/restore',
+      auth: true,
+      handler: ({ store, db, user, params, request }) => {
+        const row = requireRow(db.applications.find((item) => item.id === params.id && item.userId === user.id));
+        const { baseVersion } = (request.body ?? {}) as { baseVersion?: number };
+        if (!Number.isInteger(baseVersion) || (baseVersion ?? 0) < 1) throw invalidRequest([{ field: 'baseVersion', issue: '必须提供当前版本' }]);
+        if (!row.deleted) return { status: 200, body: clone(row) };
+        if (baseVersion !== row.version) throw conflict('记录已被其他修改更新，请先查看服务器版本', clone(row));
+        row.deleted = false;
+        const updated = updateRow(db, 'application', row, {}, baseVersion, store.nowIso());
+        for (const interview of db.interviews) {
+          if (interview.userId !== user.id || interview.applicationId !== row.id || interview.deleted) continue;
+          if (!db.reminders.some((reminder) => reminder.userId === user.id && reminder.entity === 'interview' && reminder.entityId === interview.id)) scheduleInterview(db, interview);
+          for (const reminder of db.reminders) {
+            if (reminder.userId === user.id && reminder.entity === 'interview' && reminder.entityId === interview.id && reminder.status === 'pending' && reminder.fireAt <= store.nowIso()) reminder.status = 'cancelled';
+          }
+        }
+        return { status: 200, body: clone(updated) };
       },
     },
     {
@@ -1732,6 +1752,7 @@ function trackingRoutes(): Route[] {
       auth: true,
       handler: ({ store, db, user, request, params }) => {
         const interview = requireRow(db.interviews.find((row) => row.id === params.id && row.userId === user.id && !row.deleted));
+        activeApplication(db, user.id, interview.applicationId);
         const payload = (request.body ?? {}) as Record<string, unknown>;
         const updated = updateRow(db, 'interview', interview, payload, payload.baseVersion as number, store.nowIso());
         if (payload.scheduledAt !== undefined) {
@@ -1758,6 +1779,7 @@ function trackingRoutes(): Route[] {
         if (payload.minutes == null || !payload.spentOn) {
           throw invalidRequest([{ field: payload.minutes == null ? 'minutes' : 'spentOn', issue: '该字段为必填' }]);
         }
+        if (payload.applicationId) activeApplication(db, user.id, String(payload.applicationId));
         const now = store.nowIso();
         const created: TimeEntryRecord = {
           id: store.uuid(),
@@ -2061,16 +2083,35 @@ function syncRoutes(): Route[] {
 
 function applySyncOperation(store: DemoStore, db: DemoDatabase, userId: string, op: SyncOp): Schema['SyncResult'] {
   const existing = db.syncReceipts.find((row) => row.userId === userId && row.opId === op.opId);
-  if (existing) return { ...existing.result, status: 'duplicate' };
+  if (existing) {
+    const request = existing.request;
+    if (request && (request.entity !== op.entity || request.entityId !== op.entityId || request.action !== op.action || request.baseVersion !== op.baseVersion)) {
+      return { opId: op.opId, status: 'rejected', error: '操作 ID 已被其他请求使用' };
+    }
+    if (op.entity === 'application' && op.action === 'upsert' && op.baseVersion === 0) {
+      if (existing.result.status !== 'applied') return clone(existing.result);
+      const current = db.applications.find((row) => row.id === op.entityId && row.userId === userId);
+      if (current) return { ...existing.result, status: 'duplicate', version: current.version, record: clone(current) };
+      return { opId: op.opId, status: 'rejected', error: '创建记录不存在，请重新发起' };
+    }
+    return { ...existing.result, status: 'duplicate' };
+  }
 
   const persist = (result: Schema['SyncResult']): Schema['SyncResult'] => {
-    db.syncReceipts.push({ userId, opId: op.opId, result: clone(result) });
+    db.syncReceipts.push({ userId, opId: op.opId, result: clone(result), request: { entity: op.entity, entityId: op.entityId, action: op.action, baseVersion: op.baseVersion } });
     return result;
   };
 
   if (!(op.entity in SYNC_REQUIRED)) return persist({ opId: op.opId, status: 'rejected', error: '未知实体类型' });
   const rows = syncRows(db, op.entity, userId);
   const row = op.entityId ? rows.find((item) => item.id === op.entityId) : undefined;
+  if (row && row.userId !== userId) return persist({ opId: op.opId, status: 'rejected', error: '实体不存在' });
+  const linkedApplicationIds = [row?.applicationId, op.payload?.applicationId].filter(Boolean);
+  if (op.entity === 'application_event' || op.entity === 'interview' || (op.entity === 'time_entry' && op.action === 'upsert')) {
+    if (linkedApplicationIds.some((id) => !db.applications.some((application) => application.id === id && application.userId === userId && !application.deleted))) {
+      return persist({ opId: op.opId, status: 'rejected', error: '关联投递不存在或已归档' });
+    }
+  }
 
   if (op.action === 'delete') {
     if (!op.entityId) return persist({ opId: op.opId, status: 'rejected', error: 'delete 操作需要 entityId' });
@@ -2085,13 +2126,15 @@ function applySyncOperation(store: DemoStore, db: DemoDatabase, userId: string, 
     const serverVersion = Number(row.version);
     if (op.baseVersion !== serverVersion) return persist({ opId: op.opId, status: 'conflict', version: serverVersion, record: clone(row), error: '版本冲突' });
     if (row.deleted === true) return persist({ opId: op.opId, status: 'applied', version: serverVersion, record: clone(row) });
-    tombstone(db, op.entity, row as never, store.nowIso());
+    if (op.entity === 'application') archiveApplication(db, row as unknown as ApplicationRecord, store.nowIso());
+    else tombstone(db, op.entity, row as never, store.nowIso());
     return persist({ opId: op.opId, status: 'applied', version: serverVersion + 1, record: { id: op.entityId, version: serverVersion + 1, deleted: true } });
   }
 
   if (!op.entityId) return persist({ opId: op.opId, status: 'rejected', error: 'upsert 操作需要 entityId（离线新建由客户端生成 UUID）' });
   const payload = op.payload ?? {};
-  const missing = SYNC_REQUIRED[op.entity].filter((field) => payload[field] === undefined || payload[field] === null || payload[field] === '');
+  const required = op.entity === 'application' && op.baseVersion !== 0 ? [] : SYNC_REQUIRED[op.entity];
+  const missing = required.filter((field) => payload[field] === undefined || payload[field] === null || payload[field] === '');
   if (missing.length > 0) {
     return persist({
       opId: op.opId,
@@ -2106,7 +2149,7 @@ function applySyncOperation(store: DemoStore, db: DemoDatabase, userId: string, 
     if (op.baseVersion !== 0) {
       return persist({ opId: op.opId, status: 'conflict', record: { id: op.entityId, deleted: true }, error: '实体不存在或已被删除' });
     }
-    const created = createViaSync(db, userId, op.entity, op.entityId, payload, store.nowIso());
+    const created = createViaSync(store, db, userId, op.entity, op.entityId, payload, store.nowIso());
     if (!created) return persist({ opId: op.opId, status: 'rejected', error: `演示数据源不支持离线创建 ${op.entity}` });
     return persist({ opId: op.opId, status: 'applied', version: 1, record: clone(created) });
   }
@@ -2123,7 +2166,7 @@ function applySyncOperation(store: DemoStore, db: DemoDatabase, userId: string, 
 }
 
 /** 离线新建：客户端带上 UUID 与 baseVersion=0。 */
-function createViaSync(db: DemoDatabase, userId: string, entity: SyncEntityName, id: string, payload: Record<string, unknown>, now: string): Record<string, unknown> | null {
+function createViaSync(store: DemoStore, db: DemoDatabase, userId: string, entity: SyncEntityName, id: string, payload: Record<string, unknown>, now: string): Record<string, unknown> | null {
   const base = { id, userId, version: 1, deleted: false, createdAt: now, updatedAt: now };
   const created = (row: Record<string, unknown>): Record<string, unknown> => {
     appendChange(db, { userId, entity, entityId: id, version: 1, changeType: 'upsert', record: clone(row), changedAt: now });
@@ -2223,6 +2266,18 @@ function createViaSync(db: DemoDatabase, userId: string, entity: SyncEntityName,
         notes: String(payload.notes ?? ''),
       };
       db.applications.push(row);
+      const event: ApplicationEventRecord = {
+        ...base,
+        id: store.uuid(),
+        applicationId: id,
+        type: 'status_change',
+        fromStatus: null,
+        toStatus: row.status,
+        note: '创建投递记录',
+        occurredAt: now,
+      };
+      db.applicationEvents.push(event);
+      appendChange(db, { userId, entity: 'application_event', entityId: event.id, version: 1, changeType: 'upsert', record: clone(event), changedAt: now });
       return created(row as unknown as Record<string, unknown>);
     }
     case 'application_event': {

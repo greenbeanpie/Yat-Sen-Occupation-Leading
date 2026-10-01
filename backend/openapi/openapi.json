@@ -8107,7 +8107,26 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/ApplicationPayload"
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/ApplicationPayload"
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "creationId": {
+                        "allOf": [
+                          {
+                            "$ref": "#/components/schemas/Uuid"
+                          },
+                          {
+                            "description": "同一次创建及离线重试共用的 UUID"
+                          }
+                        ]
+                      }
+                    }
+                  }
+                ]
               }
             }
           }
@@ -8132,12 +8151,46 @@
                 }
               }
             }
+          },
+          "409": {
+            "description": "创建标识冲突",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "创建请求有误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
           }
         }
       },
       "get": {
         "tags": [
           "applications"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "true",
+                "false"
+              ]
+            },
+            "required": false,
+            "name": "archived",
+            "in": "query"
+          }
         ],
         "responses": {
           "200": {
@@ -8333,7 +8386,7 @@
         ],
         "responses": {
           "204": {
-            "description": "已删除（墓碑）"
+            "description": "已归档（保留关联历史，可恢复）"
           },
           "401": {
             "description": "未登录",
@@ -8347,6 +8400,85 @@
           },
           "404": {
             "description": "不存在",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/applications/{id}/restore": {
+      "post": {
+        "tags": [
+          "applications"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "$ref": "#/components/schemas/Uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "baseVersion": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "exclusiveMinimum": true
+                  }
+                },
+                "required": [
+                  "baseVersion"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "投递及关联记录已恢复到活动视图；不补发过期提醒",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Application"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未登录",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "不存在",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "版本冲突",
             "content": {
               "application/json": {
                 "schema": {

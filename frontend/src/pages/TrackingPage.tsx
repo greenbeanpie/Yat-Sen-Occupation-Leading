@@ -1,10 +1,11 @@
-import { useMemo, useState } from 'react';
-import { CalendarPlus, MessageSquareText, Trash2 } from 'lucide-react';
+import { useMemo, useRef, useState } from 'react';
+import { Archive, ArchiveRestore, CalendarPlus, MessageSquareText, Trash2 } from 'lucide-react';
 import { del, get, patch, post } from '../api/client';
 import type { components } from '../api/schema';
-import { ActionForm, Badge, DataRows, InlineError, PageHead, Panel, ResourceNotice, useResource } from '../components';
+import { ActionForm, Badge, DataRows, InlineError, Modal, PageHead, Panel, ResourceNotice, useResource } from '../components';
 import type { ActionContext } from '../components';
 import { cacheKey, cacheValue, readCached, withOfflineQueue } from '../offline';
+import { CreationAttempt, createTrackedApplication } from '../application-creation';
 
 type Application = components['schemas']['Application'];
 type ApplicationEvent = components['schemas']['ApplicationEvent'];
@@ -23,34 +24,21 @@ const STATUSES: { value: Application['status']; label: string }[] = [
 
 export function TrackingPage({ context }: { context: ActionContext }) {
   const range = useMemo(() => currentRange(), []);
+  const [showArchived, setShowArchived] = useState(false);
+  const creationAttempt = useRef(new CreationAttempt());
   const applications = useResource<{ items: Application[] }>('/applications', context.refresh, context.userId);
+  const archives = useResource<{ items: Application[] }>('/applications?archived=true', context.refresh, context.userId);
   const timeEntries = useResource<{ items: TimeEntry[] }>(`/time-entries?from=${range.from}&to=${range.to}`, context.refresh, context.userId);
   const stats = useResource<Stats>(`/applications/stats?from=${range.from}&to=${range.to}`, context.refresh, context.userId);
 
   async function createApplication(values: Record<string, string>) {
-    const payload = {
+    return creationAttempt.current.run((creationId) => context.run(() => createTrackedApplication(context.userId, creationId, {
       jobId: null,
       jobTitle: values.jobTitle.trim(),
       company: values.company.trim(),
       notes: values.notes.trim(),
       status: 'preparing',
-    };
-    const localId = crypto.randomUUID();
-    return context.run(() => withOfflineQueue(
-      () => post('/applications', payload),
-      { userId: context.userId, entity: 'application', entityId: localId, baseVersion: 0, action: 'upsert', payload },
-      async () => {
-        const now = new Date().toISOString();
-        const local: Application = {
-          id: localId, version: 0, deleted: false, userId: context.userId, createdAt: now, updatedAt: now,
-          jobTitle: payload.jobTitle, company: payload.company,
-          status: 'preparing', notes: payload.notes,
-        };
-        const key = cacheKey(context.userId, 'api:/applications');
-        const cached = await readCached<{ items: Application[] }>(key);
-        await cacheValue(key, { items: [local, ...(cached?.items ?? [])] });
-      },
-    ), '投递记录已建立；离线新增已进入同步队列');
+    }), '投递记录已建立；离线新增已进入同步队列'));
   }
 
   async function createTimeEntry(values: Record<string, string>) {
@@ -63,6 +51,8 @@ export function TrackingPage({ context }: { context: ActionContext }) {
   }
 
   const items = applications.data?.items ?? [];
+  const archivedItems = archives.data?.items ?? [];
+  const visibleApplications = showArchived ? archives : applications;
   const entries = timeEntries.data?.items ?? [];
   const efficiency = stats.data?.efficiency;
 
@@ -72,14 +62,18 @@ export function TrackingPage({ context }: { context: ActionContext }) {
       <Stat label="获得面试的投递" value={stats.data?.interviewedCount ?? '—'} note={`${range.from} 至 ${range.to}`}/>
       <Stat label="实际投入" value={stats.data ? `${stats.data.totalHours.toFixed(1)} 小时` : '—'} note="按实际工时汇总"/>
       <Stat label="每 10 小时面试数" value={efficiency == null ? '暂无数据' : efficiency.toFixed(1)} note="零工时不计算效率"/>
-      <Stat label="投递记录" value={items.length} note="包含准备中与已投递"/>
+      <Stat label="未归档的投递记录" value={items.length} note="归档记录保留在归档列表"/>
     </div>
 
     <div className="two-col">
-      <Panel title="投递记录" description="状态变化由服务端状态机校验并保留历史">
-        <ResourceNotice error={applications.error}/>
-
-        <DataRows items={items} loading={applications.loading} empty="目前没有投递记录。可以先添加职位，之后持续记录状态和反馈。">
+      <Panel title="投递记录" description="归档后保留全部记录，可随时恢复">
+        <div className="button-row application-tabs" role="group" aria-label="投递记录视图">
+          <button className={`btn small ${showArchived ? 'secondary' : 'primary'}`} aria-pressed={!showArchived} onClick={() => setShowArchived(false)}>未归档（{items.length}）</button>
+          <button className={`btn small ${showArchived ? 'primary' : 'secondary'}`} aria-pressed={showArchived} onClick={() => setShowArchived(true)}>已归档（{archivedItems.length}）</button>
+        </div>
+        <ResourceNotice error={visibleApplications.error}/>
+        {showArchived && <p className="muted">归档记录仅供查看，关联面试提醒已暂停，关联工时不计入效率统计。恢复后可继续编辑，仅恢复未到期的面试提醒，不补发过期提醒。</p>}
+        <DataRows items={showArchived ? archivedItems : items} loading={visibleApplications.loading} empty={showArchived ? '暂无归档记录。归档的投递会保存在这里，可随时恢复。' : '目前没有投递记录。可以先添加职位，之后持续记录状态和反馈。'}>
           {(application) => <ApplicationCard application={application} context={context}/>}
         </DataRows>
       </Panel>
@@ -114,7 +108,7 @@ export function TrackingPage({ context }: { context: ActionContext }) {
       </Panel>
     </div>
 
-    <Panel title="实际工时" description={`${range.from} 至 ${range.to}`}>
+    <Panel title="实际工时" description={`${range.from} 至 ${range.to} · 保留全部工时记录；关联已归档投递的工时不计入上方效率统计，未关联投递的工时仍计入。`}>
       <ResourceNotice error={timeEntries.error}/>
       <DataRows items={entries} loading={timeEntries.loading} empty="所选时间段还没有工时记录。">
         {(entry) => <div className="time-entry-row">
@@ -126,7 +120,7 @@ export function TrackingPage({ context }: { context: ActionContext }) {
   </>;
 }
 
-function ApplicationCard({ application, context }: { application: Application; context: ActionContext }) {
+export function ApplicationCard({ application, context }: { application: Application; context: ActionContext }) {
   const [showEvents, setShowEvents] = useState(false);
   const [events, setEvents] = useState<ApplicationEvent[]>([]);
   const [interviews, setInterviews] = useState<Interview[]>([]);
@@ -134,6 +128,33 @@ function ApplicationCard({ application, context }: { application: Application; c
   const [when, setWhen] = useState('');
   const [stage, setStage] = useState('初试');
   const [location, setLocation] = useState('');
+  const [confirmingArchive, setConfirmingArchive] = useState(false);
+  const [archiveError, setArchiveError] = useState('');
+  const [archivePending, setArchivePending] = useState(false);
+  const archiveLock = useRef(false);
+  const archived = application.deleted;
+
+  async function changeArchive() {
+    if (archiveLock.current) return;
+    archiveLock.current = true;
+    setArchivePending(true);
+    setArchiveError('');
+    try {
+      const saved = await context.run(async () => {
+        try {
+          if (archived) await post(`/applications/${application.id}/restore`, { baseVersion: application.version });
+          else await del(`/applications/${application.id}`);
+        } catch (value) {
+          setArchiveError(value instanceof Error ? value.message : `${archived ? '恢复' : '归档'}失败，请重试`);
+          throw value;
+        }
+      }, archived ? '投递记录已恢复；仅恢复未到期的面试提醒' : '投递记录已归档，可在已归档列表恢复');
+      if (saved) setConfirmingArchive(false);
+    } finally {
+      archiveLock.current = false;
+      setArchivePending(false);
+    }
+  }
 
   async function loadHistory() {
     const open = !showEvents;
@@ -153,12 +174,12 @@ function ApplicationCard({ application, context }: { application: Application; c
   }
 
   async function changeStatus(status: Application['status']) {
-    if (status === application.status) return;
+    if (archived || status === application.status) return;
     await context.run(() => post(`/applications/${application.id}/events`, { type: 'status_change', toStatus: status }), '投递状态已更新');
   }
 
   async function scheduleInterview() {
-    if (!when) return;
+    if (archived || !when) return;
     const scheduledAt = new Date(when).toISOString().replace(/\.\d{3}Z$/, 'Z');
     const result = await context.run(() => post(`/applications/${application.id}/interviews`, {
       stage: stage.trim() || '面试',
@@ -172,6 +193,7 @@ function ApplicationCard({ application, context }: { application: Application; c
   }
 
   async function saveNotes(values: Record<string, string>) {
+    if (archived) return false;
     const payload = { notes: values.notes.trim() };
     return context.run(() => withOfflineQueue(
       () => patch(`/applications/${application.id}`, { ...payload, baseVersion: application.version }),
@@ -185,32 +207,37 @@ function ApplicationCard({ application, context }: { application: Application; c
   }
 
   async function addFeedback(values: Record<string, string>) {
+    if (archived) return false;
     return context.run(() => post(`/applications/${application.id}/events`, { type: 'feedback', note: values.feedback.trim() }), '反馈已记录');
   }
 
-  return <article className="application-card">
-    <div className="row-title">{application.jobTitle}<Badge value={application.status}/></div>
+  return <article className="application-card" aria-label={`${application.jobTitle}${archived ? '（已归档）' : ''}`}>
+    <div className="row-title">{application.jobTitle}<Badge value={application.status}/>{archived && <span className="badge neutral">已归档</span>}</div>
     <p>{application.company || '公司未填写'}</p>
-    <ActionForm
+    {archived ? <p className="archived-notes">{application.notes || '未填写备注'}</p> : <ActionForm
       compact
       disabled={context.busy}
       label="保存备注"
       onSubmit={saveNotes}
       fields={[{ name: 'notes', label: '投递备注', type: 'textarea', rows: 2, initialValue: application.notes }]}
-    />
+    />}
     <div className="button-row">
-      <label className="inline-field"><span>投递状态</span><select value={application.status} onChange={(event) => void changeStatus(event.target.value as Application['status'])}>
+      {!archived && <label className="inline-field"><span>投递状态</span><select disabled={context.busy} value={application.status} onChange={(event) => void changeStatus(event.target.value as Application['status'])}>
         {STATUSES.map((status) => <option key={status.value} value={status.value}>{status.label}</option>)}
-      </select></label>
+      </select></label>}
       <button className="btn small secondary" onClick={() => void loadHistory()}><MessageSquareText size={14}/>{showEvents ? '隐藏历史' : '状态历史 / 面试'}</button>
+      {archived
+        ? <button className="btn small primary" disabled={context.busy || archivePending} onClick={() => void changeArchive()}><ArchiveRestore size={14}/>{archivePending ? '正在恢复…' : '恢复投递'}</button>
+        : <button className="btn small secondary" disabled={context.busy || archivePending} onClick={() => { setArchiveError(''); setConfirmingArchive(true); }}><Archive size={14}/>归档</button>}
     </div>
-    <div className="interview-form">
+    {archived && archiveError && <InlineError>{archiveError}</InlineError>}
+    {!archived && <><div className="interview-form">
       <label className="field"><span>面试阶段</span><input value={stage} onChange={(event) => setStage(event.target.value)} placeholder="初试、复试…"/></label>
       <label className="field"><span>面试时间</span><input type="datetime-local" value={when} onChange={(event) => setWhen(event.target.value)}/></label>
       <label className="field"><span>地点或链接</span><input value={location} onChange={(event) => setLocation(event.target.value)} placeholder="可选"/></label>
       <button className="btn small secondary" disabled={!when || context.busy} onClick={() => void scheduleInterview()}><CalendarPlus size={14}/>安排面试</button>
     </div>
-    <ActionForm compact disabled={context.busy} label="记录反馈" onSubmit={addFeedback} fields={[{ name: 'feedback', label: '反馈内容', required: true, placeholder: '记录面试或投递反馈' }]}/>
+    <ActionForm compact disabled={context.busy} label="记录反馈" onSubmit={addFeedback} fields={[{ name: 'feedback', label: '反馈内容', required: true, placeholder: '记录面试或投递反馈' }]}/></>}
     {error && <InlineError>{error}</InlineError>}
     {showEvents && <div className="history-grid">
       <section><h4>状态与反馈历史</h4>{events.length ? <ol className="event-list">{events.map((event) => <li key={event.id}>
@@ -218,9 +245,18 @@ function ApplicationCard({ application, context }: { application: Application; c
       </li>)}</ol> : <p className="muted">暂无历史。</p>}</section>
       <section><h4>面试安排</h4>{interviews.length ? <ol className="event-list">{interviews.map((interview) => <li key={interview.id}>
         <b>{interview.stage}</b><span>{new Date(interview.scheduledAt).toLocaleString('zh-CN')}</span>{interview.locationOrLink && <small>{interview.locationOrLink}</small>}
-        <InterviewResult interview={interview} context={context}/>
+        {archived ? <p>结果：{interview.result === 'passed' ? '通过' : interview.result === 'failed' ? '未通过' : '待定'}{interview.feedback && ` · ${interview.feedback}`}</p> : <InterviewResult interview={interview} context={context}/>}
       </li>)}</ol> : <p className="muted">暂无面试安排。</p>}</section>
     </div>}
+    {confirmingArchive && <Modal title="归档这条投递？" onClose={() => { if (!archivePending) setConfirmingArchive(false); }}>
+      <p>“{application.jobTitle}”会移到已归档列表。备注、状态历史、面试与工时都会保留，可随时恢复。</p>
+      <p>归档后停止该投递的面试提醒，关联面试和工时不计入效率统计。恢复后仅恢复未到期的面试提醒，不补发过期提醒。</p>
+      {archiveError && <InlineError>{archiveError}</InlineError>}
+      <div className="button-row end">
+        <button className="btn secondary" disabled={archivePending} onClick={() => setConfirmingArchive(false)}>取消</button>
+        <button className="btn primary" disabled={context.busy || archivePending} onClick={() => void changeArchive()}>{archivePending ? '正在归档…' : '确认归档'}</button>
+      </div>
+    </Modal>}
   </article>;
 }
 

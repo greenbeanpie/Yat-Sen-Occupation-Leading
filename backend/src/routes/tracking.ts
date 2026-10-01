@@ -15,13 +15,15 @@ import {
   UuidSchema,
 } from "../shared/schemas";
 import { requireAuth } from "../middleware/auth";
-import { invalidRequest, notFound } from "../shared/errors";
+import { conflict, invalidRequest, notFound } from "../shared/errors";
 import { APPLICATION_EVENT_CFG, APPLICATION_CFG, INTERVIEW_CFG, TIME_ENTRY_CFG } from "../application/configs";
 import { createEntity, deleteEntity, rowToJson, updateEntity } from "../application/entity-writer";
 import { canTransition } from "../domain/state";
 import { DateYmdSchema } from "../shared/schemas/common";
-import { nowIso } from "../shared/datetime";
+import { nowIso, uuid } from "../shared/datetime";
 import { scheduleInterviewReminder } from "../application/reminders";
+import { applySyncOperation } from "../application/sync";
+import { restoreApplication as restoreApplicationRecord } from "../application/tracking";
 import type { AppEnv } from "../env";
 
 type App = OpenAPIHono<AppEnv>;
@@ -33,9 +35,11 @@ const createApplication = createRoute({
   path: "/applications",
   tags: ["applications"],
   middleware: [requireAuth] as const,
-  request: { body: { content: { "application/json": { schema: ApplicationPayloadSchema } }, required: true } },
+  request: { body: { content: { "application/json": { schema: ApplicationPayloadSchema.extend({ creationId: UuidSchema.optional().describe("同一次创建及离线重试共用的 UUID") }) } }, required: true } },
   responses: {
     201: { content: { "application/json": { schema: ApplicationSchema } }, description: "已创建投递记录" },
+    409: { content: { "application/json": { schema: ErrorBodySchema } }, description: "创建标识冲突" },
+    422: { content: { "application/json": { schema: ErrorBodySchema } }, description: "创建请求有误" },
     401: { content: { "application/json": { schema: ErrorBodySchema } }, description: "未登录" },
   },
 });
@@ -45,6 +49,7 @@ const listApplications = createRoute({
   path: "/applications",
   tags: ["applications"],
   middleware: [requireAuth] as const,
+  request: { query: z.object({ archived: z.enum(["true", "false"]).optional() }) },
   responses: {
     200: { content: { "application/json": { schema: z.object({ items: z.array(ApplicationSchema), nextCursor: z.string().nullable().optional() }) } }, description: "投递列表" },
     401: { content: { "application/json": { schema: ErrorBodySchema } }, description: "未登录" },
@@ -87,9 +92,26 @@ const deleteApplication = createRoute({
   middleware: [requireAuth] as const,
   request: { params: z.object({ id: UuidSchema }) },
   responses: {
-    204: { description: "已删除（墓碑）" },
+    204: { description: "已归档（保留关联历史，可恢复）" },
     401: { content: { "application/json": { schema: ErrorBodySchema } }, description: "未登录" },
     404: { content: { "application/json": { schema: ErrorBodySchema } }, description: "不存在" },
+  },
+});
+
+const restoreApplication = createRoute({
+  method: "post",
+  path: "/applications/{id}/restore",
+  tags: ["applications"],
+  middleware: [requireAuth] as const,
+  request: {
+    params: z.object({ id: UuidSchema }),
+    body: { content: { "application/json": { schema: z.object({ baseVersion: z.number().int().positive() }) } }, required: true },
+  },
+  responses: {
+    200: { content: { "application/json": { schema: ApplicationSchema } }, description: "投递及关联记录已恢复到活动视图；不补发过期提醒" },
+    401: { content: { "application/json": { schema: ErrorBodySchema } }, description: "未登录" },
+    404: { content: { "application/json": { schema: ErrorBodySchema } }, description: "不存在" },
+    409: { content: { "application/json": { schema: ErrorBodySchema } }, description: "版本冲突" },
   },
 });
 
@@ -223,12 +245,14 @@ export function registerTrackingRoutes(app: App): void {
       .prepare(
         `SELECT COUNT(DISTINCT application_id) AS n FROM application_events
          WHERE user_id = ?1 AND deleted = 0 AND type = 'status_change' AND to_status = 'interviewing'
-           AND occurred_at >= ?2 AND occurred_at < ?3`,
+           AND occurred_at >= ?2 AND occurred_at < ?3
+           AND EXISTS (SELECT 1 FROM applications a WHERE a.id = application_events.application_id AND a.user_id = ?1 AND a.deleted = 0)`,
       )
       .bind(userId, `${from}T00:00:00.000Z`, `${to}T23:59:59.999Z`)
       .first<{ n: number }>();
     const hoursRow = await c.env.DB
-      .prepare(`SELECT COALESCE(SUM(minutes), 0) AS total FROM time_entries WHERE user_id = ?1 AND deleted = 0 AND spent_on >= ?2 AND spent_on <= ?3`)
+      .prepare(`SELECT COALESCE(SUM(minutes), 0) AS total FROM time_entries WHERE user_id = ?1 AND deleted = 0 AND spent_on >= ?2 AND spent_on <= ?3
+        AND (application_id IS NULL OR EXISTS (SELECT 1 FROM applications a WHERE a.id = time_entries.application_id AND a.user_id = ?1 AND a.deleted = 0))`)
       .bind(userId, from, to)
       .first<{ total: number }>();
     const interviewedCount = interviewed?.n ?? 0;
@@ -240,30 +264,27 @@ export function registerTrackingRoutes(app: App): void {
 
   app.openapi(createApplication, async (c) => {
     const userId = c.get("user").id;
-    const payload = c.req.valid("json");
-    const initialStatus = payload.status ?? "preparing";
-    const { record } = await createEntity(c.env, userId, APPLICATION_CFG, { ...payload, status: initialStatus } as Record<string, unknown>);
-    await createEntity(c.env, userId, APPLICATION_EVENT_CFG, {
-      applicationId: record.id,
-      type: "status_change",
-      fromStatus: null,
-      toStatus: initialStatus,
-      note: "创建投递记录",
-      occurredAt: nowIso(),
+    const { creationId = uuid(), ...payload } = c.req.valid("json");
+    const result = await applySyncOperation(c.env, userId, {
+      opId: creationId, entity: "application", entityId: creationId,
+      baseVersion: 0, action: "upsert", payload,
     });
-    return c.json(record as never, 201 as const);
+    if (result.status === "conflict") throw conflict(result.error ?? "创建标识冲突", result.record);
+    if (result.status === "rejected") throw invalidRequest(result.details ?? [], result.error);
+    return c.json(result.record as never, 201 as const);
   });
 
   app.openapi(listApplications, async (c) => {
     const userId = c.get("user").id;
-    const rows = await pageRows(c, `SELECT * FROM applications WHERE user_id = ?1 AND deleted = 0 ORDER BY created_at DESC, id DESC`, [userId]);
+    const archived = c.req.valid("query").archived === "true" ? 1 : 0;
+    const rows = await pageRows(c, `SELECT * FROM applications WHERE user_id = ?1 AND deleted = ?2 ORDER BY created_at DESC, id DESC`, [userId, archived]);
     return c.json({ items: rows.results.map((r) => rowToJson(APPLICATION_CFG, r)), nextCursor: rows.nextCursor }, 200 as const) as never;
   });
 
   app.openapi(getApplication, async (c) => {
     const userId = c.get("user").id;
     const { id } = c.req.valid("param");
-    const row = await c.env.DB.prepare(`SELECT * FROM applications WHERE id = ?1 AND user_id = ?2 AND deleted = 0`).bind(id, userId).first<Record<string, unknown>>();
+    const row = await c.env.DB.prepare(`SELECT * FROM applications WHERE id = ?1 AND user_id = ?2`).bind(id, userId).first<Record<string, unknown>>();
     if (!row) throw notFound();
     return c.json(rowToJson(APPLICATION_CFG, row) as never, 200 as const);
   });
@@ -298,6 +319,11 @@ export function registerTrackingRoutes(app: App): void {
     const { id } = c.req.valid("param");
     await deleteEntity(c.env, userId, APPLICATION_CFG, id);
     return c.body(null, 204 as const);
+  });
+
+  app.openapi(restoreApplication, async (c) => {
+    const record = await restoreApplicationRecord(c.env, c.get("user").id, c.req.valid("param").id, c.req.valid("json").baseVersion);
+    return c.json(record as never, 200 as const);
   });
 
   app.openapi(listEvents, async (c) => {

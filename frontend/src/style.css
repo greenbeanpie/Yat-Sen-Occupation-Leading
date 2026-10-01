@@ -349,6 +349,8 @@ button.upload-box:disabled { color: var(--muted); background: var(--theme-surfac
 .rewrite-item > p { color: var(--muted); font-size: 9px; line-height: 1.6; }
 
 .application-card { padding: 12px; background: var(--theme-surface, #fff); border: 1px solid var(--theme-line, #eceff4); border-radius: 10px; }
+.application-tabs { margin: 0 0 14px; }
+.application-card .archived-notes { white-space: pre-wrap; overflow-wrap: anywhere; }
 .inline-field { display: flex; align-items: center; gap: 7px; color: var(--muted); font-size: 9px; }
 .inline-field select { min-height: 30px; width: auto; max-width: 170px; padding: 5px 8px; font-size: 10px; }
 .interview-form { display: grid; grid-template-columns: 1fr 1.2fr 1fr auto; gap: 8px; align-items: end; margin: 11px 0; padding: 10px; background: var(--theme-surface, #f8f9fc); border-radius: 8px; }

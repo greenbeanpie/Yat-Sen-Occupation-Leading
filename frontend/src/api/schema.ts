@@ -4455,7 +4455,9 @@ export interface paths {
         };
         get: {
             parameters: {
-                query?: never;
+                query?: {
+                    archived?: "true" | "false";
+                };
                 header?: never;
                 path?: never;
                 cookie?: never;
@@ -4495,7 +4497,9 @@ export interface paths {
             };
             requestBody: {
                 content: {
-                    "application/json": components["schemas"]["ApplicationPayload"];
+                    "application/json": components["schemas"]["ApplicationPayload"] & {
+                        creationId?: components["schemas"]["Uuid"] & unknown;
+                    };
                 };
             };
             responses: {
@@ -4510,6 +4514,24 @@ export interface paths {
                 };
                 /** @description 未登录 */
                 401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorBody"];
+                    };
+                };
+                /** @description 创建标识冲突 */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorBody"];
+                    };
+                };
+                /** @description 创建请求有误 */
+                422: {
                     headers: {
                         [name: string]: unknown;
                     };
@@ -4585,7 +4607,7 @@ export interface paths {
             };
             requestBody?: never;
             responses: {
-                /** @description 已删除（墓碑） */
+                /** @description 已归档（保留关联历史，可恢复） */
                 204: {
                     headers: {
                         [name: string]: unknown;
@@ -4665,6 +4687,76 @@ export interface paths {
                 };
             };
         };
+        trace?: never;
+    };
+    "/api/v1/applications/{id}/restore": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: components["schemas"]["Uuid"];
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        baseVersion: number;
+                    };
+                };
+            };
+            responses: {
+                /** @description 投递及关联记录已恢复到活动视图；不补发过期提醒 */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Application"];
+                    };
+                };
+                /** @description 未登录 */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorBody"];
+                    };
+                };
+                /** @description 不存在 */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorBody"];
+                    };
+                };
+                /** @description 版本冲突 */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorBody"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/api/v1/applications/{id}/events": {

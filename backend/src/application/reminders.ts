@@ -94,6 +94,13 @@ export interface CronResult {
   expiredSubscriptions: number;
 }
 
+// Interview records remain intact when their parent application is archived.
+// Delivery eligibility follows the parent instead of destroying reminder data.
+const ACTIVE_INTERVIEW_REMINDER = `(entity <> 'interview' OR EXISTS (
+  SELECT 1 FROM interviews i JOIN applications a ON a.id = i.application_id AND a.user_id = i.user_id
+  WHERE i.id = reminders.entity_id AND i.user_id = reminders.user_id AND i.deleted = 0 AND a.deleted = 0
+))`;
+
 /**
  * Cron 每 15 分钟：读取到期提醒 → 站内标记已发送 → 有订阅则推送；
  * 失效订阅（404/410）清理，暂时失败有限重试（≤3 次后失败）。
@@ -101,12 +108,18 @@ export interface CronResult {
 export async function cronTick(env: Env, now: string = nowIso(), push = sendWebPush): Promise<CronResult> {
   const result: CronResult = { due: 0, sentInApp: 0, sentPush: 0, failed: 0, expiredSubscriptions: 0 };
   const due = await env.DB
-    .prepare(`SELECT * FROM reminders WHERE (status = 'pending' OR (status = 'sent' AND retry_count >= 0 AND retry_count < 3)) AND fire_at <= ?1 ORDER BY fire_at LIMIT 50`)
+    .prepare(`SELECT * FROM reminders WHERE (status = 'pending' OR (status = 'sent' AND retry_count >= 0 AND retry_count < 3)) AND fire_at <= ?1 AND ${ACTIVE_INTERVIEW_REMINDER} ORDER BY fire_at LIMIT 50`)
     .bind(now)
     .all<Record<string, unknown>>();
   result.due = due.results.length;
 
-  for (const reminder of due.results) {
+  for (const candidate of due.results) {
+    // Read the current delivery state too: archive + restore can cancel an
+    // elapsed reminder after the due list was read while its parent is active again.
+    const reminder = await env.DB.prepare(`SELECT * FROM reminders WHERE id = ?1 AND ${ACTIVE_INTERVIEW_REMINDER}
+      AND (status = 'pending' OR (status = 'sent' AND retry_count >= 0 AND retry_count < 3)) AND fire_at <= ?2`)
+      .bind(candidate.id, now).first<Record<string, unknown>>();
+    if (!reminder) continue;
     const userId = reminder.user_id as string;
     const user = await env.DB.prepare(`SELECT notify_task_due, notify_interview, timezone FROM users WHERE id = ?1`).bind(userId).first<{ notify_task_due: number; notify_interview: number }>();
     const kind = reminder.kind as string;
@@ -114,19 +127,25 @@ export async function cronTick(env: Env, now: string = nowIso(), push = sendWebP
 
     if (!enabled) {
       // 用户关闭了该类提醒：直接标记发送完成（不再打扰）
-      await env.DB.prepare(`UPDATE reminders SET status = 'sent', retry_count = -1, sent_at = ?2, updated_at = ?2 WHERE id = ?1`).bind(reminder.id, nowIso()).run();
+      await env.DB.prepare(`UPDATE reminders SET status = 'sent', retry_count = -1, sent_at = ?2, updated_at = ?2 WHERE id = ?1
+        AND (status = 'pending' OR (status = 'sent' AND retry_count >= 0)) AND ${ACTIVE_INTERVIEW_REMINDER}`).bind(reminder.id, nowIso()).run();
       continue;
     }
 
     // 站内提醒：标记发送即出现在通知列表
     if (reminder.status === 'pending') {
-      await env.DB.prepare(`UPDATE reminders SET status = 'sent', sent_at = ?2, updated_at = ?2 WHERE id = ?1 AND status = 'pending'`).bind(reminder.id, nowIso()).run();
+      const sent = await env.DB.prepare(`UPDATE reminders SET status = 'sent', sent_at = ?2, updated_at = ?2
+        WHERE id = ?1 AND status = 'pending' AND ${ACTIVE_INTERVIEW_REMINDER}`).bind(reminder.id, nowIso()).run();
+      if (Number(sent.meta.changes ?? 0) !== 1) continue;
       result.sentInApp++;
     }
 
     // Reserve an attempt before subscription lookup/network IO; interrupted attempts
     // remain eligible next tick. -1 denotes completed push delivery.
-    await env.DB.prepare(`UPDATE reminders SET retry_count = retry_count + 1 WHERE id = ?1 AND status = 'sent' AND retry_count >= 0`).bind(reminder.id).run();
+    const attempt = Number(reminder.retry_count ?? 0) + 1;
+    const reserved = await env.DB.prepare(`UPDATE reminders SET retry_count = retry_count + 1 WHERE id = ?1 AND status = 'sent'
+      AND retry_count = ?2 AND retry_count >= 0 AND retry_count < 3 AND ${ACTIVE_INTERVIEW_REMINDER}`).bind(reminder.id, attempt - 1).run();
+    if (Number(reserved.meta.changes ?? 0) !== 1) continue;
 
     // 浏览器推送：用户主动授权后（存在 active 订阅）才发
     const subs = await env.DB
@@ -149,6 +168,9 @@ export async function cronTick(env: Env, now: string = nowIso(), push = sendWebP
     for (const sub of subs.results) {
       const delivered = await env.DB.prepare(`SELECT reminder_id FROM reminder_push_deliveries WHERE reminder_id = ?1 AND subscription_id = ?2`).bind(reminder.id, sub.id).first();
       if (delivered) continue;
+      const stillEligible = await env.DB.prepare(`SELECT id FROM reminders WHERE id = ?1 AND status = 'sent' AND retry_count = ?2 AND ${ACTIVE_INTERVIEW_REMINDER}`)
+        .bind(reminder.id, attempt).first();
+      if (!stillEligible) break;
       try {
         await push(env, {
           endpoint: sub.endpoint as string,
@@ -171,10 +193,10 @@ export async function cronTick(env: Env, now: string = nowIso(), push = sendWebP
       }
     }
     const retries = temporaryFailure ? Number(reminder.retry_count ?? 0) + 1 : -1;
-    await env.DB.prepare(`UPDATE reminders SET retry_count = ?2, updated_at = ?3 WHERE id = ?1 AND status = 'sent'`).bind(reminder.id, retries, nowIso()).run();
+    await env.DB.prepare(`UPDATE reminders SET retry_count = ?2, updated_at = ?3 WHERE id = ?1 AND status = 'sent' AND retry_count = ?4`).bind(reminder.id, retries, nowIso(), attempt).run();
     if (retries >= 3) result.failed++;
   }
-  const backlog = await env.DB.prepare(`SELECT COUNT(*) AS n FROM reminders WHERE status = 'pending' AND fire_at <= ?1`).bind(now).first<{ n: number }>();
+  const backlog = await env.DB.prepare(`SELECT COUNT(*) AS n FROM reminders WHERE status = 'pending' AND fire_at <= ?1 AND ${ACTIVE_INTERVIEW_REMINDER}`).bind(now).first<{ n: number }>();
   if ((backlog?.n ?? 0) > 0 || result.failed) logJson("warn", "reminder_backlog", { count: backlog?.n ?? 0, failed: result.failed });
   // Crash between reservation and dispatch must not leave an immortal queued record.
   await env.DB.prepare(`UPDATE async_operations SET status = 'failed', error = '排队超时，请重新发起', updated_at = ?1 WHERE status = 'queued' AND created_at < ?2`).bind(now, new Date(new Date(now).getTime() - 30 * 60_000).toISOString()).run();

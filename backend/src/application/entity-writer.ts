@@ -73,6 +73,16 @@ export interface EntityWriteOptions {
   returnOnConflict?: boolean;
 }
 
+function hasApplicationParent(cfg: EntityConfig): boolean {
+  return cfg.entity === "interview" || cfg.entity === "application_event";
+}
+
+function activeParentPredicate(cfg: EntityConfig): string {
+  return hasApplicationParent(cfg)
+    ? ` AND EXISTS (SELECT 1 FROM applications a WHERE a.id = ${cfg.table}.application_id AND a.user_id = ${cfg.table}.user_id AND a.deleted = 0)`
+    : "";
+}
+
 /**
  * 创建实体：原子写（实体行 + 变更日志 + 附加语句）。
  * payload 必须已由调用方用对应 Zod schema 校验。
@@ -93,7 +103,11 @@ export async function createEntity(
   const columns = buildColumnValues(cfg, payload);
   const colNames = ["id", "user_id", "version", "deleted", "created_at", "updated_at", ...Object.keys(columns)];
   const values: unknown[] = [id, userId, 1, 0, now, now, ...Object.values(columns)];
-  const placeholders = colNames.map((_, i) => `?${i + 1}`).join(", ");
+  // The required child FK becomes NULL if archive won the race after reference
+  // validation. Its NOT NULL constraint aborts this whole batch, including logs.
+  const placeholders = colNames.map((column, i) => hasApplicationParent(cfg) && column === "application_id"
+    ? `(SELECT id FROM applications WHERE id = ?${i + 1} AND user_id = ?2 AND deleted = 0)`
+    : `?${i + 1}`).join(", ");
   const stmts = [env.DB.prepare(`INSERT INTO ${cfg.table} (${colNames.join(", ")}) VALUES (${placeholders})`).bind(...values)];
   if (extra) stmts.push(...extra(id));
 
@@ -101,7 +115,12 @@ export async function createEntity(
   const result: WriteResult = { record, version: 1, changed: true };
   stmts.push(changeLogStmt(env.DB, { userId, entity: cfg.entity, entityId: id, version: 1, changeType: "upsert", record }, now));
   stmts.push(...(options.completionStatements?.(result) ?? []));
-  await env.DB.batch(stmts);
+  try {
+    await env.DB.batch(stmts);
+  } catch (error) {
+    if (hasApplicationParent(cfg)) await validateReferences(env, userId, cfg.table, payload);
+    throw error;
+  }
   return result;
 }
 
@@ -122,16 +141,23 @@ export async function updateEntity(
     throw conflict("记录已被其他修改更新，请先查看服务器版本", rowToJson(cfg, row));
   }
   if (Number(row.deleted) === 1) throw conflict("记录已被删除", rowToJson(cfg, row));
+  if (hasApplicationParent(cfg)) {
+    // Partial edits still depend on the existing parent, even when the request
+    // does not repeat applicationId. Archived history is read-only until restore.
+    await validateReferences(env, userId, cfg.table, { applicationId: row.application_id });
+  }
   await validateReferences(env, userId, cfg.table, payload);
   const columns = buildColumnValues(cfg, payload);
   const versionIndex = Object.keys(columns).length + 3;
-  const sets = [...Object.keys(columns).map((c, i) => `${c} = ?${i + 3}`), `version = ?${versionIndex}`, `updated_at = ?${versionIndex + 1}`];
+  const sets = [...Object.keys(columns).map((column, i) => hasApplicationParent(cfg) && column === "application_id"
+    ? `${column} = (SELECT id FROM applications WHERE id = ?${i + 3} AND user_id = ?2 AND deleted = 0)`
+    : `${column} = ?${i + 3}`), `version = ?${versionIndex}`, `updated_at = ?${versionIndex + 1}`];
   const newVersion = currentVersion + 1;
   const now = nowIso();
   const record = rowToJson(cfg, { ...row, ...columns, version: newVersion, updated_at: now });
   const result: WriteResult = { record, version: newVersion, changed: true };
   const update = env.DB.prepare(
-    `UPDATE ${cfg.table} SET ${sets.join(", ")} WHERE id = ?1 AND user_id = ?2 AND version = ?${versionIndex + 2} AND deleted = 0`,
+    `UPDATE ${cfg.table} SET ${sets.join(", ")} WHERE id = ?1 AND user_id = ?2 AND version = ?${versionIndex + 2} AND deleted = 0${activeParentPredicate(cfg)}`,
   ).bind(id, userId, ...Object.values(columns), newVersion, now, currentVersion);
   const statements = [
     update,
@@ -165,12 +191,15 @@ export async function deleteEntity(
     throw conflict("记录已被其他修改更新，请先查看服务器版本", rowToJson(cfg, row));
   }
   if (Number(row.deleted) === 1) return false;
+  if (hasApplicationParent(cfg)) {
+    await validateReferences(env, userId, cfg.table, { applicationId: row.application_id });
+  }
   const newVersion = currentVersion + 1;
   const now = nowIso();
   const record = { id, deleted: true };
   const result: WriteResult = { record, version: newVersion, changed: true };
   const batchResults = await env.DB.batch([
-    env.DB.prepare(`UPDATE ${cfg.table} SET deleted = 1, version = ?3, updated_at = ?4 WHERE id = ?1 AND user_id = ?2 AND version = ?5 AND deleted = 0`).bind(
+    env.DB.prepare(`UPDATE ${cfg.table} SET deleted = 1, version = ?3, updated_at = ?4 WHERE id = ?1 AND user_id = ?2 AND version = ?5 AND deleted = 0${activeParentPredicate(cfg)}`).bind(
       id,
       userId,
       newVersion,

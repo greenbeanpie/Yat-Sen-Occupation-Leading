@@ -219,6 +219,7 @@ export function materializeReminders(db: DemoDatabase, userId: string, now: Date
   if (!user) return [];
   const nowIso = now.toISOString();
   const today = nowIso.slice(0, 10);
+  const activeApplicationIds = new Set(db.applications.filter((row) => row.userId === userId && !row.deleted).map((row) => row.id));
 
   if (user.notifyTaskDue) {
     const confirmedPlans = new Set(db.plans.filter((plan) => plan.userId === userId && plan.status === 'confirmed').map((plan) => plan.id));
@@ -250,7 +251,7 @@ export function materializeReminders(db: DemoDatabase, userId: string, now: Date
 
   if (user.notifyInterview) {
     for (const interview of db.interviews) {
-      if (interview.userId !== userId || interview.deleted) continue;
+      if (interview.userId !== userId || interview.deleted || !activeApplicationIds.has(interview.applicationId) || interview.scheduledAt <= nowIso) continue;
       const fireAt = new Date(new Date(interview.scheduledAt).getTime() - 3_600_000).toISOString();
       if (fireAt > nowIso) continue;
       const dedupeKey = `interview-1h:${interview.id}`;
@@ -275,6 +276,10 @@ export function materializeReminders(db: DemoDatabase, userId: string, now: Date
   // 待发送但已到期的提醒按 cron 行为升级为已发送。
   for (const reminder of db.reminders) {
     if (reminder.userId !== userId || reminder.status !== 'pending') continue;
+    if (reminder.entity === 'interview') {
+      const interview = db.interviews.find((row) => row.id === reminder.entityId && row.userId === userId && !row.deleted);
+      if (!interview || !activeApplicationIds.has(interview.applicationId)) continue;
+    }
     if (reminder.fireAt <= nowIso) {
       reminder.status = 'sent';
       reminder.sentAt = nowIso;
