@@ -17,7 +17,7 @@ export function SettingsEditGuard({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (blocker.state !== 'blocked') return;
     const controller = new AbortController();
-    void confirmDiscardSettings(true, controller.signal).then(confirmed => { if (!controller.signal.aborted) { if (confirmed) blocker.proceed(); else blocker.reset(); } });
+    void confirmDiscardSettings(true, controller.signal, false).then(confirmed => { if (!controller.signal.aborted) { if (confirmed) blocker.proceed(); else blocker.reset(); } });
     return () => controller.abort();
   }, [blocker]);
   useEffect(() => {

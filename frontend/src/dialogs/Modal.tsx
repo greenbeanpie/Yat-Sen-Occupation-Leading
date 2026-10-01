@@ -1,6 +1,13 @@
 import { useEffect, useRef, type ReactNode } from 'react';
 import { X } from 'lucide-react';
 
+let modalCount = 0;
+let originalOverflow = '';
+function lockPageScroll() {
+  if (modalCount++ === 0) { originalOverflow = document.body.style.overflow; document.body.style.overflow = 'hidden'; }
+  return () => { if (--modalCount === 0) document.body.style.overflow = originalOverflow; };
+}
+
 export function Modal({
   title,
   onClose,
@@ -17,6 +24,7 @@ export function Modal({
   closeRef.current = onClose;
   useEffect(() => {
     const previous = document.activeElement as HTMLElement | null;
+    const unlockScroll = lockPageScroll();
     const dialog = dialogRef.current;
     const controls = () => Array.from(dialog?.querySelectorAll<HTMLElement>('button:not(:disabled), a[href], input:not(:disabled), select:not(:disabled), textarea:not(:disabled), [tabindex="0"]') ?? []).filter((element) => element.getClientRects().length > 0);
     (controls()[0] ?? dialog)?.focus();
@@ -30,7 +38,7 @@ export function Modal({
       else if (!event.shiftKey && (document.activeElement === last || !dialog?.contains(document.activeElement))) { event.preventDefault(); first.focus(); }
     };
     dialog?.addEventListener('keydown', keydown);
-    return () => { dialog?.removeEventListener('keydown', keydown); if (previous?.isConnected) previous.focus(); };
+    return () => { unlockScroll(); dialog?.removeEventListener('keydown', keydown); if (previous?.isConnected) previous.focus(); };
   }, []);
   return (
     <div className="modal-backdrop" role="presentation" onMouseDown={(event) => {
