@@ -69,7 +69,7 @@ export function createApp(): App {
   app.use("/*", async (c, next) => {
     const middleware = cors({
       origin: (origin) => (allowedOrigins(c.env).includes(origin) ? origin : null),
-      allowHeaders: ["Content-Type", "Authorization"],
+      allowHeaders: ["Content-Type", "Authorization", "X-Notification-Account", "X-Push-Subscription-Id"],
       allowMethods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
       credentials: true,
       maxAge: 86400,
@@ -82,7 +82,7 @@ export function createApp(): App {
     c.header("X-Request-Id", requestId);
     c.header("X-Content-Type-Options", "nosniff");
     const path = c.req.path;
-    if (path.includes("/session") || path.includes("/admin/") || path.includes("/tickets")) c.header("Cache-Control", "no-store");
+    if (path.includes("/session") || path.includes("/admin/") || path.includes("/tickets") || path.includes("/notifications") || path.includes("/push-subscriptions")) c.header("Cache-Control", "no-store");
     if (c.req.method !== "OPTIONS") {
       const auth = c.req.method === "POST" && /\/session(?:\/(?:login|register))?$/.test(path);
       await rateLimit(c.env, (auth ? "auth:" : "api:") + (c.req.header("CF-Connecting-IP") ?? "unknown"), auth ? 20 : 180);

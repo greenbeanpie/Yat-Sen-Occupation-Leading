@@ -1,40 +1,90 @@
-import type { Env } from "../env";
-import { AiError } from "./ai";
-import { logJson } from "./logger";
+import type { Env } from '../env';
+import { logJson } from './logger';
 
-/**
- * Web Push（VAPID + aes128gcm，RFC 8291 / RFC 8292）——纯 WebCrypto 实现，
- * 不依赖 Node crypto（backend_plan.md R3）。
- *
- * 密钥格式（scripts/generate-vapid.ts 生成）：
- * - VAPID_PUBLIC_KEY：未压缩 P-256 公钥（65 字节）的 base64url
- * - VAPID_PRIVATE_KEY：私钥 JWK JSON（含 kty/crv/x/y/d）的 base64url
- */
-
-export interface PushSubscriptionKeys {
-  endpoint: string;
-  p256dh: string;
-  auth: string;
+export interface PushSubscription { endpoint: string; p256dh: string; auth: string }
+export interface PushPayload { title: string; body: string; data: { userId: string; notificationId: string; url: string } }
+const encoder = new TextEncoder();
+export function base64url(bytes: Uint8Array): string { return btoa(String.fromCharCode(...bytes)).replaceAll('+', '-').replaceAll('/', '_').replace(/=+$/, ''); }
+export function decodeBase64url(value: string): Uint8Array {
+  if (!/^[A-Za-z0-9_-]+={0,2}$/.test(value)) throw new Error('Invalid push key');
+  return Uint8Array.from(atob(value.replaceAll('-', '+').replaceAll('_', '/')), c => c.charCodeAt(0));
 }
-
-const b64urlToBytes = (s: string): Uint8Array => {
-  const b64 = s.replace(/-/g, "+").replace(/_/g, "/");
-  const raw = atob(b64 + "=".repeat((4 - (b64.length % 4)) % 4));
-  return Uint8Array.from(raw, (c) => c.charCodeAt(0));
-};
-
-const bytesToB64url = (bytes: Uint8Array): string => btoa(String.fromCharCode(...bytes)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
-
-const concatBytes = (...arrays: Uint8Array[]): Uint8Array => {
-  const total = arrays.reduce((n, a) => n + a.length, 0);
-  const out = new Uint8Array(total);
-  let offset = 0;
-  for (const a of arrays) {
-    out.set(a, offset);
-    offset += a.length;
+function join(...parts: Uint8Array[]): Uint8Array {
+  const result = new Uint8Array(parts.reduce((n, p) => n + p.length, 0));
+  let offset = 0; for (const part of parts) { result.set(part, offset); offset += part.length; } return result;
+}
+export function safePushEndpoint(endpoint: string): boolean {
+  try {
+    const url = new URL(endpoint); const h = url.hostname;
+    return endpoint.length <= 2048 && url.protocol === 'https:' && !url.username && !url.password && !url.port && !url.hash &&
+      (h === 'fcm.googleapis.com' || h === 'updates.push.services.mozilla.com' || h.endsWith('.push.services.mozilla.com') || h === 'web.push.apple.com' || h.endsWith('.notify.windows.com'));
+  } catch { return false; }
+}
+export async function validPushKeys(p256dh: string, auth: string): Promise<boolean> {
+  try {
+    const pub = decodeBase64url(p256dh);
+    if (pub.length !== 65 || pub[0] !== 4 || decodeBase64url(auth).length !== 16) return false;
+    await crypto.subtle.importKey('raw', pub, { name: 'ECDH', namedCurve: 'P-256' }, false, []);
+    return true;
+  } catch { return false; }
+}
+function subject(env: Env): string { return env.VAPID_SUBJECT ?? ''; }
+export function isPushConfigured(env: Env): boolean {
+  try {
+    const pub = decodeBase64url(env.VAPID_PUBLIC_KEY ?? '');
+    const contact = new URL(subject(env));
+    const jwk = JSON.parse(new TextDecoder().decode(decodeBase64url(env.VAPID_PRIVATE_KEY ?? ''))) as JsonWebKey;
+    return pub.length === 65 && pub[0] === 4 && jwk.kty === 'EC' && jwk.crv === 'P-256' && typeof jwk.d === 'string' &&
+      ['https:', 'mailto:'].includes(contact.protocol);
+  } catch { return false; }
+}
+async function hkdf(secret: Uint8Array, salt: Uint8Array, info: Uint8Array, length: number) {
+  const key = await crypto.subtle.importKey('raw', secret, 'HKDF', false, ['deriveBits']);
+  return new Uint8Array(await crypto.subtle.deriveBits({ name: 'HKDF', hash: 'SHA-256', salt, info }, key, length * 8));
+}
+/** RFC 8291 / RFC 8188, one aes128gcm record. Optional inputs support the published RFC test vector. */
+export async function encryptPush(payload: Uint8Array, subscription: Pick<PushSubscription, 'p256dh' | 'auth'>, fixture?: { keyPair: CryptoKeyPair; salt: Uint8Array }): Promise<Uint8Array> {
+  if (payload.length > 3993) throw new Error('Push payload too large');
+  const ua = decodeBase64url(subscription.p256dh); const auth = decodeBase64url(subscription.auth);
+  if (ua.length !== 65 || ua[0] !== 4 || auth.length !== 16) throw new Error('Invalid push key');
+  const recipient = await crypto.subtle.importKey('raw', ua, { name: 'ECDH', namedCurve: 'P-256' }, false, []);
+  const pair = fixture?.keyPair ?? await crypto.subtle.generateKey({ name: 'ECDH', namedCurve: 'P-256' }, true, ['deriveBits']) as CryptoKeyPair;
+  const pub = new Uint8Array(await crypto.subtle.exportKey('raw', pair.publicKey) as ArrayBuffer);
+  const salt = fixture?.salt ?? crypto.getRandomValues(new Uint8Array(16));
+  if (salt.length !== 16) throw new Error('Invalid push salt');
+  const shared = new Uint8Array(await crypto.subtle.deriveBits({ name: 'ECDH', public: recipient } as unknown as SubtleCryptoDeriveKeyAlgorithm, pair.privateKey, 256));
+  const ikm = await hkdf(shared, auth, join(encoder.encode('WebPush: info\0'), ua, pub), 32);
+  const cek = await hkdf(ikm, salt, encoder.encode('Content-Encoding: aes128gcm\0'), 16);
+  const nonce = await hkdf(ikm, salt, encoder.encode('Content-Encoding: nonce\0'), 12);
+  const key = await crypto.subtle.importKey('raw', cek, 'AES-GCM', false, ['encrypt']);
+  const ciphertext = new Uint8Array(await crypto.subtle.encrypt({ name: 'AES-GCM', iv: nonce }, key, join(payload, new Uint8Array([2]))));
+  const header = new Uint8Array(21); header.set(salt); new DataView(header.buffer).setUint32(16, 4096); header[20] = pub.length;
+  return join(header, pub, ciphertext);
+}
+export interface PushSubscriptionKeys extends PushSubscription {}
+export interface PushSendResult { ok: boolean; statusCode?: number }
+export async function sendWebPush(env: Env, subscription: PushSubscription, payloadText: string): Promise<PushSendResult> {
+  const payload = JSON.parse(payloadText) as PushPayload;
+  if (!isPushConfigured(env)) return { ok: false };
+  if (!safePushEndpoint(subscription.endpoint) || !/^\/(?!\/)[A-Za-z0-9/?=&_%.-]+$/.test(payload.data.url) || payload.data.url.includes('..')) throw new Error('Invalid push destination');
+  const key = await crypto.subtle.importKey('jwk', JSON.parse(new TextDecoder().decode(decodeBase64url(env.VAPID_PRIVATE_KEY!))) as JsonWebKey, { name: 'ECDSA', namedCurve: 'P-256' }, false, ['sign']);
+  const jwt = `${base64url(encoder.encode(JSON.stringify({ typ: 'JWT', alg: 'ES256' })))}.${base64url(encoder.encode(JSON.stringify({ aud: new URL(subscription.endpoint).origin, exp: Math.floor(Date.now() / 1000) + 12 * 3600, sub: subject(env) })))}`;
+  // WebCrypto returns the JOSE-compatible 64-octet r||s signature, not DER.
+  const signature = new Uint8Array(await crypto.subtle.sign({ name: 'ECDSA', hash: 'SHA-256' }, key, encoder.encode(jwt)));
+  if (signature.length !== 64) throw new Error('Invalid VAPID signature');
+  const body = await encryptPush(encoder.encode(JSON.stringify(payload)), subscription);
+  const response = await fetch(subscription.endpoint, {
+    method: 'POST', redirect: 'manual', signal: AbortSignal.timeout(10_000),
+    headers: { Authorization: `vapid t=${jwt}.${base64url(signature)}, k=${env.VAPID_PUBLIC_KEY}`, 'Content-Encoding': 'aes128gcm', 'Content-Type': 'application/octet-stream', TTL: '3600', Topic: payload.data.notificationId.replaceAll('-', '').slice(0, 32) },
+    body,
+  });
+  await response.body?.cancel();
+  if (!response.ok) {
+    logJson('warn', 'push_http_error', { statusCode: response.status });
+    throw Object.assign(new Error('Push service rejected delivery'), { statusCode: response.status });
   }
-  return out;
-};
+  return { ok: true, statusCode: response.status };
+}
 
 /** 生成 VAPID 密钥对（npm run generate:vapid）。 */
 export async function generateVapidKeys(): Promise<{ publicKey: string; privateKey: string }> {
@@ -45,114 +95,7 @@ export async function generateVapidKeys(): Promise<{ publicKey: string; privateK
   const rawPublic = new Uint8Array((await crypto.subtle.exportKey("raw", pair.publicKey)) as ArrayBuffer);
   const privateJwk = (await crypto.subtle.exportKey("jwk", pair.privateKey)) as unknown as Record<string, string>;
   return {
-    publicKey: bytesToB64url(rawPublic),
-    privateKey: bytesToB64url(new TextEncoder().encode(JSON.stringify(privateJwk))),
+    publicKey: base64url(rawPublic),
+    privateKey: base64url(new TextEncoder().encode(JSON.stringify(privateJwk))),
   };
-}
-
-/** RFC 8291 aes128gcm 加密。 */
-async function encryptPayload(subscriptionPublicKeyB64: string, authSecretB64: string, payload: string): Promise<Uint8Array> {
-  const uaPublic = b64urlToBytes(subscriptionPublicKeyB64);
-  const authSecret = b64urlToBytes(authSecretB64);
-  const salt = crypto.getRandomValues(new Uint8Array(16));
-
-  // 1. ECDH：ephemeral × uaPublic
-  const ephemeral = (await crypto.subtle.generateKey({ name: "ECDH", namedCurve: "P-256" }, true, [
-    "deriveBits",
-  ])) as unknown as CryptoKeyPair;
-  const ecdhSecret = await crypto.subtle.deriveBits(
-    { name: "ECDH", public: ephemeral.publicKey } as never,
-    ephemeral.privateKey,
-    256,
-  );
-  const ephemeralPublic = new Uint8Array((await crypto.subtle.exportKey("raw", ephemeral.publicKey)) as ArrayBuffer);
-
-  // 2-3. HKDF 链：IKM → CEK / NONCE
-  const keyInfo = concatBytes(new TextEncoder().encode("WebPush: info\0"), uaPublic, ephemeralPublic);
-  const ikm = await hkdf(new Uint8Array(ecdhSecret), authSecret, keyInfo, 32);
-  const contentEncoding = new TextEncoder().encode("Content-Encoding: aes128gcm\0");
-  const cek = await hkdf(ikm, salt, concatBytes(contentEncoding, new Uint8Array([0x01])), 16);
-  const nonce = await hkdf(ikm, salt, concatBytes(contentEncoding, new Uint8Array([0x02])), 12);
-
-  // 4. AES-128-GCM（padding 定界符 0x02）
-  const plaintext = concatBytes(new TextEncoder().encode(payload), new Uint8Array([0x02]));
-  const key = await crypto.subtle.importKey("raw", cek as unknown as ArrayBuffer, "AES-GCM", false, ["encrypt"]);
-  const ciphertext = new Uint8Array(await crypto.subtle.encrypt({ name: "AES-GCM", iv: nonce as unknown as ArrayBuffer, tagLength: 128 }, key, plaintext as unknown as ArrayBuffer));
-
-  // 5. aes128gcm 块：salt(16) | rs(4) | idlen(1) | keyid | ciphertext
-  const header = concatBytes(salt, new Uint8Array([0x00, 0x00, 0x10, 0x00]), new Uint8Array([ephemeralPublic.length]), ephemeralPublic);
-  return concatBytes(header, ciphertext);
-}
-
-async function hkdf(ikm: Uint8Array, salt: Uint8Array, info: Uint8Array, length: number): Promise<Uint8Array> {
-  const key = await crypto.subtle.importKey("raw", ikm as unknown as ArrayBuffer, "HKDF", false, ["deriveBits"]);
-  const bits = await crypto.subtle.deriveBits(
-    { name: "HKDF", hash: "SHA-256", salt: salt as unknown as ArrayBuffer, info: info as unknown as ArrayBuffer },
-    key,
-    length * 8,
-  );
-  return new Uint8Array(bits);
-}
-
-/** RFC 8292 VAPID JWT（ES256）。 */
-async function buildVapidAuthorization(env: Env, endpoint: string): Promise<string> {
-  const audience = new URL(endpoint).origin;
-  const exp = Math.floor(Date.now() / 1000) + 12 * 3600;
-  const header = bytesToB64url(new TextEncoder().encode(JSON.stringify({ typ: "JWT", alg: "ES256" })));
-  const claims = bytesToB64url(
-    new TextEncoder().encode(JSON.stringify({ aud: audience, exp, sub: env.VAPID_SUBJECT || "mailto:admin@example.com" })),
-  );
-  const signingInput = `${header}.${claims}`;
-
-  const jwkText = new TextDecoder().decode(b64urlToBytes(env.VAPID_PRIVATE_KEY || ""));
-  const privateJwk = JSON.parse(jwkText) as JsonWebKey;
-  const priv = await crypto.subtle.importKey("jwk", privateJwk, { name: "ECDSA", namedCurve: "P-256" }, false, ["sign"]);
-  const sig = new Uint8Array(await crypto.subtle.sign({ name: "ECDSA", hash: "SHA-256" }, priv, new TextEncoder().encode(signingInput)));
-  const raw = derToRaw(sig);
-  return `${signingInput}.${bytesToB64url(raw)}`;
-}
-
-function derToRaw(der: Uint8Array): Uint8Array {
-  // ECDSA 签名 DER: 0x30 len 0x02 rlen r 0x02 slen s → raw r||s（各 32 字节）
-  let idx = 2;
-  const rLen = der[idx + 1]!;
-  const r = der.slice(idx + 2, idx + 2 + rLen);
-  idx += 2 + rLen;
-  const sLen = der[idx + 1]!;
-  const s = der.slice(idx + 2, idx + 2 + sLen);
-  const pad = (b: Uint8Array): Uint8Array => (b.length === 32 ? b : concatBytes(new Uint8Array(32 - b.length), b));
-  return concatBytes(pad(r), pad(s));
-}
-
-export interface PushSendResult {
-  ok: boolean;
-  statusCode?: number;
-}
-
-/** 发送一条 Web Push；404/410 由调用方清理订阅。 */
-export async function sendWebPush(env: Env, subscription: PushSubscriptionKeys, payload: string): Promise<PushSendResult> {
-  if (!env.VAPID_PUBLIC_KEY || !env.VAPID_PRIVATE_KEY) {
-    // 未配置 VAPID：推送为尽力而为，跳过（站内提醒不受影响）
-    return { ok: false };
-  }
-  const encrypted = await encryptPayload(subscription.p256dh, subscription.auth, payload);
-  const authorization = await buildVapidAuthorization(env, subscription.endpoint);
-  const res = await fetch(subscription.endpoint, {
-    method: "POST",
-    headers: {
-      Authorization: `vapid t=${authorization}, k=${env.VAPID_PUBLIC_KEY}`,
-      "Content-Encoding": "aes128gcm",
-      "Content-Type": "application/octet-stream",
-      TTL: "86400",
-      Urgency: "normal",
-    },
-    body: encrypted as unknown as ArrayBuffer,
-  });
-  if (!res.ok) {
-    const err = new AiError(`push endpoint returned ${res.status}`, res.status >= 500 || res.status === 429);
-    (err as { statusCode?: number }).statusCode = res.status;
-    logJson("warn", "push_http_error", { statusCode: res.status });
-    throw err;
-  }
-  return { ok: true, statusCode: res.status };
 }

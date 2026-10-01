@@ -13,6 +13,9 @@ export const NotificationSchema = z
     fireAt: IsoDateTimeSchema,
     sentAt: IsoDateTimeSchema,
     readAt: IsoDateTimeSchema.nullish(),
+    dismissedAt: IsoDateTimeSchema.nullish(),
+    createdAt: IsoDateTimeSchema,
+    url: z.string(),
   })
   .openapi("Notification");
 
@@ -24,7 +27,7 @@ export const NotificationListResponseSchema = z
 export const PushSubscriptionPayloadSchema = z
   .object({
     endpoint: z.string().url().max(1000),
-    keys: z.object({ p256dh: z.string().min(1), auth: z.string().min(1) }),
+    keys: z.object({ p256dh: z.string().min(1).max(100), auth: z.string().min(1).max(30) }),
   })
   .openapi("PushSubscriptionPayload");
 
@@ -45,6 +48,8 @@ export const ReminderSettingsSchema = z
   .object({
     notifyTaskDue: z.boolean().optional(),
     notifyInterview: z.boolean().optional(),
+    inAppEnabled: z.boolean().optional(),
+    pushEnabled: z.boolean().optional(),
     timezone: z.string().max(60).optional(),
   })
   .openapi("ReminderSettings");

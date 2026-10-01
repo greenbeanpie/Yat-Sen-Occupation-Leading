@@ -19,6 +19,8 @@ CREATE TABLE users (
   is_demo INTEGER NOT NULL DEFAULT 0,
   notify_task_due INTEGER NOT NULL DEFAULT 1,
   notify_interview INTEGER NOT NULL DEFAULT 1,
+  notify_in_app INTEGER NOT NULL DEFAULT 1 CHECK (notify_in_app IN (0,1)),
+  notify_push INTEGER NOT NULL DEFAULT 1 CHECK (notify_push IN (0,1)),
   deleted INTEGER NOT NULL DEFAULT 0,
   disabled INTEGER NOT NULL DEFAULT 0 CHECK (disabled IN (0,1)),
   created_at TEXT NOT NULL,
@@ -384,6 +386,7 @@ CREATE TABLE reminders (
   title TEXT NOT NULL,
   body TEXT NOT NULL DEFAULT '',
   read_at TEXT,
+  dismissed_at TEXT,
   sent_at TEXT,
   retry_count INTEGER NOT NULL DEFAULT 0,
   version INTEGER NOT NULL DEFAULT 1,
@@ -391,9 +394,11 @@ CREATE TABLE reminders (
   updated_at TEXT NOT NULL
 );
 CREATE INDEX idx_reminders_due ON reminders (status, fire_at);
+CREATE UNIQUE INDEX idx_ticket_notification_event ON reminders(user_id,dedupe_key) WHERE entity='ticket';
 
 CREATE TABLE push_subscriptions (
   id TEXT PRIMARY KEY,
+  session_id TEXT,
   user_id TEXT NOT NULL,
   endpoint TEXT NOT NULL,
   p256dh TEXT NOT NULL,
@@ -416,6 +421,7 @@ CREATE TABLE invitations (
   consumed_at TEXT,
   revoked_at TEXT
 );
+CREATE INDEX idx_push_device_session ON push_subscriptions(session_id,status,deleted);
 CREATE TABLE sessions (id TEXT PRIMARY KEY, user_id TEXT NOT NULL, expires_at INTEGER NOT NULL);
 CREATE INDEX idx_sessions_expiry ON sessions(expires_at);
 CREATE INDEX idx_sessions_user ON sessions(user_id);

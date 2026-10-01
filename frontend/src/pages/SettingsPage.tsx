@@ -1,32 +1,20 @@
 import { useEffect, useState } from 'react';
-import { Bell, BellOff, CloudDownload, RefreshCw, Trash2, WifiOff } from 'lucide-react';
-import { del, get, post, put } from '../api/client';
+import { RefreshCw, Trash2, WifiOff } from 'lucide-react';
+import { post } from '../api/client';
 import { getActiveDataSource } from '../api/transport';
 import type { components } from '../api/schema';
-import { Badge, DataRows, JsonPreview, Loading, PageHead, Panel, ResourceNotice, useResource } from '../components';
+import { Badge, DataRows, JsonPreview, PageHead, Panel, ResourceNotice, useResource } from '../components';
 import type { ActionContext } from '../components';
 import { cacheKey, clearOrphanedOperations, db, listUserConflicts, orphanedOperationCount, queueOperation, removeQueuedOperation, synchronizeUser, type SyncConflict } from '../offline';
 import { platform } from '../platform';
-import { useSettingsDirty } from './settings-dirty';
 
-type Settings = components['schemas']['UserSettingsResponse'];
-type NotificationList = components['schemas']['NotificationListResponse'];
 type SyncChanges = components['schemas']['SyncChangesResponse'];
-type PushSubscription = components['schemas']['PushSubscription'];
 
 export function SettingsPage({ context, pending }: { context: ActionContext; pending: number }) {
-  const settings = useResource<Settings>('/notifications/settings', context.refresh, context.userId);
-  const notifications = useResource<NotificationList>('/notifications', context.refresh, context.userId);
   const changes = useResource<SyncChanges>(`/sync/changes?since=${String(0)}&limit=100`, context.refresh, context.userId);
   const [syncing, setSyncing] = useState(false);
   const [syncMessage, setSyncMessage] = useState('');
   const [conflicts, setConflicts] = useState<SyncConflict[]>([]);
-  const [notifyTaskDue, setNotifyTaskDue] = useState<boolean | null>(null);
-  const [notifyInterview, setNotifyInterview] = useState<boolean | null>(null);
-  const [timezone, setTimezone] = useState('');
-  const [pushId, setPushId] = useState('');
-  const [pushMessage, setPushMessage] = useState('');
-  const [installAvailable, setInstallAvailable] = useState(false);
   const [lastSyncedAt, setLastSyncedAt] = useState('');
   const [orphanCount, setOrphanCount] = useState(0);
   const [resetting, setResetting] = useState(false);
@@ -34,22 +22,9 @@ export function SettingsPage({ context, pending }: { context: ActionContext; pen
 
   useEffect(() => {
     void listUserConflicts(context.userId).then(setConflicts);
-    void platform.storage.read<string>(cacheKey(context.userId, 'pushSubscriptionId')).then((value) => setPushId(value ? String(value) : ''));
     void platform.storage.read<string>(cacheKey(context.userId, 'lastSync')).then((value) => setLastSyncedAt(value ? String(value) : ''));
     void orphanedOperationCount().then(setOrphanCount);
-    const handler = () => setInstallAvailable(true);
-    window.addEventListener('beforeinstallprompt', handler);
-    return () => window.removeEventListener('beforeinstallprompt', handler);
   }, [context.refresh, context.userId]);
-
-  useEffect(() => {
-    if (!settings.data) return;
-    setNotifyTaskDue(settings.data.notifyTaskDue);
-    setNotifyInterview(settings.data.notifyInterview);
-    setTimezone(settings.data.timezone);
-  }, [settings.data]);
-
-  useSettingsDirty(Boolean(settings.data && (timezone !== settings.data.timezone || notifyTaskDue !== settings.data.notifyTaskDue || notifyInterview !== settings.data.notifyInterview)));
 
   async function synchronize() {
     setSyncing(true);
@@ -91,57 +66,6 @@ export function SettingsPage({ context, pending }: { context: ActionContext; pen
     context.run(async () => undefined, '本地版本已重新排队');
   }
 
-  async function saveSettings() {
-    if (notifyTaskDue === null || notifyInterview === null) return;
-    await context.run(() => put('/notifications/settings', {
-      timezone: timezone.trim() || 'Asia/Shanghai',
-      notifyTaskDue,
-      notifyInterview,
-    }), '提醒设置已保存');
-  }
-
-  async function subscribePush() {
-    setPushMessage('');
-    try {
-      if (platform.notifications.permission() === 'unsupported' || !('serviceWorker' in navigator)) {
-        throw new Error('当前浏览器不支持通知推送；站内提醒仍可使用。');
-      }
-      const { publicKey } = await get<components['schemas']['VapidPublicKey']>('/push-subscriptions/vapid-public-key');
-      if (!publicKey) throw new Error('服务端未配置 VAPID 公钥；站内提醒仍可使用。');
-      const permission = await platform.notifications.requestPermission();
-      if (permission !== 'granted') throw new Error('通知权限未获准；站内提醒仍可使用。');
-      const registration = await navigator.serviceWorker.ready;
-      const subscription = await registration.pushManager.subscribe({
-        userVisibleOnly: true,
-        applicationServerKey: decodeVapidKey(publicKey).buffer as ArrayBuffer,
-      });
-      const saved = await post<PushSubscription>('/push-subscriptions', subscription.toJSON());
-      setPushId(saved.id);
-      await platform.storage.write(cacheKey(context.userId, 'pushSubscriptionId'), saved.id);
-      setPushMessage('浏览器推送已订阅。实际送达取决于浏览器和服务端推送配置。');
-    } catch (error) {
-      setPushMessage(error instanceof Error ? error.message : '订阅失败。');
-    }
-  }
-
-  async function unsubscribePush() {
-    try {
-      if (pushId) await del(`/push-subscriptions/${pushId}`);
-      const registration = await navigator.serviceWorker?.getRegistration();
-      const subscription = await registration?.pushManager.getSubscription();
-      await subscription?.unsubscribe();
-      await platform.storage.remove(cacheKey(context.userId, 'pushSubscriptionId'));
-      setPushId('');
-      setPushMessage('已取消浏览器推送订阅。');
-    } catch (error) {
-      setPushMessage(error instanceof Error ? error.message : '取消订阅失败。');
-    }
-  }
-
-  async function markRead(id: string) {
-    await context.run(() => post(`/notifications/${id}/read`), '提醒已标记为已读');
-  }
-
   async function clearLocalQueue() {
     if (!window.confirm('清空本机待同步操作和冲突记录？未同步的本地修改将无法恢复。')) return;
     await db.queue.where('userId').equals(context.userId).delete();
@@ -168,7 +92,6 @@ export function SettingsPage({ context, pending }: { context: ActionContext; pen
       await db.cache.where('key').startsWith(`${context.userId}:`).delete();
       setConflicts([]);
       setLastSyncedAt('');
-      setPushId('');
       setResetMessage({ kind: 'success', text: `已清空服务端 ${result.deletedRows} 条记录，并同步清理本机缓存。` });
       context.run(async () => undefined, '演示数据已重置');
     } catch (error) {
@@ -196,19 +119,7 @@ export function SettingsPage({ context, pending }: { context: ActionContext; pen
         {orphanCount > 0 && <p className="inline-error" role="status">检测到 {orphanCount} 条旧版离线数据，无法安全识别所属账号；这些数据已阻止同步。<button className="btn small danger" onClick={() => void discardOrphanedOperations()}>清除旧数据</button></p>}
       </Panel>
 
-      <Panel title="提醒设置" description="站内提醒不需要浏览器权限；只有主动开启推送时才请求通知授权">
-        <ResourceNotice error={settings.error}/>
-        {settings.loading && !settings.data && <Loading/>}
-        <label className="field"><span>用户时区</span><input value={timezone} onChange={(event) => setTimezone(event.target.value)} placeholder="Asia/Shanghai"/></label>
-        <label className="check-row"><input type="checkbox" checked={notifyTaskDue ?? false} onChange={(event) => setNotifyTaskDue(event.target.checked)}/><span>开启任务到期站内提醒</span></label>
-        <label className="check-row"><input type="checkbox" checked={notifyInterview ?? false} onChange={(event) => setNotifyInterview(event.target.checked)}/><span>开启面试前站内提醒</span></label>
-        <div className="button-row"><button className="btn primary" disabled={context.busy || notifyTaskDue === null || notifyInterview === null} onClick={() => void saveSettings()}>保存提醒设置</button></div>
-        <div className="push-controls">
-          <button className="btn secondary" disabled={pushId !== ''} onClick={() => void subscribePush()}><Bell size={15}/>开启浏览器推送</button>
-          {pushId && <button className="btn secondary" onClick={() => void unsubscribePush()}><BellOff size={15}/>取消推送</button>}
-        </div>
-        {pushMessage && <p className="muted" role="status">{pushMessage}</p>}
-      </Panel>
+
     </div>
 
     {conflicts.length > 0 && <Panel title="同步冲突" description="对照两份数据后选择保留服务端，或基于当前服务器版本重新提交本地操作">
@@ -218,16 +129,7 @@ export function SettingsPage({ context, pending }: { context: ActionContext; pen
     </Panel>}
 
     <div className="two-col">
-      <Panel title="站内提醒" description={`${notifications.data?.unreadCount ?? '—'} 条未读`}>
-        <ResourceNotice error={notifications.error}/>
-        <DataRows items={notifications.data?.items ?? []} loading={notifications.loading} empty="暂无已发送的站内提醒。">
-          {(notice) => <article className="notification-row">
-            <div className="row-title">{notice.title}<Badge value={notice.readAt ? '已读' : notice.kind}/></div>
-            <p>{notice.body}</p><small>{new Date(notice.fireAt).toLocaleString('zh-CN')}</small>
-            {!notice.readAt && <button className="btn small secondary" onClick={() => void markRead(notice.id)}>标记已读</button>}
-          </article>}
-        </DataRows>
-      </Panel>
+
 
       <Panel title="增量变更" description="用于显示最近从服务端同步的记录版本">
         <ResourceNotice error={changes.error}/>
@@ -237,8 +139,7 @@ export function SettingsPage({ context, pending }: { context: ActionContext; pen
       </Panel>
     </div>
 
-    <Panel title="安装与演示数据">
-      <div className="install-row"><CloudDownload size={18}/><div><b>将工作台安装到设备</b><p>使用浏览器菜单中的“安装应用”。当前浏览器是否提供安装条件由其决定。</p></div></div>
+    <Panel title="演示数据">
       <div className="install-row"><WifiOff size={18}/><div><b>演示数据重置</b><p>清空当前演示身份的画像、经历、私人岗位、投递、计划与同步记录；公共岗位库和其他演示身份不受影响。</p></div></div>
       <div className="button-row">
         <button className="btn small danger" disabled={context.busy || resetting} onClick={() => void resetDemoData()}>
@@ -246,10 +147,9 @@ export function SettingsPage({ context, pending }: { context: ActionContext; pen
         </button>
       </div>
       {resetMessage && <p className={resetMessage.kind === 'error' ? 'inline-error' : 'success-note'} role="status">{resetMessage.text}</p>}
-      {installAvailable && <p className="success-note">浏览器已满足部分安装条件；请从浏览器菜单完成安装。</p>}
       <p className="muted">
         当前数据源：{getActiveDataSource() === 'guest' ? '游客临时演示适配器（本标签页，结束即清除）' : getActiveDataSource() === 'demo' ? '内置演示适配器（不请求后端）' : '后端 /api/v1'}。
-        工作台使用虚构演示身份。浏览器推送需本地 VAPID 配置，Cloudflare 上线后还需 HTTPS。
+        工作台使用虚构演示身份。安装和通知权限请使用各自的设置分类。
       </p>
     </Panel>
   </>;
@@ -271,11 +171,4 @@ function recordVersion(record: unknown): number | null {
   if (!record || typeof record !== 'object') return null;
   const version = (record as { version?: unknown }).version;
   return typeof version === 'number' ? version : null;
-}
-
-function decodeVapidKey(key: string): Uint8Array {
-  const normalized = key.replace(/-/g, '+').replace(/_/g, '/');
-  const padding = '='.repeat((4 - (normalized.length % 4)) % 4);
-  const bytes = atob(normalized + padding);
-  return Uint8Array.from(bytes, (character) => character.charCodeAt(0));
 }

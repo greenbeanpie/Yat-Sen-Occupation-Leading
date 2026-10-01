@@ -3956,6 +3956,22 @@
                 "nullable": true
               }
             ]
+          },
+          "dismissedAt": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/IsoDateTime"
+              },
+              {
+                "nullable": true
+              }
+            ]
+          },
+          "createdAt": {
+            "$ref": "#/components/schemas/IsoDateTime"
+          },
+          "url": {
+            "type": "string"
           }
         },
         "required": [
@@ -3966,7 +3982,9 @@
           "entity",
           "entityId",
           "fireAt",
-          "sentAt"
+          "sentAt",
+          "createdAt",
+          "url"
         ]
       },
       "UserSettingsResponse": {
@@ -3981,6 +3999,12 @@
           "notifyInterview": {
             "type": "boolean"
           },
+          "inAppEnabled": {
+            "type": "boolean"
+          },
+          "pushEnabled": {
+            "type": "boolean"
+          },
           "updatedAt": {
             "$ref": "#/components/schemas/IsoDateTime"
           }
@@ -3989,6 +4013,8 @@
           "timezone",
           "notifyTaskDue",
           "notifyInterview",
+          "inAppEnabled",
+          "pushEnabled",
           "updatedAt"
         ]
       },
@@ -3999,6 +4025,12 @@
             "type": "boolean"
           },
           "notifyInterview": {
+            "type": "boolean"
+          },
+          "inAppEnabled": {
+            "type": "boolean"
+          },
+          "pushEnabled": {
             "type": "boolean"
           },
           "timezone": {
@@ -4047,11 +4079,13 @@
             "properties": {
               "p256dh": {
                 "type": "string",
-                "minLength": 1
+                "minLength": 1,
+                "maxLength": 100
               },
               "auth": {
                 "type": "string",
-                "minLength": 1
+                "minLength": 1,
+                "maxLength": 30
               }
             },
             "required": [
@@ -4063,6 +4097,39 @@
         "required": [
           "endpoint",
           "keys"
+        ]
+      },
+      "NotificationPushStatus": {
+        "type": "object",
+        "properties": {
+          "configured": {
+            "type": "boolean"
+          },
+          "publicKey": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "configured",
+          "publicKey"
+        ]
+      },
+      "NotificationPushDevice": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Uuid"
+              },
+              {
+                "nullable": true
+              }
+            ]
+          }
+        },
+        "required": [
+          "id"
         ]
       },
       "VapidPublicKey": {
@@ -10203,6 +10270,144 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/notifications/push/subscriptions": {
+      "post": {
+        "tags": [
+          "notifications"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PushSubscriptionPayload"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "当前账户的设备订阅",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PushSubscription"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/notifications/push/subscriptions/{id}": {
+      "delete": {
+        "tags": [
+          "notifications"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "$ref": "#/components/schemas/Uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "当前账户设备取消；幂等"
+          }
+        }
+      }
+    },
+    "/api/v1/notifications/push/status": {
+      "get": {
+        "tags": [
+          "notifications"
+        ],
+        "responses": {
+          "200": {
+            "description": "推送是否配置，不返回私钥",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotificationPushStatus"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/notifications/push/lookup": {
+      "post": {
+        "tags": [
+          "notifications"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "endpoint": {
+                    "type": "string",
+                    "maxLength": 2048,
+                    "format": "uri"
+                  }
+                },
+                "required": [
+                  "endpoint"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "仅返回当前账户拥有的有效订阅",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotificationPushDevice"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/notifications/{id}/dismiss": {
+      "post": {
+        "tags": [
+          "notifications"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "$ref": "#/components/schemas/Uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "收起但保留历史",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Notification"
                 }
               }
             }

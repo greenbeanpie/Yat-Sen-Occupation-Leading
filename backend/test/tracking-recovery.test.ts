@@ -182,7 +182,7 @@ describe("投递创建幂等与可恢复归档", () => {
     const wrap = (statement: D1PreparedStatement, sql: string): D1PreparedStatement => new Proxy(statement, {
       get(target, key) {
         if (key === "bind") return (...params: unknown[]) => wrap(target.bind(...params), sql);
-        if (key === "all" && (boundary === "due" ? sql.startsWith("SELECT * FROM reminders WHERE (status") : sql.includes("SELECT * FROM push_subscriptions"))) {
+        if (key === "all" && (boundary === "due" ? sql.startsWith("SELECT * FROM reminders WHERE (status") : sql.includes("SELECT s.* FROM push_subscriptions"))) {
           return async () => {
             const result = await target.all();
             if (!intercepted) {

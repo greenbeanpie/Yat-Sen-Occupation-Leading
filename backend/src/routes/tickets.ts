@@ -1,3 +1,6 @@
+import { cronTick } from '../application/reminders';
+import { sendWebPush } from '../infra/push';
+import { ticketNotificationStatements } from '../application/ticket-notifications';
 import { createRoute, z } from '@hono/zod-openapi';
 import type { Context, MiddlewareHandler } from 'hono';
 import { allowedOrigins, type App } from '../app';
@@ -79,12 +82,15 @@ export function registerTicketRoutes(app: App): void {
   }), async c => {
     const actor = c.get('user'), input = c.req.valid('json'), id = uuid(), now = nowIso();
     await rateLimit(c.env, `ticket-create:${actor.id}`, 5, 300);
+    const notices = await ticketNotificationStatements(c.env,id,actor.id,`ticket-created:${id}`,'ticket_created');
     const results = await c.env.DB.batch([
       c.env.DB.prepare(`INSERT INTO support_tickets (id,user_id,subject,status,created_at,updated_at) SELECT ?2,?1,?3,'pending',?4,?4 WHERE ${actorActive}`).bind(actor.id,id,input.subject,now),
       c.env.DB.prepare(`INSERT INTO support_ticket_messages (id,ticket_id,author_id,is_staff,body,created_at) SELECT ?2,?3,?1,CASE WHEN ${actorStaff} THEN 1 ELSE 0 END,?4,?5 WHERE EXISTS (SELECT 1 FROM support_tickets WHERE id=?3)`)
         .bind(actor.id,uuid(),id,input.body,now),
+      ...notices,
     ]);
     if (results[0]!.meta.changes !== 1) throw forbidden();
+    c.executionCtx.waitUntil(cronTick(c.env,nowIso(),sendWebPush,{ticketsOnly:true}));
     return c.json(await detail(c,id), 201);
   });
   app.openapi(createRoute({ method: 'get', path: '/tickets/{id}', tags: ['tickets'], middleware: [...middleware],
@@ -99,14 +105,17 @@ export function registerTicketRoutes(app: App): void {
     const current = await detail(c,id);
     if (current.status === 'closed') throw conflict('工单已关闭，请等待管理员重新打开或提交新工单', null);
     await rateLimit(c.env, `ticket-reply:${actor.id}`, 20, 60);
+    const notices = await ticketNotificationStatements(c.env,id,actor.id,`ticket-reply:${messageId}`,'ticket_reply',messageId);
     const results = await c.env.DB.batch([
       c.env.DB.prepare(`INSERT INTO support_ticket_messages (id,ticket_id,author_id,is_staff,body,created_at)
         SELECT ?2,id,?1,CASE WHEN ${actorStaff} THEN 1 ELSE 0 END,?3,?4 FROM support_tickets
         WHERE id=?5 AND status<>'closed' AND ${visible} AND ${actorActive}`)
         .bind(actor.id,messageId,c.req.valid('json').body,now,id),
       c.env.DB.prepare(`UPDATE support_tickets SET updated_at=?1 WHERE id=?2 AND EXISTS (SELECT 1 FROM support_ticket_messages WHERE id=?3)`).bind(now,id,messageId),
+      ...notices,
     ]);
     if (results[0]!.meta.changes !== 1) throw conflict('工单状态或权限已变化，请刷新后重试', null);
+    c.executionCtx.waitUntil(cronTick(c.env,nowIso(),sendWebPush,{ticketsOnly:true}));
     return c.json(await detail(c,id), 200);
   });
   app.openapi(createRoute({ method: 'patch', path: '/tickets/{id}/status', tags: ['tickets'], middleware: [...middleware],
@@ -117,9 +126,16 @@ export function registerTicketRoutes(app: App): void {
     if (!isStaff(actor.role)) throw forbidden('只有管理员可以变更工单状态');
     await detail(c,id);
     await rateLimit(c.env, `ticket-status:${actor.id}`, 30, 60);
-    const result = await c.env.DB.prepare(`UPDATE support_tickets SET status=?3,updated_at=?4 WHERE id=?2 AND ${actorStaff}`)
-      .bind(actor.id,id,c.req.valid('json').status,nowIso()).run();
-    if (result.meta.changes !== 1) throw forbidden('权限已变化，请刷新后重试');
+    const messageId = uuid(), now = nowIso();
+    const notices = await ticketNotificationStatements(c.env,id,actor.id,`ticket-status:${messageId}`,'ticket_status',messageId);
+    const results = await c.env.DB.batch([
+      c.env.DB.prepare(`UPDATE support_tickets SET status=?3,updated_at=?4 WHERE id=?2 AND ${actorStaff}`)
+        .bind(actor.id,id,c.req.valid('json').status,now),
+      c.env.DB.prepare(`INSERT INTO support_ticket_messages(id,ticket_id,author_id,is_staff,body,created_at) SELECT ?1,?2,?3,1,'工单状态已更新。',?4 WHERE changes()=1`).bind(messageId,id,actor.id,now),
+      ...notices,
+    ]);
+    if (results[0]!.meta.changes !== 1) throw forbidden('权限已变化，请刷新后重试');
+    c.executionCtx.waitUntil(cronTick(c.env,nowIso(),sendWebPush,{ticketsOnly:true}));
     return c.json(await detail(c,id), 200);
   });
 }

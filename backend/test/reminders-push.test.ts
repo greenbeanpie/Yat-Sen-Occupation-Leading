@@ -20,7 +20,7 @@ async function confirmedPlanWithTasks() {
   const portfolio = await requestAs(cookie, "/portfolios", {
     method: "POST",
     body: JSON.stringify({ timeBudgetHours: 20 }),
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", Origin: "http://yso.test" },
   });
   // 没有匹配快照时组合为空 → 直接造组合与任务：用同步协议建任务 + 手动建计划
   void portfolio;
@@ -92,7 +92,7 @@ describe("提醒与通知", () => {
     await requestAs(cookie, "/notifications/settings", {
       method: "PUT",
       body: JSON.stringify({ notifyTaskDue: false }),
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", Origin: "http://yso.test" },
     });
     await env.DB.prepare(`UPDATE reminders SET status = 'pending', sent_at = NULL, fire_at = '2020-01-01T00:00:00.000Z'`).run();
     const result2 = await cronTick(env);
@@ -108,13 +108,13 @@ describe("提醒与通知", () => {
     const done = await requestAs(cookie, `/tasks/${taskId}`, {
       method: "PATCH",
       body: JSON.stringify({ baseVersion: taskRow!.version, status: "in_progress" }),
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", Origin: "http://yso.test" },
     });
     const v2 = (await done.json<{ task: { version: number } }>()).task.version;
     await requestAs(cookie, `/tasks/${taskId}`, {
       method: "PATCH",
       body: JSON.stringify({ baseVersion: v2, status: "done" }),
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", Origin: "http://yso.test" },
     });
     const pending = await env.DB.prepare(`SELECT COUNT(*) AS n FROM reminders WHERE entity = 'task' AND entity_id = ?1 AND status = 'pending'`).bind(taskId).first<{ n: number }>();
     expect(pending?.n).toBe(0);
@@ -123,13 +123,13 @@ describe("提醒与通知", () => {
     const app = await requestAs(cookie, "/applications", {
       method: "POST",
       body: JSON.stringify({ jobTitle: "后端开发" }),
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", Origin: "http://yso.test" },
     });
     const appId = (await app.json<{ id: string }>()).id;
     const interview = await requestAs(cookie, `/applications/${appId}/interviews`, {
       method: "POST",
       body: JSON.stringify({ scheduledAt: "2026-11-01T06:00:00.000Z", stage: "一面" }),
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", Origin: "http://yso.test" },
     });
     const interviewBody = await interview.json<{ id: string }>();
     const reminder = await env.DB
@@ -143,7 +143,7 @@ describe("提醒与通知", () => {
     const iv = await requestAs(cookie, `/interviews/${interviewBody.id}`, {
       method: "PATCH",
       body: JSON.stringify({ baseVersion: 1, scheduledAt: "2026-11-02T06:00:00.000Z" }),
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", Origin: "http://yso.test" },
     });
     expect(iv.status).toBe(200);
     const reminders = await env.DB
@@ -155,36 +155,11 @@ describe("提醒与通知", () => {
     expect(statuses.filter((s) => s === "pending").length).toBe(1);
   });
 
-  it("推送订阅 CRUD 与 VAPID 公钥端点", async () => {
-    const cookie = await loginAs(STUDENT);
-    const sub = await requestAs(cookie, "/push-subscriptions", {
-      method: "POST",
-      body: JSON.stringify({
-        endpoint: "https://push.example.com/send/abc123",
-        keys: { p256dh: "BPk2x0ExampleKeyMaterialHere_AAAA", auth: "authSecretExample" },
-      }),
-      headers: { "Content-Type": "application/json" },
-    });
-    expect(sub.status).toBe(201);
-    const subBody = await sub.json<{ id: string; status: string }>();
-    expect(subBody.status).toBe("active");
-
-    // 重复订阅同一 endpoint → 更新而非新增
-    const sub2 = await requestAs(cookie, "/push-subscriptions", {
-      method: "POST",
-      body: JSON.stringify({
-        endpoint: "https://push.example.com/send/abc123",
-        keys: { p256dh: "BPk2x0ExampleKeyMaterialHere_AAAA", auth: "authSecretExample" },
-      }),
-      headers: { "Content-Type": "application/json" },
-    });
-
-    const key = await requestAs(cookie, "/push-subscriptions/vapid-public-key");
-    const keyBody = await key.json<{ publicKey: string }>();
-    expect(typeof keyBody.publicKey).toBe("string");
-
-    const del = await requestAs(cookie, `/push-subscriptions/${subBody.id}`, { method: "DELETE" });
-    expect(del.status).toBe(204);
-    void sub2;
+  it("演示身份不注册系统推送；公开状态不返回私钥", async () => {
+    const cookie=await loginAs(STUDENT);
+    const sub=await requestAs(cookie,'/push-subscriptions',{method:'POST',headers:{'Content-Type':'application/json',Origin:'http://yso.test'},body:JSON.stringify({endpoint:'https://fcm.googleapis.com/send/fixture',keys:{p256dh:'fixture',auth:'fixture'}})});
+    expect(sub.status).toBe(403);
+    const key=await requestAs(cookie,'/notifications/push/status');
+    expect(await key.json()).toEqual({configured:false,publicKey:''});
   });
 });

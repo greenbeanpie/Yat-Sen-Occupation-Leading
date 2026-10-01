@@ -20,7 +20,7 @@ function decode(s: string): Uint8Array {
 function key(c: Context<AppEnv>, usage: "sign" | "verify") {
   return crypto.subtle.importKey("raw", encoder.encode(sessionSecret(c.env)), { name: "HMAC", hash: "SHA-256" }, false, [usage]);
 }
-async function readSession(c: Context<AppEnv>): Promise<SessionPayload | null> {
+export async function readSession(c: Context<AppEnv>): Promise<SessionPayload | null> {
   const raw = getCookie(c, COOKIE_NAME);
   if (!raw || raw.length > 2048) return null;
   const parts = raw.split(".");

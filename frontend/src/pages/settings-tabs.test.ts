@@ -5,7 +5,7 @@ import { confirmDiscardSettings } from './settings-dirty';
 describe('settings category access', () => {
   const user = { id: 'fixture', displayName: 'Fixture', timezone: 'UTC', demo: false, role: 'student' as const };
   it('excludes every administrative category for ordinary users', () => {
-    expect(settingsTabs(user, false).map(tab => tab.id)).toEqual(['security', 'notifications']);
+    expect(settingsTabs(user, false).map(tab => tab.id)).toEqual(['security', 'appearance', 'installation', 'notifications', 'sync']);
   });
   it('separates administrator and super administrator capabilities', () => {
     expect(settingsTabs({ ...user, role: 'admin' }, false).map(tab => tab.id)).toContain('management');
@@ -13,8 +13,8 @@ describe('settings category access', () => {
     expect(settingsTabs({ ...user, role: 'super_admin' }, false).map(tab => tab.id)).toContain('ai');
   });
   it('never offers real-account security or administration to demo or guest sessions', () => {
-    expect(settingsTabs({ ...user, role: 'super_admin', demo: true }, true).map(tab => tab.id)).toEqual(['notifications']);
-    expect(settingsTabs(undefined, true).map(tab => tab.id)).toEqual(['notifications']);
+    expect(settingsTabs({ ...user, role: 'super_admin', demo: true }, true).map(tab => tab.id)).toEqual(['appearance', 'installation', 'notifications', 'sync']);
+    expect(settingsTabs(undefined, true).map(tab => tab.id)).toEqual(['appearance', 'installation', 'notifications', 'sync']);
   });
   it('requires affirmative confirmation before discarding edits', () => {
     const confirm = vi.fn(() => false);

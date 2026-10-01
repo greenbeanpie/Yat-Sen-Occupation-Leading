@@ -9,7 +9,7 @@ export default tseslint.config(
     ignores: ['dist/**', 'node_modules/**', '.wrangler/**', 'e2e/.artifacts/**', 'src/api/schema.ts'],
   },
   js.configs.recommended,
-  { files: ['public/app-updates.js', 'public/asset-compat.js', 'src/app-updates.test.js', 'src/asset-compat.test.js'], languageOptions: { globals: { ...globals.browser, ...globals.es2022 } } },
+  { files: ['public/app-updates.js', 'public/asset-compat.js', 'public/push-worker.js', 'src/app-updates.test.js', 'src/asset-compat.test.js', 'src/push-worker.test.js'], languageOptions: { globals: { ...globals.browser, ...globals.es2022 } } },
   ...tseslint.configs.recommended,
   {
     files: ['**/*.{ts,tsx}'],

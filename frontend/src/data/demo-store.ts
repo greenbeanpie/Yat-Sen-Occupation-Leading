@@ -245,6 +245,8 @@ export function materializeReminders(db: DemoDatabase, userId: string, now: Date
         fireAt,
         sentAt: nowIso,
         readAt: null,
+        createdAt: nowIso,
+        url: '/settings/notifications',
       });
     }
   }
@@ -269,6 +271,8 @@ export function materializeReminders(db: DemoDatabase, userId: string, now: Date
         fireAt,
         sentAt: nowIso,
         readAt: null,
+        createdAt: nowIso,
+        url: '/settings/notifications',
       });
     }
   }
@@ -315,6 +319,8 @@ export function schedulePendingReminder(
     fireAt: input.fireAt,
     sentAt: null,
     readAt: null,
+    createdAt: input.fireAt,
+    url: input.entity === 'task' ? '/plan' : '/applications',
   });
 }
 

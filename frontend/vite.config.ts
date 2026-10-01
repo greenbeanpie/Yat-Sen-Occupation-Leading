@@ -21,7 +21,7 @@ export default defineConfig({
       // 由 src/pwa.ts 手动注册，才能在界面上给出“新版本已就绪”的提示。
       registerType: 'prompt',
       injectRegister: null,
-      includeAssets: ['favicon.svg', 'icons/workbench.svg'],
+      includeAssets: ['favicon.svg', 'icons/workbench.svg', 'icons/workbench-192.png', 'icons/workbench-512.png', 'icons/workbench-maskable-512.png'],
       manifest: {
         name: '实习决策与执行工作台',
         short_name: '实习工作台',
@@ -31,13 +31,16 @@ export default defineConfig({
         display: 'standalone',
         start_url: '/',
         icons: [
-          { src: '/icons/workbench.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'any maskable' },
+          { src: '/icons/workbench-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
+          { src: '/icons/workbench-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
+          { src: '/icons/workbench-maskable-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
+          { src: '/icons/workbench.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'any' },
         ],
       },
       workbox: {
         globPatterns: ['**/*.{js,css,html,svg,png,woff2}'],
         navigateFallback: 'index.html',
-        importScripts: ['/asset-compat.js'],
+        importScripts: ['/asset-compat.js', '/push-worker.js'],
         runtimeCaching: [{
           urlPattern: ({ url, sameOrigin }) => sameOrigin && /^\/assets\/[^/]+-[A-Za-z0-9_-]+\.(?:js|css)$/.test(url.pathname),
           handler: 'CacheFirst',

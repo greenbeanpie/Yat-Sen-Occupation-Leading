@@ -1,3 +1,6 @@
+import { ReminderSettings,DemoReminderHistory } from '../notifications/ReminderSettings';
+import { NotificationSettings } from '../notifications/NotificationSettings';
+import { InstallationSettings } from '../notifications/InstallationSettings';
 import { Navigate, NavLink, useParams } from 'react-router-dom';
 import type { components } from '../api/schema';
 import { PageHead, Panel, type ActionContext } from '../components';
@@ -27,7 +30,10 @@ export function SettingsHub({ context, user, pending, demo, onRefreshSession, on
     </nav>
     <section key={tab} aria-label={tabs.find(item => item.id === tab)?.label}>
       {tab === 'security' && <AccountSettings section="security" demo={demo} onRefreshSession={onRefreshSession} onSessionEnded={onSessionEnded}/>}
-      {tab === 'notifications' && <><Panel title="外观" description="主题偏好与顶栏保持一致"><ThemeSelect variant="field"/></Panel><SettingsPage context={context} pending={pending}/></>}
+      {tab === 'appearance' && <><Panel title="外观" description="主题偏好与顶栏保持一致"><ThemeSelect variant="field"/></Panel></>}
+      {tab === 'installation' && <InstallationSettings/>}
+      {tab === 'notifications' && <><ReminderSettings context={context}/>{demo&&<DemoReminderHistory context={context}/>}<NotificationSettings key={context.userId} userId={context.userId} enabled={!demo}/></>}
+      {tab === 'sync' && <SettingsPage context={context} pending={pending}/>}
       {tab === 'management' && user && <><UsersPanel context={context} role={user.role} onRefreshSession={onRefreshSession}/><InvitationsPanel context={context}/>{user.role === 'super_admin' && <SystemSettingsPanel context={context}/>}</>}
       {tab === 'ai' && <AiSettingsPanel context={context}/>}
     </section>

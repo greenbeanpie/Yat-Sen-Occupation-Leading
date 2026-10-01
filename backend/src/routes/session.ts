@@ -9,8 +9,8 @@ import { ErrorBodySchema } from "../shared/schemas/common";
 import { DEMO_USERS } from "../shared/constants";
 import { ensureDemoUsers, getUser, sessionSecret } from "../infra/db/helpers";
 import { DUMMY_PASSWORD_HASH, hashPassword, verifyPassword } from "../infra/password";
-import { clearSessionCookie, issueSessionCookie, resolveUser } from "../middleware/auth";
-import { invalidRequest, notFound, unauthorized, forbidden } from "../shared/errors";
+import { clearSessionCookie, issueSessionCookie, resolveUser, readSession } from "../middleware/auth";
+import { invalidRequest, notFound, unauthorized, forbidden, conflict } from "../shared/errors";
 import { canonicalUsername, invitationHash } from "../infra/invitations";
 import { rateLimit } from "../infra/rate-limit";
 import { uuid, nowIso } from "../shared/datetime";
@@ -212,6 +212,11 @@ export function registerSessionRoutes(app: App): void {
   });
 
   app.openapi(logout, async (c) => {
+    const session = await readSession(c);
+    const expectedAccount = c.req.header('X-Notification-Account');
+    if (expectedAccount && session?.uid !== expectedAccount) throw conflict('账户已变化，请刷新后重试退出',null);
+    const subscriptionId = c.req.header('X-Push-Subscription-Id');
+    if (session && subscriptionId) await c.env.DB.prepare(`UPDATE push_subscriptions SET status='expired',deleted=1,updated_at=?4 WHERE id=?1 AND user_id=?2 AND session_id=?3`).bind(subscriptionId,session.uid,session.jti,nowIso()).run();
     await clearSessionCookie(c);
     return c.body(null, 204 as const);
   });

@@ -165,8 +165,9 @@ describe("审计安全边界回归", () => {
   });
   it("推送暂时失败下一轮重试，成功订阅不重复推送，站内通知不丢", async () => {
     const env = await environment(); const now = new Date().toISOString(); const reminderId = crypto.randomUUID();
+    await loginAs(STUDENT); const session = await env.DB.prepare('SELECT id FROM sessions WHERE user_id=?1').bind(STUDENT).first<{id:string}>();
     await createReminder(env, STUDENT, { entity: "task", entityId: reminderId, entityVersion: 1, kind: "task_due", fireAt: "2020-01-01T00:00:00.000Z", title: "提醒" });
-    for (const endpoint of ["https://push.example/a", "https://push.example/b"]) await env.DB.prepare("INSERT INTO push_subscriptions (id,user_id,endpoint,p256dh,auth,created_at,updated_at) VALUES (?1,?2,?3,'key','auth',?4,?4)").bind(crypto.randomUUID(), STUDENT, endpoint, now).run();
+    for (const endpoint of ["https://push.example/a", "https://push.example/b"]) await env.DB.prepare("INSERT INTO push_subscriptions (id,user_id,endpoint,p256dh,auth,created_at,updated_at,session_id) VALUES (?1,?2,?3,'key','auth',?4,?4,?5)").bind(crypto.randomUUID(), STUDENT, endpoint, now,session!.id).run();
     let first = true; const calls: string[] = [];
     const push = vi.fn(async (_env: Env, sub: { endpoint: string }) => { calls.push(sub.endpoint); if (sub.endpoint.endsWith('/b') && first) throw Object.assign(new Error("temporary"), { statusCode: 503 }); return { ok: true, statusCode: 201 }; });
     expect((await cronTick(env, now, push)).sentPush).toBe(1); first = false; expect((await cronTick(env, now, push)).sentPush).toBe(1);
@@ -196,8 +197,9 @@ describe("审计安全边界回归", () => {
   it("推送查询失败后仍可重试，超时 running 作业释放并发槽", async () => {
     const env = await environment(); const db = env.DB; const now = new Date().toISOString();
     await createReminder(env, STUDENT, { entity: "task", entityId: crypto.randomUUID(), entityVersion: 1, kind: "task_due", fireAt: "2020-01-01T00:00:00.000Z", title: "提醒" });
-    await db.prepare("INSERT INTO push_subscriptions (id,user_id,endpoint,p256dh,auth,created_at,updated_at) VALUES (?1,?2,'https://push.example/a','key','auth',?3,?3)").bind(crypto.randomUUID(), STUDENT, now).run();
-    env.DB = { prepare: (sql: string) => { if (sql.includes("SELECT * FROM push_subscriptions")) throw new Error("injected D1 failure"); return db.prepare(sql); }, batch: db.batch.bind(db) } as unknown as D1Database;
+    await loginAs(STUDENT); const session = await db.prepare('SELECT id FROM sessions WHERE user_id=?1').bind(STUDENT).first<{id:string}>();
+    await db.prepare("INSERT INTO push_subscriptions (id,user_id,endpoint,p256dh,auth,created_at,updated_at,session_id) VALUES (?1,?2,'https://push.example/a','key','auth',?3,?3,?4)").bind(crypto.randomUUID(), STUDENT, now,session!.id).run();
+    env.DB = { prepare: (sql: string) => { if (sql.includes("SELECT s.* FROM push_subscriptions")) throw new Error("injected D1 failure"); return db.prepare(sql); }, batch: db.batch.bind(db) } as unknown as D1Database;
     await expect(cronTick(env, now)).rejects.toThrow("injected"); env.DB = db;
     const push = vi.fn(async () => ({ ok: true, statusCode: 201 }));
     expect((await cronTick(env, now, push)).sentPush).toBe(1);

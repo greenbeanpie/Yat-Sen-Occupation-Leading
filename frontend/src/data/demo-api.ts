@@ -1856,6 +1856,9 @@ function notificationRoutes(): Route[] {
             fireAt: row.fireAt,
             sentAt: row.sentAt,
             readAt: row.readAt,
+            createdAt: row.createdAt,
+            url: row.url,
+            dismissedAt: null,
           }));
         return { status: 200, body: { items, unreadCount: items.filter((row) => !row.readAt).length } };
       },
@@ -1876,7 +1879,7 @@ function notificationRoutes(): Route[] {
       auth: true,
       handler: ({ store, user }) => ({
         status: 200,
-        body: { timezone: user.timezone, notifyTaskDue: user.notifyTaskDue, notifyInterview: user.notifyInterview, updatedAt: store.nowIso() },
+        body: { timezone: user.timezone, notifyTaskDue: user.notifyTaskDue, notifyInterview: user.notifyInterview, inAppEnabled:true,pushEnabled:true, updatedAt: store.nowIso() },
       }),
     },
     {
@@ -1894,7 +1897,7 @@ function notificationRoutes(): Route[] {
         if (body.notifyInterview !== undefined) row.notifyInterview = body.notifyInterview;
         return {
           status: 200,
-          body: { timezone: row.timezone, notifyTaskDue: row.notifyTaskDue, notifyInterview: row.notifyInterview, updatedAt: store.nowIso() },
+          body: { timezone: row.timezone, notifyTaskDue: row.notifyTaskDue, notifyInterview: row.notifyInterview,inAppEnabled:true,pushEnabled:true, updatedAt: store.nowIso() },
         };
       },
     },

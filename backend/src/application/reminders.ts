@@ -105,10 +105,10 @@ const ACTIVE_INTERVIEW_REMINDER = `(entity <> 'interview' OR EXISTS (
  * Cron 每 15 分钟：读取到期提醒 → 站内标记已发送 → 有订阅则推送；
  * 失效订阅（404/410）清理，暂时失败有限重试（≤3 次后失败）。
  */
-export async function cronTick(env: Env, now: string = nowIso(), push = sendWebPush): Promise<CronResult> {
+export async function cronTick(env: Env, now: string = nowIso(), push = sendWebPush, options: { ticketsOnly?: boolean } = {}): Promise<CronResult> {
   const result: CronResult = { due: 0, sentInApp: 0, sentPush: 0, failed: 0, expiredSubscriptions: 0 };
   const due = await env.DB
-    .prepare(`SELECT * FROM reminders WHERE (status = 'pending' OR (status = 'sent' AND retry_count >= 0 AND retry_count < 3)) AND fire_at <= ?1 AND ${ACTIVE_INTERVIEW_REMINDER} ORDER BY fire_at LIMIT 50`)
+    .prepare(`SELECT * FROM reminders WHERE (status = 'pending' OR (status = 'sent' AND retry_count >= 0 AND retry_count < 3)) AND fire_at <= ?1 AND ${ACTIVE_INTERVIEW_REMINDER} ${options.ticketsOnly ? "AND entity='ticket'" : ''} ORDER BY fire_at LIMIT 50`)
     .bind(now)
     .all<Record<string, unknown>>();
   result.due = due.results.length;
@@ -121,9 +121,9 @@ export async function cronTick(env: Env, now: string = nowIso(), push = sendWebP
       .bind(candidate.id, now).first<Record<string, unknown>>();
     if (!reminder) continue;
     const userId = reminder.user_id as string;
-    const user = await env.DB.prepare(`SELECT notify_task_due, notify_interview, timezone FROM users WHERE id = ?1`).bind(userId).first<{ notify_task_due: number; notify_interview: number }>();
+    const user = await env.DB.prepare(`SELECT notify_task_due, notify_interview, notify_push, deleted, disabled, timezone FROM users WHERE id = ?1`).bind(userId).first<{ notify_task_due: number; notify_interview: number; notify_push: number; deleted: number; disabled: number }>();
     const kind = reminder.kind as string;
-    const enabled = kind.startsWith("task_") ? (user?.notify_task_due ?? 1) === 1 : (user?.notify_interview ?? 1) === 1;
+    const enabled = !user?.deleted && !user?.disabled && (kind.startsWith("task_") ? (user?.notify_task_due ?? 1) === 1 : kind.startsWith('interview_') ? (user?.notify_interview ?? 1) === 1 : true);
 
     if (!enabled) {
       // 用户关闭了该类提醒：直接标记发送完成（不再打扰）
@@ -140,6 +140,10 @@ export async function cronTick(env: Env, now: string = nowIso(), push = sendWebP
       result.sentInApp++;
     }
 
+    if (user?.notify_push === 0 || reminder.dismissed_at || reminder.read_at || (reminder.entity === 'ticket' && !await env.DB.prepare(`SELECT t.id FROM support_tickets t JOIN users u ON u.id=?2 WHERE t.id=?1 AND u.deleted=0 AND u.disabled=0 AND u.is_demo=0 AND (t.user_id=u.id OR COALESCE(u.access_role,u.role) IN ('admin','super_admin'))`).bind(reminder.entity_id,userId).first())) {
+      await env.DB.prepare(`UPDATE reminders SET retry_count=-1 WHERE id=?1`).bind(reminder.id).run(); continue;
+    }
+
     // Reserve an attempt before subscription lookup/network IO; interrupted attempts
     // remain eligible next tick. -1 denotes completed push delivery.
     const attempt = Number(reminder.retry_count ?? 0) + 1;
@@ -149,8 +153,8 @@ export async function cronTick(env: Env, now: string = nowIso(), push = sendWebP
 
     // 浏览器推送：用户主动授权后（存在 active 订阅）才发
     const subs = await env.DB
-      .prepare(`SELECT * FROM push_subscriptions WHERE user_id = ?1 AND status = 'active' AND deleted = 0`)
-      .bind(userId)
+      .prepare(`SELECT s.* FROM push_subscriptions s JOIN sessions a ON a.id=s.session_id AND a.user_id=s.user_id WHERE s.user_id = ?1 AND s.status = 'active' AND s.deleted = 0 AND a.expires_at > ?2 AND s.created_at <= ?3`)
+      .bind(userId,Math.floor(Date.now()/1000),String(reminder.sent_at ?? reminder.created_at))
       .all<Record<string, unknown>>();
     if (subs.results.length === 0) {
       await env.DB.prepare(`UPDATE reminders SET retry_count = -1 WHERE id = ?1 AND status = 'sent'`).bind(reminder.id).run();
@@ -158,10 +162,8 @@ export async function cronTick(env: Env, now: string = nowIso(), push = sendWebP
     }
 
     const payload = JSON.stringify({
-      title: reminder.title,
-      body: reminder.body,
-      tag: reminder.dedupe_key,
-      data: { reminderId: reminder.id, entity: reminder.entity, entityId: reminder.entity_id },
+      title: '实习工作台有新的更新', body: '请打开应用查看通知。',
+      data: { userId, notificationId: reminder.id, url: reminder.entity === 'ticket' ? `/tickets/${String(reminder.entity_id)}` : reminder.entity === 'task' ? '/plan' : '/applications' },
     });
 
     let temporaryFailure = false;
@@ -172,11 +174,16 @@ export async function cronTick(env: Env, now: string = nowIso(), push = sendWebP
         .bind(reminder.id, attempt).first();
       if (!stillEligible) break;
       try {
-        await push(env, {
+        // Recheck device/session/preferences after reservation and immediately before network IO.
+        const eligible = await env.DB.prepare(`SELECT s.id FROM push_subscriptions s JOIN sessions a ON a.id=s.session_id AND a.user_id=s.user_id JOIN users u ON u.id=s.user_id
+          WHERE s.id=?1 AND s.status='active' AND s.deleted=0 AND a.expires_at>?2 AND u.notify_push=1 AND u.deleted=0 AND u.disabled=0`).bind(sub.id,Math.floor(Date.now()/1000)).first();
+        if (!eligible) continue;
+        const delivery = await push(env, {
           endpoint: sub.endpoint as string,
           p256dh: sub.p256dh as string,
           auth: sub.auth as string,
         }, payload);
+        if (!delivery.ok) continue;
         await env.DB.prepare(`INSERT OR IGNORE INTO reminder_push_deliveries (reminder_id, subscription_id) VALUES (?1, ?2)`).bind(reminder.id, sub.id).run();
         result.sentPush++;
       } catch (e) {
@@ -196,6 +203,7 @@ export async function cronTick(env: Env, now: string = nowIso(), push = sendWebP
     await env.DB.prepare(`UPDATE reminders SET retry_count = ?2, updated_at = ?3 WHERE id = ?1 AND status = 'sent' AND retry_count = ?4`).bind(reminder.id, retries, nowIso(), attempt).run();
     if (retries >= 3) result.failed++;
   }
+  if (options.ticketsOnly) return result;
   const backlog = await env.DB.prepare(`SELECT COUNT(*) AS n FROM reminders WHERE status = 'pending' AND fire_at <= ?1 AND ${ACTIVE_INTERVIEW_REMINDER}`).bind(now).first<{ n: number }>();
   if ((backlog?.n ?? 0) > 0 || result.failed) logJson("warn", "reminder_backlog", { count: backlog?.n ?? 0, failed: result.failed });
   // Crash between reservation and dispatch must not leave an immortal queued record.

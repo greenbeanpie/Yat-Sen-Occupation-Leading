@@ -56,6 +56,8 @@ export const UserSettingsSchema = z
     timezone: z.string().optional(),
     notifyTaskDue: z.boolean().optional(),
     notifyInterview: z.boolean().optional(),
+    inAppEnabled: z.boolean().optional(),
+    pushEnabled: z.boolean().optional(),
   })
   .openapi("UserSettings");
 
@@ -64,6 +66,8 @@ export const UserSettingsResponseSchema = z
     timezone: z.string(),
     notifyTaskDue: z.boolean(),
     notifyInterview: z.boolean(),
+    inAppEnabled: z.boolean(),
+    pushEnabled: z.boolean(),
     updatedAt: IsoDateTimeSchema,
   })
   .openapi("UserSettingsResponse");

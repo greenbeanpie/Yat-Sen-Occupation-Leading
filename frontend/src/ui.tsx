@@ -1,3 +1,7 @@
+import { InstallationNotice } from './notifications/InstallationNotice';
+import { unsubscribeDevice, deviceSubscriptionId } from './notifications/core';
+import { notificationRequest } from './notifications/api';
+import { NotificationRuntime } from './notifications/NotificationRuntime';
 import { ThemeSelect, ThemeSync } from './ThemeSelect';
 import { useCallback, useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { NavLink, Navigate, Route, Routes, useLocation } from 'react-router-dom';
@@ -342,7 +346,8 @@ export default function App() {
       return;
     }
     await run(async () => {
-      await api('/session', { method: 'DELETE' });
+      if (session?.user && !session.user.demo) await unsubscribeDevice(session.user.id,notificationRequest);
+      await api('/session', { method: 'DELETE', headers: session?.user ? { 'X-Push-Subscription-Id': deviceSubscriptionId(session.user.id), 'X-Notification-Account': session.user.id } : undefined });
       await platform.storage.remove(SESSION_CACHE_KEY);
       // 退出后重新读取会话，登录页需要服务端返回的演示身份列表。
       setSession(await get<Session>('/session'));
@@ -396,7 +401,7 @@ export default function App() {
 
   return (
     <div className="app-shell">
-      <ThemeSync/>
+      <ThemeSync/><InstallationNotice/><NotificationRuntime key={session?.user?.id ?? 'anonymous'} userId={session?.user?.id ?? null} enabled={Boolean(session?.authenticated && !session.user?.demo && !guestMode)} settingsUrl="/settings/notifications"/>
       <aside id="workbench-navigation" className={`sidebar ${mobileOpen ? 'open' : ''}`}>
         <div className="brand">
           <div className="brand-mark">实</div>
