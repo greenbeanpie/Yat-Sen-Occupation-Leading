@@ -13,6 +13,7 @@ export class ApiError extends Error {
     public readonly payload: unknown,
     public readonly code?: string,
     public readonly serverRecord?: unknown,
+    public readonly requestId?: string,
   ) {
     super(message);
     this.name = 'ApiError';
@@ -73,7 +74,7 @@ export async function api<T = unknown>(path: string, init: RequestInit = {}, fol
       throw new ApiError('Cloudflare 安全验证拦截了请求。请在普通浏览器打开本站完成验证，再刷新重试；若持续出现，请联系站点管理员。', 403, undefined, 'security_challenge');
     }
     const parsed = messageFrom(payload, `请求失败 (${response.status})`);
-    throw new ApiError(parsed.message, response.status, payload, parsed.code, parsed.server);
+    throw new ApiError(parsed.message, response.status, payload, parsed.code, parsed.server,response.headers.get('X-Request-Id')??undefined);
   }
 
   // Existing screens consume complete lists; transparently follow advertised pages.

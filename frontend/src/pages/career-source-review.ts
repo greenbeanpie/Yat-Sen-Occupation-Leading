@@ -41,7 +41,9 @@ export function createCareerReviewController(api: CareerReviewApi, now = Date.no
     pending = Promise.resolve().then(action).then(() => true).catch((error: unknown) => {
       const conflict = !!error && typeof error === 'object' && 'status' in error && error.status === 409;
       update({
-        error: error instanceof Error ? error.message : '操作失败，请检查后手动重试。',
+        error: (error instanceof Error ? error.message : '操作失败，请检查后手动重试。')
+          + (error && typeof error==='object' && 'code' in error && typeof error.code==='string' && /^[a-z0-9_]{1,80}$/.test(error.code)?`（错误码 ${error.code}）`:'')
+          + (error && typeof error==='object' && 'requestId' in error && typeof error.requestId==='string' && /^[0-9a-f-]{36}$/i.test(error.requestId)?` 请求ID：${error.requestId}`:''),
         ...(conflict ? { draft: null, requiresPreview: true } : {}),
       });
       return false;

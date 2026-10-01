@@ -70,6 +70,10 @@ describe('manual career review controller, fixture-only network', () => {
     expect(await controller.refresh()).toBe(false); expect(api.refresh).toHaveBeenCalledOnce();
     expect(controller.getState().draft).toEqual(draft); expect(controller.getState().error).toContain('冷却 15 分钟');
   });
+  it('shows the exact safe fault code and request ID for source debugging',async()=>{
+    const error=Object.assign(new Error('学校服务器拒绝访问（HTTP403）'),{status:502,code:'source_forbidden',requestId:'00000000-0000-4000-8000-000000000009'});
+    const {controller}=setup({refresh:vi.fn().mockRejectedValue(error)});await controller.refresh();expect(controller.getState().error).toContain('source_forbidden');expect(controller.getState().error).toContain(error.requestId);
+  });
   it('invalidates stale draft on version conflict and does not automatically refetch or recall model', async () => {
     const extract = vi.fn().mockRejectedValue(Object.assign(new Error('来源版本变化，请重新预览'), { status: 409 }));
     const { api, controller } = setup({ extract }); await controller.readStatus(); await controller.preview('997448');

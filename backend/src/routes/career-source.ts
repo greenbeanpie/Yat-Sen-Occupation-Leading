@@ -16,6 +16,8 @@ import { hasConfiguredRealAi } from '../infra/ai/config';
 import { careerDiagnosticTokenLimit, resolveAiConfig } from '../infra/ai/config';
 import { fingerprintOf } from '../infra/db/helpers';
 import type { AiUsage } from '../infra/ai/usage';
+import { writeAiDiagnostic, type DiagnosticEvent } from '../infra/ai/diagnostics';
+import { classifyCareerSourceError } from '../infra/career-source-errors';
 import { AnnouncementCandidate, SourceMetadataSchema, createSnapshot, extractAnnouncement, type Snapshot, type ReviewDraft } from '../prototypes/career-announcement';
 
 const Id=z.string().regex(/^\d{1,12}$/);
@@ -43,7 +45,17 @@ const guard:MiddlewareHandler<AppEnv>=async(c,next)=>{
 };
 const middleware=[requireAuth,requireAdmin,guard,bodyLimit({maxSize:2048,onError:()=>{throw new AppError(413,'payload_too_large','来源操作请求体上限为 2KB');}})];
 async function configuredEnv(env: import('../env').Env) { try { const resolved = await runtimeAiEnv(env); return hasConfiguredRealAi(resolved) ? resolved : null; } catch { return null; } }
-async function sourceCall<T>(fn:()=>Promise<T>):Promise<T>{try{return await fn();}catch(error){if(error instanceof AppError)throw error;throw new AppError(502,'career_source_unavailable','来源拒绝访问、超时或结构发生变化；已停止并冷却 15 分钟');}}
+async function sourceCall<T>(env:import('../env').Env,requestId:string,fn:(trace:(stage:DiagnosticEvent['stage'])=>Promise<void>)=>Promise<T>):Promise<T>{
+  const started=Date.now();
+  const trace=async(stage:DiagnosticEvent['stage'])=>{await writeAiDiagnostic(env,{requestId,stage,code:'ok',httpStatus:stage==='source_fetch'?undefined:200,timeoutMs:15000,elapsedMs:Date.now()-started});};
+  await trace('source_fetch');
+  try{const result=await fn(trace);await trace('source_end');return result;}
+  catch(error){if(error instanceof AppError)throw error;const failure=classifyCareerSourceError(error);
+    await writeAiDiagnostic(env,{requestId,stage:failure.stage,code:failure.code,httpStatus:failure.httpStatus,timeoutMs:15000,elapsedMs:Date.now()-started});
+    await writeAiDiagnostic(env,{requestId,stage:'source_end',code:failure.code,httpStatus:failure.httpStatus,timeoutMs:15000,elapsedMs:Date.now()-started});
+    throw new AppError(failure.status,failure.code,failure.message);
+  }
+}
 const base='/admin/career-source';
 const statusRoute=createRoute({method:'get',path:base,tags:['career-source'],middleware,responses:{200:{content:{'application/json':{schema:Status}},description:'仅缓存及能力，不发出来源请求'},...errors}});
 const refreshRoute=createRoute({method:'post',path:`${base}/refresh`,tags:['career-source'],middleware,request:{body:{required:true,content:{'application/json':{schema:z.object({}).strict()}}}},responses:{200:{content:{'application/json':{schema:Listing}},description:'首页公告缓存，15 分钟内复用；无自动翻页'},...errors}});
@@ -53,18 +65,18 @@ export function registerCareerSourceRoutes(app:App):void{
   app.openapi(statusRoute,async c=>{const runtime=await configuredEnv(c.env),ready=!!runtime;const row=await c.env.DB.prepare('SELECT version FROM ai_settings WHERE id=1').first<{version:number}>();const actor=c.get('user')!;return c.json({schemaVersion:1,sourceId:'sysu-campus',extractionAvailable:ready,extractionUnavailableReason:ready?null:'real_model_unconfigured',cachedList:await readCareerCache<ListingData>(c.env,'list'),cacheTtlSeconds:900,publicationSupported:false,configurationVersion:row?.version??0,diagnosticTokenLimit:runtime&&actor.role==='super_admin'?careerDiagnosticTokenLimit(resolveAiConfig(runtime)):0},200) as never;});
   app.openapi(refreshRoute,async c=>{
     const cached=await readCareerCache<ListingData>(c.env,'list');if(cached)return c.json(cached,200) as never;
-    const result=await withCareerLease(c.env,'source',()=>sourceCall(async()=>{
+    const result=await withCareerLease(c.env,'source',()=>sourceCall(c.env,c.res.headers.get('X-Request-Id')??crypto.randomUUID(),async trace=>{
       const existing=await readCareerCache<ListingData>(c.env,'list');if(existing)return existing;
-      const items=await parseCareerList(await fetchCareerHtml('/campus/index'));
+      const html=await fetchCareerHtml('/campus/index');await trace('source_response');const items=await parseCareerList(html);await trace('source_parse');
       const data:ListingData={schemaVersion:1,items,retrievedAt:new Date().toISOString(),expiresAt:new Date(Date.now()+SOURCE_TTL_MS).toISOString()};
       await writeCareerCache(c.env,'list',data);return data;
     }));return c.json(result,200) as never;
   });
   app.openapi(previewRoute,async c=>{
     const {id}=c.req.valid('json');const cached=await readCareerCache<PreviewData>(c.env,`detail:${id}`);if(cached)return c.json(cached,200) as never;
-    const result=await withCareerLease(c.env,'source',()=>sourceCall(async()=>{
+    const result=await withCareerLease(c.env,'source',()=>sourceCall(c.env,c.res.headers.get('X-Request-Id')??crypto.randomUUID(),async trace=>{
       const existing=await readCareerCache<PreviewData>(c.env,`detail:${id}`);if(existing)return existing;
-      const detail=await parseCareerDetail(await fetchCareerHtml(`/campus/view/id/${id}`),id);
+      const html=await fetchCareerHtml(`/campus/view/id/${id}`);await trace('source_response');const detail=await parseCareerDetail(html,id);await trace('source_parse');
       const source=await createSnapshot({url:detail.url,numericId:id,retrievedAt:new Date().toISOString(),originalDate:detail.originalDate,sourceExpiry:detail.sourceExpiry,captureMethod:'static-html-text',partial:detail.partial},`公告标题：${detail.title}\n${detail.employer?`发布单位：${detail.employer}\n`:''}正文：\n${detail.text}`);
       const data:PreviewData={schemaVersion:1,source,title:detail.title,employer:detail.employer,warnings:detail.warnings,expiresAt:new Date(Date.now()+SOURCE_TTL_MS).toISOString()};
       await writeCareerCache(c.env,`detail:${id}`,data);return data;

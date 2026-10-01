@@ -156,3 +156,21 @@ The next real temporary-budget test remains pending after deployment.
 Protocol references: [OpenCode Go endpoints](https://opencode.ai/docs/go/),
 [official Go model registry](https://raw.githubusercontent.com/anomalyco/models.dev/dev/providers/opencode-go/models/deepseek-v4.1-flash.toml),
 [model limits database](https://models.dev/).
+
+## Source failure classification
+
+For the owner-reported later fetch failure, the production read-only evidence
+showed source protection cooling down from 14:16:26.229 to 14:31:26.229 UTC and no
+AI diagnostic after 14:10. The old source handler had collapsed all underlying
+fetch/parser reasons, so that historical failure cannot be asserted to be HTTP403,
+timeout or a script error, nor attributed to the earlier model output limit.
+
+New source operations persist safe `source_fetch`, response, decode/parse and end
+stages with the HTTP request ID. Fixed codes now distinguish remote 403, remote429,
+challenge/redirect/other HTTP, timeout, network failure, decoding incompatibility,
+parser incompatibility, size protection and internal script/storage errors.
+Errors display the matching code and request ID in the review panel. Raw HTML,
+exception messages/stacks and personal content are not stored; logging failure
+does not change the source outcome. No migration, alternate source route, UA
+rotation or automatic source retry is introduced. The next single low-frequency
+production source action is needed to establish the current actual cause.

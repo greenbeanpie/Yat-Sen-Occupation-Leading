@@ -11,7 +11,7 @@ const DETAIL_PATH = /^\/campus\/view\/id\/([0-9]{1,12})$/;
 const ID = /^[0-9]{1,12}$/;
 
 export class CareerSourceError extends Error {
-  constructor(message: string) { super(message); this.name = "CareerSourceError"; }
+  constructor(message: string, readonly httpStatus?: number) { super(message); this.name = "CareerSourceError"; }
 }
 export interface CareerListItem {
   id: string;
@@ -77,6 +77,7 @@ export async function fetchCareerHtml(path: string): Promise<string> {
   const url = `${CAREER_SOURCE_ORIGIN}${path}`;
   const controller = new AbortController();
   let timer: ReturnType<typeof setTimeout> | undefined;
+  let httpStatus: number|undefined;
   const deadline = new Promise<never>((_, reject) => {
     timer = setTimeout(() => { controller.abort(); reject(new CareerSourceError("Source request timed out")); }, FETCH_TIMEOUT_MS);
   });
@@ -86,6 +87,7 @@ export async function fetchCareerHtml(path: string): Promise<string> {
         method: "GET", redirect: "manual", cache: "no-store", signal: controller.signal,
         headers: { "User-Agent": CAREER_SOURCE_USER_AGENT, Accept: "text/html" },
       });
+      httpStatus=response.status;
       const rejectResponse = (message: string): never => {
         void response.body?.cancel().catch(() => undefined);
         return fail(message);
@@ -103,8 +105,8 @@ export async function fetchCareerHtml(path: string): Promise<string> {
       return html;
     })()]);
   } catch (error) {
-    if (error instanceof CareerSourceError) throw error;
-    throw new CareerSourceError(controller.signal.aborted ? "Source request timed out" : "Source network request failed; stopped");
+    if (error instanceof CareerSourceError) throw new CareerSourceError(error.message,error.httpStatus??httpStatus);
+    throw new CareerSourceError(controller.signal.aborted ? "Source request timed out" : "Source network request failed; stopped",httpStatus);
   } finally { if (timer !== undefined) clearTimeout(timer); }
 }
 

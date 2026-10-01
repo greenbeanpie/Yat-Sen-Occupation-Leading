@@ -6952,9 +6952,9 @@ export interface components {
             requestId: string;
             time: string;
             /** @enum {string} */
-            stage: "config_validated" | "dispatch" | "response" | "parse" | "end";
+            stage: "config_validated" | "dispatch" | "response" | "parse" | "end" | "source_fetch" | "source_response" | "source_decode" | "source_parse" | "source_end";
             /** @enum {string} */
-            code: "ok" | "mock_mode" | "timeout" | "network_error" | "dns_error" | "tls_error" | "connection_reset" | "connection_refused" | "redirect_rejected" | "output_limit" | "provider_http" | "invalid_response" | "invalid_configuration" | "internal_error";
+            code: "ok" | "mock_mode" | "timeout" | "network_error" | "dns_error" | "tls_error" | "connection_reset" | "connection_refused" | "redirect_rejected" | "output_limit" | "provider_http" | "invalid_response" | "invalid_configuration" | "internal_error" | "source_forbidden" | "source_rate_limited" | "source_challenge" | "source_redirect" | "source_http" | "source_timeout" | "source_network" | "source_decode_error" | "source_parser_error" | "source_size_limit" | "source_internal_error";
             /** @enum {string} */
             provider: "custom" | "openai" | "anthropic" | "gemini" | "deepseek" | "openrouter" | "opencode-zen" | "opencode-go" | "mock" | "unknown";
             model: string;

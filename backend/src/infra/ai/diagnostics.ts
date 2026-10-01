@@ -2,8 +2,8 @@ import { z } from '@hono/zod-openapi';
 import type { Env } from '../../env';
 import { AI_MODELS_BY_PRESET, type AiProtocol, type ProviderPreset } from './config';
 
-export const DiagnosticStage = z.enum(['config_validated','dispatch','response','parse','end']);
-export const DiagnosticCode = z.enum(['ok','mock_mode','timeout','network_error','dns_error','tls_error','connection_reset','connection_refused','redirect_rejected','output_limit','provider_http','invalid_response','invalid_configuration','internal_error']);
+export const DiagnosticStage = z.enum(['config_validated','dispatch','response','parse','end','source_fetch','source_response','source_decode','source_parse','source_end']);
+export const DiagnosticCode = z.enum(['ok','mock_mode','timeout','network_error','dns_error','tls_error','connection_reset','connection_refused','redirect_rejected','output_limit','provider_http','invalid_response','invalid_configuration','internal_error','source_forbidden','source_rate_limited','source_challenge','source_redirect','source_http','source_timeout','source_network','source_decode_error','source_parser_error','source_size_limit','source_internal_error']);
 export const DiagnosticEventSchema = z.object({
   requestId: z.string().uuid(), time: z.string().max(30), stage: DiagnosticStage, code: DiagnosticCode,
   provider: z.enum(['custom','openai','anthropic','gemini','deepseek','openrouter','opencode-zen','opencode-go','mock','unknown']),

@@ -3699,7 +3699,12 @@
               "dispatch",
               "response",
               "parse",
-              "end"
+              "end",
+              "source_fetch",
+              "source_response",
+              "source_decode",
+              "source_parse",
+              "source_end"
             ]
           },
           "code": {
@@ -3718,7 +3723,18 @@
               "provider_http",
               "invalid_response",
               "invalid_configuration",
-              "internal_error"
+              "internal_error",
+              "source_forbidden",
+              "source_rate_limited",
+              "source_challenge",
+              "source_redirect",
+              "source_http",
+              "source_timeout",
+              "source_network",
+              "source_decode_error",
+              "source_parser_error",
+              "source_size_limit",
+              "source_internal_error"
             ]
           },
           "provider": {
