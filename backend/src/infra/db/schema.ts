@@ -467,6 +467,12 @@ CREATE TABLE career_source_cache (
   lease_token TEXT
 );
 -- Nonsecret settings and authenticated ciphertext only, no plaintext API keys.
+CREATE TABLE ai_diagnostics (
+  seq INTEGER PRIMARY KEY AUTOINCREMENT,
+  created_at TEXT NOT NULL,
+  event_json TEXT NOT NULL,
+  bytes INTEGER NOT NULL CHECK(bytes > 0 AND bytes <= 2048 AND bytes = length(CAST(event_json AS BLOB)))
+);
 CREATE TABLE ai_settings (
   id INTEGER PRIMARY KEY CHECK (id=1),
   version INTEGER NOT NULL DEFAULT 0,

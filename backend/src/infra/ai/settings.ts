@@ -65,13 +65,14 @@ export async function settingsResponse(env: Env, row: AiSettingsRow | null) {
 }
 
 /** Reads the saved row for every operation. Never falls back after key/config failure. */
-export async function runtimeAiEnv(env: Env, userId?: string): Promise<Env> {
+export async function runtimeAiEnv(env: Env, userId?: string, expectedVersion?: number): Promise<Env> {
   if (userId) {
     const user = await env.DB.prepare('SELECT is_demo FROM users WHERE id=?1 AND deleted=0 AND disabled=0').bind(userId).first<{is_demo:number}>();
     if (!user) throw new AiError('账户状态不可用', false);
     if (user.is_demo === 1) return { ...env, AI_PROVIDER: 'mock', AI_API_KEY: undefined };
   }
   const row = await readAiSettings(env);
+  if (expectedVersion !== undefined && row?.version !== expectedVersion) throw new AiError('模型配置版本已变化，请重新加载后测试', false);
   const settings = rowConfig(row);
   if (settings.mode === 'environment') return env;
   if (settings.mode === 'mock') return { ...env, AI_PROVIDER: 'mock', AI_API_KEY: undefined };
@@ -89,4 +90,3 @@ export async function getConfiguredAiProvider(env: Env, userId: string, conversa
     complete: (messages, options) => provider.complete(messages, { ...options, sessionId: options?.sessionId ?? conversationId }),
   };
 }
-

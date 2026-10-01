@@ -31,3 +31,14 @@ export const AiSettingsResponseSchema = z.object({
   allowedHosts: z.array(z.string()),
   presets: z.array(z.object({ id: AiPresetSchema, label: z.string(), baseUrl: z.string(), models: z.array(z.object({ id: z.string(), protocol: AiProtocolSchema, temperature: z.boolean(), topP: z.boolean(), samplingWithNoneOnly: z.boolean(), reasoningEfforts: z.array(z.string()) })) })),
 }).openapi('AiSettingsResponse');
+export const AiSettingsTestRequestSchema = z.object({
+  baseVersion: z.number().int().min(0), requestId: z.string().uuid(),
+}).strict().openapi('AiSettingsTestRequest');
+export const AiSettingsTestResponseSchema = z.object({
+  version: z.number().int().min(0), status: z.enum(['passed','failed','not_run']),
+  realRequestAttempted: z.boolean(), provider: z.string().nullable(), model: z.string().nullable(), protocol: AiProtocolSchema.nullable(),
+  limits: z.object({ maxRequests: z.literal(1), timeoutMs: z.number().int().min(0).max(90000), maxOutputTokens: z.number().int().min(0).max(4096), maxResponseBytes: z.literal(8192) }),
+  checks: z.array(z.object({ name: z.enum(['connection','basic_response']), passed: z.boolean(), detail: z.string().max(500) })),
+  error: z.object({ code: z.string(), message: z.string().max(500) }).nullable(),
+}).openapi('AiSettingsTestResponse');
+export type AiSettingsTestResponse = z.infer<typeof AiSettingsTestResponseSchema>;

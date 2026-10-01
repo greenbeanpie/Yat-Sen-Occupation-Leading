@@ -1,11 +1,13 @@
-import { createRoute } from '@hono/zod-openapi';
+import { createRoute, z } from '@hono/zod-openapi';
 import type { MiddlewareHandler } from 'hono';
 import { bodyLimit } from 'hono/body-limit';
 import { allowedOrigins, type App } from '../app';
 import type { AppEnv } from '../env';
 import { requireAuth, requireSuperAdmin } from '../middleware/auth';
 import { ErrorBodySchema } from '../shared/schemas';
-import { AiSettingsWriteSchema, AiSettingsResponseSchema } from '../shared/schemas/ai-settings';
+import { AiSettingsWriteSchema, AiSettingsResponseSchema, AiSettingsTestRequestSchema, AiSettingsTestResponseSchema } from '../shared/schemas/ai-settings';
+import { testSavedAiSettings } from '../infra/ai/probe';
+import { AiDiagnosticsResponseSchema, readAiDiagnostics } from '../infra/ai/diagnostics';
 import { AppError, conflict, forbidden } from '../shared/errors';
 import { nowIso, uuid } from '../shared/datetime';
 import { credentialBinding, readAiSettings, resolveWebConfig, rowConfig, settingsResponse } from '../infra/ai/settings';
@@ -25,6 +27,8 @@ const middleware = [requireAuth, requireSuperAdmin, guard, bodyLimit({maxSize:16
 const errors = Object.fromEntries([401,403,409,413,422,503].map(status=>[status,{content:{'application/json':{schema:ErrorBodySchema}},description:'权限、配置或版本错误；不会返回密钥'}]));
 const response = { 200: { content: { 'application/json': { schema: AiSettingsResponseSchema } }, description:'仅非敏感配置、密钥状态及能力表；不发出模型请求' }, ...errors };
 export function registerAiSettingsRoutes(app: App): void {
+  app.openapi(createRoute({method:'post',path:'/admin/ai-settings/test',tags:['admin'],middleware:[...middleware],request:{body:{required:true,content:{'application/json':{schema:AiSettingsTestRequestSchema}}}},responses:{200:{content:{'application/json':{schema:AiSettingsTestResponseSchema}},description:'用户点击触发一次连接与基本响应测试；mock不伪装成功'},429:{content:{'application/json':{schema:ErrorBodySchema}},description:'测试正在进行或频率受限'},...errors}}),async c=>c.json(await testSavedAiSettings(c.env,c.get('user').id,c.req.valid('json')),200) as never);
+  app.openapi(createRoute({method:'get',path:'/admin/ai-settings/logs',tags:['admin'],middleware:[...middleware],request:{query:z.object({beforeSeq:z.coerce.number().int().positive().optional(),limit:z.coerce.number().int().min(1).max(100).default(50)})},responses:{200:{content:{'application/json':{schema:AiDiagnosticsResponseSchema}},description:'仅脱敏阶段元数据；最近1000条/1000000 UTF-8字节双限'},...errors}}),async c=>{const q=c.req.valid('query');return c.json(await readAiDiagnostics(c.env,q.beforeSeq,q.limit),200) as never;});
   app.openapi(createRoute({method:'get',path:'/admin/ai-settings',tags:['admin'],middleware:[...middleware],responses:response}), async c => c.json(await settingsResponse(c.env,await readAiSettings(c.env)),200) as never);
   app.openapi(createRoute({method:'put',path:'/admin/ai-settings',tags:['admin'],middleware:[...middleware],request:{body:{required:true,content:{'application/json':{schema:AiSettingsWriteSchema}}}},responses:response}), async c => {
     const input = c.req.valid('json');

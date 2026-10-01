@@ -10,6 +10,9 @@ const fixture: Settings = { version:0,credentialStatus:'missing',updatedAt:null,
 };
 const render=(settings=fixture)=>renderToStaticMarkup(<AiSettingsEditor settings={settings} busy={false} onSave={async()=>{}} onReload={()=>{}}/>);
 describe('AI web settings form',()=>{
+ it('offers an explicit saved-only test and private diagnostic reader without coupling save to probe results',()=>{
+  const html=render();expect(html).toContain('测试已保存配置');expect(html).toContain('可能消耗少量额度');expect(html).toContain('本次测试超时不代表配置无效');expect(html).toContain('读取最新诊断日志');expect(html).toContain('1,000,000 UTF-8 字节');expect(html).toContain('测试失败不阻止保存');
+ });
  it.each(['deepseek-flash','deepseek-v4-pro'])('renders all native DeepSeek effort options for %s',model=>{
   const native={...fixture,config:{...fixture.config,providerPreset:'deepseek' as const,model},presets:[...fixture.presets,{id:'deepseek' as const,label:'DeepSeek',baseUrl:'https://api.deepseek.com',models:[{id:model,protocol:'chat-completions' as const,temperature:false,topP:true,samplingWithNoneOnly:true,reasoningEfforts:['none','low','high','max']}]}]};
   const html=render(native);for(const effort of ['none','low','high','max'])expect(html).toContain(`value="${effort}"`);

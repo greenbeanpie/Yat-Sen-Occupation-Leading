@@ -1,7 +1,8 @@
 import { useSettingsDirty } from './settings-dirty';
 import { aiDestinationChanged, aiFormCapabilities } from './ai-settings-form';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
-import { put } from '../api/client';
+import { get, post, put } from '../api/client';
+import { createAiProbeRunner, type AiProbeReport } from './ai-settings-probe';
 import type { components } from '../api/schema';
 import { InlineError, Loading, Panel, ResourceNotice, type ActionContext } from '../components';
 import { useAdminResource } from './admin-resource';
@@ -24,26 +25,48 @@ export function AiSettingsPanel({ context }: { context: ActionContext }) {
     {message && <p className="success-note" role="status">{message}</p>}
     {settings.error && <button className="btn secondary" onClick={() => setRefresh(value => value + 1)}>重新加载 AI 配置</button>}
     {settings.data && <AiSettingsEditor key={`${context.userId}:${settings.data.version}`} settings={settings.data} busy={context.busy}
-      onSave={async input => { await put<Settings>('/admin/ai-settings', input); if (!active.current) return; setMessage('AI 配置已保存。未发出测试请求；真实调用仍受密钥状态、模型能力和额度限制。'); setRefresh(value => value + 1); }}
+      onSave={async input => { const updated = await put<Settings>('/admin/ai-settings', input); if (!active.current) return updated; setMessage('AI 配置已保存。未发出测试请求；真实调用仍受密钥状态、模型能力和额度限制。'); setRefresh(value => value + 1); return updated; }}
       onReload={() => { setMessage(''); setRefresh(value => value + 1); }}/>} 
   </Panel>;
 }
 
-export function AiSettingsEditor({ settings, busy, onSave, onReload }: { settings: Settings; busy: boolean; onSave: (input: Write) => Promise<void>; onReload: () => void }) {
+export function AiSettingsEditor({ settings, busy, onSave, onReload }: { settings: Settings; busy: boolean; onSave: (input: Write) => Promise<Settings|void>; onReload: () => void }) {
+  const [savedSettings, setSavedSettings] = useState(settings);
   const [config, setConfig] = useState<Config>(() => structuredClone(settings.config));
   const [apiKey, setApiKey] = useState('');
   const [clearApiKey, setClearApiKey] = useState(false);
   const [accepted, setAccepted] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const [testing, setTesting] = useState(false);
+  const [testReport, setTestReport] = useState<AiProbeReport|null>(null);
+  const [testError, setTestError] = useState('');
+  const probe = useRef(createAiProbeRunner(body=>post<AiProbeReport>('/admin/ai-settings/test',body)));
+  const [logs, setLogs] = useState<components['schemas']['AiDiagnosticsResponse']|null>(null);
+  const [logsError, setLogsError] = useState('');
+  const [loadingLogs, setLoadingLogs] = useState(false);
   const submitting = useRef(false);
   useSettingsDirty(JSON.stringify(config) !== JSON.stringify(settings.config) || Boolean(apiKey) || clearApiKey);
   const active = useRef(true);
   useEffect(() => { active.current = true; return () => { active.current = false; }; }, []);
-  const capabilities = aiFormCapabilities(settings, config);
-  const preset = settings.presets.find(item => item.id === config.providerPreset);
-  const disabled = saving || busy;
-  const destinationChanged = aiDestinationChanged(settings, config);
+  const capabilities = aiFormCapabilities(savedSettings, config);
+  const preset = savedSettings.presets.find(item => item.id === config.providerPreset);
+  const disabled = saving || busy || testing;
+  const destinationChanged = aiDestinationChanged(savedSettings, config);
+  async function readLogs(beforeSeq?: number) {
+    if (loadingLogs) return;
+    setLoadingLogs(true); setLogsError('');
+    try { const next = await get<components['schemas']['AiDiagnosticsResponse']>(`/admin/ai-settings/logs${beforeSeq?`?beforeSeq=${beforeSeq}`:''}`); if(active.current)setLogs(current=>beforeSeq&&current?{...next,items:[...current.items,...next.items]}:next); }
+    catch(value){if(active.current)setLogsError(value instanceof Error?value.message:'读取诊断日志失败，请稍后重试');}
+    finally{if(active.current)setLoadingLogs(false);}
+  }
+  async function testSaved() {
+    if (submitting.current || busy || probe.current.pending) return;
+    setTesting(true); setTestReport(null); setTestError('');
+    try { const report = await probe.current.run(savedSettings.version); if(active.current)setTestReport(report); }
+    catch(value){if(active.current)setTestError(value instanceof Error?value.message:'测试请求未完成，请检查服务状态');}
+    finally{if(active.current){setTesting(false);void readLogs();}}
+  }
   function update(values: Partial<Config>) { setConfig(current => ({ ...current, ...values })); setAccepted(false); }
   function changePreset(value: Config['providerPreset']) {
     const next = settings.presets.find(item => item.id === value);
@@ -54,18 +77,18 @@ export function AiSettingsEditor({ settings, busy, onSave, onReload }: { setting
   async function save(event: FormEvent) {
     event.preventDefault();
     if (submitting.current || disabled || (config.mode === 'real' && !accepted)) return;
-    if (config.mode === 'real' && !clearApiKey && !apiKey && (destinationChanged || settings.credentialStatus !== 'stored')) { setError('请为当前供应商、协议和 API 根地址重新输入密钥。'); return; }
+    if (config.mode === 'real' && !clearApiKey && !apiKey && (destinationChanged || savedSettings.credentialStatus !== 'stored')) { setError('请为当前供应商、协议和 API 根地址重新输入密钥。'); return; }
     submitting.current = true; setSaving(true); setError('');
-    const input: Write = { baseVersion: settings.version, config: { ...config, requestHeaders: Object.fromEntries(Object.entries(config.requestHeaders).filter(([,value]) => value.trim())) }, ...(apiKey ? { apiKey } : {}), ...(clearApiKey ? { clearApiKey: true } : {}) };
+    const input: Write = { baseVersion: savedSettings.version, config: { ...config, requestHeaders: Object.fromEntries(Object.entries(config.requestHeaders).filter(([,value]) => value.trim())) }, ...(apiKey ? { apiKey } : {}), ...(clearApiKey ? { clearApiKey: true } : {}) };
     setApiKey('');
-    try { await onSave(input); }
+    try { const updated = await onSave(input); if(active.current&&updated){setSavedSettings(updated);setConfig(updated.config);setClearApiKey(false);setTestReport(null);} }
     catch (value) { if (active.current) setError(value instanceof Error ? value.message : '保存失败，请重试。'); }
     finally { submitting.current = false; if (active.current) setSaving(false); }
   }
   return <form className="ai-settings-form" onSubmit={event => void save(event)} autoComplete="off">
     <p className="muted">统一模型：文档解析、岗位要求提取、匹配分析、行动计划、简历改写和招聘公告提取共用这一套端点、协议、模型及参数。每次操作读取已保存配置；演示账户仍使用 mock。</p>
     <p className="muted">当前仅支持文本输入，不提供图像识别或图像模型路由。能力不足或调用失败时不会自动改用其他端点；请由管理员核对所选模型的能力。</p>
-    <div className="ai-settings-status"><span>版本 {settings.version}</span><span>{credentialLabels[settings.credentialStatus]}</span></div>
+    <div className="ai-settings-status"><span>版本 {savedSettings.version}</span><span>{credentialLabels[savedSettings.credentialStatus]}</span></div>
     <label className="field"><span>配置来源</span><select value={config.mode} disabled={disabled} onChange={event => update({ mode: event.target.value as Config['mode'] })}>
       <option value="environment">沿用部署环境配置</option><option value="mock">仅模拟（mock）</option><option value="real">网页真实模型配置</option>
     </select></label>
@@ -103,6 +126,10 @@ export function AiSettingsEditor({ settings, busy, onSave, onReload }: { setting
       <label className="admin-registration-toggle"><input type="checkbox" required checked={accepted} disabled={disabled} onChange={event => setAccepted(event.target.checked)}/><span>我已核对目标服务、密钥和使用费用；保存后允许后续非演示任务发送相关业务内容</span></label>
     </>}
     {error && <InlineError>{error}</InlineError>}
-    <div className="button-row"><button className="btn primary" disabled={disabled || (config.mode === 'real' && (!accepted || (!settings.encryptionAvailable && !clearApiKey)))}>{saving ? '正在加密保存…' : '保存 AI 配置'}</button><button type="button" className="btn secondary" disabled={saving} onClick={() => { setApiKey(''); onReload(); }}>取消修改 / 重新加载</button></div>
+    <div className="button-row"><button className="btn primary" disabled={disabled || (config.mode === 'real' && (!accepted || (!settings.encryptionAvailable && !clearApiKey)))}>{saving ? '正在加密保存…' : '保存 AI 配置'}</button><button type="button" className="btn secondary" disabled={disabled} onClick={() => void testSaved()}>{testing?'正在测试已保存配置…':'测试已保存配置'}</button><button type="button" className="btn secondary" disabled={saving||testing} onClick={() => { setApiKey(''); onReload(); }}>取消修改 / 重新加载</button></div>
+    <p className="muted">测试仅使用已保存的版本 {savedSettings.version}，不会保存或发送本页未保存修改、密钥输入和个人资料。一次模型请求，使用已保存的超时与输出上限（最高 4096 tokens），可能消耗少量额度；不会自动重试。仅验证连接与基本文本响应，测试失败不阻止保存，本次测试超时不代表配置无效。</p>
+    {testError&&<InlineError>{testError}</InlineError>}
+    {testReport&&<div role="status"><p>{testReport.status==='passed'?'连接与基本响应测试通过':testReport.status==='not_run'?'未发起真实模型测试':'本次测试未通过'} · 配置版本 {testReport.version}</p><p>本次上限：{testReport.limits.timeoutMs/1000} 秒 / {testReport.limits.maxOutputTokens} 输出 tokens / 1 次请求</p>{testReport.error&&<p>{testReport.error.message}</p>}{testReport.checks.map(check=><p key={check.name}>{check.detail}</p>)}</div>}
+    <details><summary>服务端 AI 诊断日志（仅超级管理员）</summary><p className="muted">仅记录请求编号、阶段、耗时、HTTP 状态和固定错误代码，不记录密钥、请求正文、模型答复或个人资料。最多保留最近 1000 条且 1,000,000 UTF-8 字节。</p><button type="button" className="btn secondary" disabled={loadingLogs} onClick={()=>void readLogs()}>{loadingLogs?'正在读取…':'读取最新诊断日志'}</button>{logsError&&<InlineError>{logsError}</InlineError>}{logs&&<><p>保留 {logs.retainedCount} 条 / {logs.retainedBytes} 字节</p><ul>{logs.items.map(item=><li key={item.seq}>{item.event.time} · {item.event.requestId} · {item.event.stage} · {item.event.code} · {item.event.elapsedMs}ms · HTTP {item.event.httpStatus??'未收到'} · {item.event.provider}/{item.event.model}/{item.event.protocol}</li>)}</ul>{!logs.items.length&&<p>暂无诊断日志。请主动点击测试或执行已授权的 AI 操作后再刷新。</p>}{logs.nextBeforeSeq&&<button type="button" className="btn secondary" disabled={loadingLogs} onClick={()=>void readLogs(logs.nextBeforeSeq!)}>读取较早记录</button>}</>}</details>
   </form>;
 }

@@ -1989,6 +1989,312 @@
         ],
         "additionalProperties": false
       },
+      "AiSettingsTestResponse": {
+        "type": "object",
+        "properties": {
+          "version": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "passed",
+              "failed",
+              "not_run"
+            ]
+          },
+          "realRequestAttempted": {
+            "type": "boolean"
+          },
+          "provider": {
+            "type": "string",
+            "nullable": true
+          },
+          "model": {
+            "type": "string",
+            "nullable": true
+          },
+          "protocol": {
+            "type": "string",
+            "nullable": true,
+            "enum": [
+              "auto",
+              "chat-completions",
+              "responses",
+              "messages",
+              "generate-content",
+              null
+            ]
+          },
+          "limits": {
+            "type": "object",
+            "properties": {
+              "maxRequests": {
+                "type": "number",
+                "enum": [
+                  1
+                ]
+              },
+              "timeoutMs": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 90000
+              },
+              "maxOutputTokens": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 4096
+              },
+              "maxResponseBytes": {
+                "type": "number",
+                "enum": [
+                  8192
+                ]
+              }
+            },
+            "required": [
+              "maxRequests",
+              "timeoutMs",
+              "maxOutputTokens",
+              "maxResponseBytes"
+            ]
+          },
+          "checks": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "enum": [
+                    "connection",
+                    "basic_response"
+                  ]
+                },
+                "passed": {
+                  "type": "boolean"
+                },
+                "detail": {
+                  "type": "string",
+                  "maxLength": 500
+                }
+              },
+              "required": [
+                "name",
+                "passed",
+                "detail"
+              ]
+            }
+          },
+          "error": {
+            "type": "object",
+            "nullable": true,
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string",
+                "maxLength": 500
+              }
+            },
+            "required": [
+              "code",
+              "message"
+            ]
+          }
+        },
+        "required": [
+          "version",
+          "status",
+          "realRequestAttempted",
+          "provider",
+          "model",
+          "protocol",
+          "limits",
+          "checks",
+          "error"
+        ]
+      },
+      "AiSettingsTestRequest": {
+        "type": "object",
+        "properties": {
+          "baseVersion": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "requestId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "required": [
+          "baseVersion",
+          "requestId"
+        ],
+        "additionalProperties": false
+      },
+      "AiDiagnosticsResponse": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "seq": {
+                  "type": "integer"
+                },
+                "event": {
+                  "$ref": "#/components/schemas/AiDiagnosticEvent"
+                }
+              },
+              "required": [
+                "seq",
+                "event"
+              ]
+            }
+          },
+          "nextBeforeSeq": {
+            "type": "integer",
+            "nullable": true
+          },
+          "retainedCount": {
+            "type": "integer"
+          },
+          "retainedBytes": {
+            "type": "integer"
+          },
+          "maxEntries": {
+            "type": "number",
+            "enum": [
+              1000
+            ]
+          },
+          "maxBytes": {
+            "type": "number",
+            "enum": [
+              1000000
+            ]
+          }
+        },
+        "required": [
+          "items",
+          "nextBeforeSeq",
+          "retainedCount",
+          "retainedBytes",
+          "maxEntries",
+          "maxBytes"
+        ]
+      },
+      "AiDiagnosticEvent": {
+        "type": "object",
+        "properties": {
+          "requestId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "time": {
+            "type": "string",
+            "maxLength": 30
+          },
+          "stage": {
+            "type": "string",
+            "enum": [
+              "config_validated",
+              "dispatch",
+              "response",
+              "parse",
+              "end"
+            ]
+          },
+          "code": {
+            "type": "string",
+            "enum": [
+              "ok",
+              "mock_mode",
+              "timeout",
+              "network_error",
+              "output_limit",
+              "provider_http",
+              "invalid_response",
+              "invalid_configuration",
+              "internal_error"
+            ]
+          },
+          "provider": {
+            "type": "string",
+            "enum": [
+              "custom",
+              "openai",
+              "anthropic",
+              "gemini",
+              "deepseek",
+              "openrouter",
+              "opencode-zen",
+              "opencode-go",
+              "mock",
+              "unknown"
+            ]
+          },
+          "model": {
+            "type": "string",
+            "maxLength": 80
+          },
+          "protocol": {
+            "type": "string",
+            "enum": [
+              "chat-completions",
+              "responses",
+              "messages",
+              "generate-content",
+              "none"
+            ]
+          },
+          "elapsedMs": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 600000
+          },
+          "attempt": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 3
+          },
+          "httpStatus": {
+            "type": "integer",
+            "nullable": true,
+            "minimum": 100,
+            "maximum": 599
+          },
+          "timeoutMs": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 90000
+          },
+          "maxOutputTokens": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 4096
+          }
+        },
+        "required": [
+          "requestId",
+          "time",
+          "stage",
+          "code",
+          "provider",
+          "model",
+          "protocol",
+          "elapsedMs",
+          "attempt",
+          "httpStatus",
+          "timeoutMs",
+          "maxOutputTokens"
+        ],
+        "additionalProperties": false
+      },
       "AiSettingsResponse": {
         "type": "object",
         "properties": {
@@ -7396,6 +7702,207 @@
           },
           "422": {
             "description": "参数错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/admin/ai-settings/test": {
+      "post": {
+        "tags": [
+          "admin"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AiSettingsTestRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "用户点击触发一次连接与基本响应测试；mock不伪装成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AiSettingsTestResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "权限、配置或版本错误；不会返回密钥",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "权限、配置或版本错误；不会返回密钥",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "权限、配置或版本错误；不会返回密钥",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "权限、配置或版本错误；不会返回密钥",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "权限、配置或版本错误；不会返回密钥",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "测试正在进行或频率受限",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "权限、配置或版本错误；不会返回密钥",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/admin/ai-settings/logs": {
+      "get": {
+        "tags": [
+          "admin"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "exclusiveMinimum": true
+            },
+            "required": false,
+            "name": "beforeSeq",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 50
+            },
+            "required": false,
+            "name": "limit",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "仅脱敏阶段元数据；最近1000条/1000000 UTF-8字节双限",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AiDiagnosticsResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "权限、配置或版本错误；不会返回密钥",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "权限、配置或版本错误；不会返回密钥",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "权限、配置或版本错误；不会返回密钥",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "权限、配置或版本错误；不会返回密钥",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "权限、配置或版本错误；不会返回密钥",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "权限、配置或版本错误；不会返回密钥",
             "content": {
               "application/json": {
                 "schema": {

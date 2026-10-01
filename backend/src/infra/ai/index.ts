@@ -2,6 +2,7 @@ import type { Env } from "../../env";
 import { AiError } from './errors';
 import { boundedNumber, resolveAiConfig, type AiConfig } from './config';
 import { buildAiRequest, completionText } from './request';
+import { writeAiDiagnostic, type DiagnosticEvent } from './diagnostics';
 export { AiError } from './errors';
 
 export interface ChatMessage {
@@ -10,6 +11,10 @@ export interface ChatMessage {
 }
 
 export interface CompletionOptions {
+  /** Internal synchronous dispatch signal; never receives the request or credentials. */
+  onDispatch?: () => void;
+  /** Optional final permissions/version guard, awaited immediately before fetch. */
+  beforeDispatch?: () => Promise<void>;
   temperature?: number;
   /** Opaque conversation ID, reused across turns/retries; never user data. */
   sessionId?: string;
@@ -63,11 +68,21 @@ export class OpenAiCompatProvider implements AiProvider {
     const maxAttempts = Math.min(this.config.maxAttempts, boundedNumber(opts?.maxAttempts, 'maxAttempts', 1, 3, this.config.maxAttempts, true)!);
     const maxResponseBytes = boundedNumber(opts?.maxResponseBytes, 'maxResponseBytes', 1, 1_000_000, 1_000_000, true)!;
     const request = buildAiRequest(this.config, messages, this.env.AI_API_KEY, opts?.sessionId ?? this.sessionId, opts);
+    const requestId = opts?.sessionId ?? this.sessionId;
+    const started = Date.now();
+    const trace = (stage: DiagnosticEvent['stage'], code: DiagnosticEvent['code'], attempt = 0, httpStatus?: number) => writeAiDiagnostic(this.env,{requestId,stage,code,attempt,httpStatus,provider:this.config.preset,model:this.config.model,protocol:this.config.protocol,timeoutMs,maxOutputTokens:this.config.maxOutputTokens,elapsedMs:Date.now()-started});
+    await trace('config_validated','ok');
     let lastError: AiError = new AiError("模型请求失败", false);
     for (let attempt = 0; attempt < maxAttempts; attempt++) {
+      await trace('dispatch','ok',attempt+1);
+      try { await opts?.beforeDispatch?.(); }
+      catch(error) { await trace('end','invalid_configuration',attempt+1); throw error; }
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), timeoutMs);
+      let outcome: DiagnosticEvent['code'] = 'internal_error';
+      let httpStatus: number|undefined;
       try {
+        opts?.onDispatch?.();
         const res = await fetch(request.url, {
           method: "POST",
           // Never forward credentials/attribution through a redirect.
@@ -76,34 +91,45 @@ export class OpenAiCompatProvider implements AiProvider {
           body: request.body,
           signal: controller.signal,
         });
+        httpStatus = res.status;
+        await trace('response',res.ok?'ok':'provider_http',attempt+1,res.status);
         if (res.status === 429 || res.status >= 500) {
+          outcome = 'provider_http';
           lastError = new AiError(`模型服务暂时不可用（HTTP ${res.status}）`, true);
           await res.body?.cancel();
           if (attempt + 1 < maxAttempts) await backoff(attempt);
           continue;
         }
         if (!res.ok) {
+          outcome = 'provider_http';
           await res.body?.cancel();
           throw new AiError(`模型请求被拒绝（HTTP ${res.status}）`, false);
         }
         const responseText = await boundedModelResponse(res, maxResponseBytes);
         let body: unknown;
         try { body = JSON.parse(responseText); }
-        catch { throw new AiError('模型响应不是有效 JSON', false); }
-        return completionText(this.config, body);
+        catch { await trace('parse','invalid_response',attempt+1,httpStatus); throw new AiError('模型响应不是有效 JSON', false); }
+        const text = completionText(this.config, body);
+        outcome = 'ok';
+        await trace('parse','ok',attempt+1,httpStatus);
+        return text;
       } catch (e) {
         if (e instanceof AiError) {
+          outcome = httpStatus && httpStatus>=400 ? 'provider_http' : e.message.includes('token 上限') ? 'output_limit' : 'invalid_response';
           lastError = e;
           if (!e.retryable) throw e;
         } else if (controller.signal.aborted || (e instanceof Error && ["AbortError", "TimeoutError"].includes(e.name))) {
+          outcome = 'timeout';
           lastError = new AiError(`模型请求超时（${timeoutMs / 1000} 秒）`, true);
           if (attempt + 1 < maxAttempts) await backoff(attempt);
         } else {
+          outcome = 'network_error';
           lastError = new AiError("网络错误", true);
           if (attempt + 1 < maxAttempts) await backoff(attempt);
         }
       } finally {
         clearTimeout(timer);
+        await trace('end',outcome,attempt+1,httpStatus);
       }
     }
     throw lastError;
