@@ -1,0 +1,96 @@
+{
+  "captureMethod": "Read-only cloud browser accessibility tree, 2026-09-30 23:56–23:58 UTC. Manually transcribed exact visible snippets from tool results; not raw HTML, not API response, and not a fresh HTTP fetch.",
+  "completeness": "PARTIAL EXCERPTS. Snippets are separate observed contiguous text segments. Unquoted intervening text is intentionally omitted. Personal contact details removed by excluding those segments. Do not evaluate whole-document extraction recall from these fixtures.",
+  "observations": {
+    "login": "List and both details readable without signing in",
+    "robots": "https://career.sysu.edu.cn/robots.txt rendered 403 Forbidden, nginx; no crawler rules obtained",
+    "terms": "No reuse or crawler policy verified",
+    "api": "No public JSON API or feed verified",
+    "list": "https://career.sysu.edu.cn/campus shows three pinned announcements before newest unpinned records, including a pinned 2025-11-25 announcement. List exposes 308 pages. Date cutoff must not terminate at pinned old entries."
+  },
+  "announcements": [
+    {
+      "sourceId": "997448",
+      "sourceUrl": "https://career.sysu.edu.cn/campus/view/id/997448",
+      "title": "广州外国语学校2026年“优才计划”编制教师招聘",
+      "company": "广州外国语学校",
+      "companyUrl": "https://career.sysu.edu.cn/company/view/id/1092728",
+      "listPublicationText": "2026-09-30 21:45:47",
+      "detailPublicationText": "发布时间：2026-09-30 21:45",
+      "sourceExpiryText": "过期时间：2026-11-30",
+      "bodySnippets": [
+        "2027年广州外国语学校“优才计划”招聘简章",
+        "为进一步加强我校师资队伍建设，优化人才队伍结构，推进教育持续高质量发展，我校将于2026年10月-11月在北京、武汉面向全国高校公开招聘“优才计划”教师36名。欢迎符合条件的2027年毕业生报考广州外国语学校。",
+        "二、岗位介绍 （一）语文教师5名（北京考点招聘3名、武汉考点招聘2名） 1.需求专业： 中国语言文学（A0501） 新闻传播学（A0503） 国际中文教育（A040123） 课程与教学论(A040102) 学科教学硕士（专业硕士）(A040113) 2.岗位要求： 硕士研究生及以上",
+        "（二）数学教师5名（北京考点招聘3名、武汉考点招聘2名） 1.需求专业： （1）本科： 数学类（B0701) （2）研究生： 数学（A0701） 系统科学（A0711） 统计学（A0714) 应用经济学（A0202） 课程与教学论（A040102） 学科教学硕士（专业硕士）（A040113） 2.岗位要求： 本科及以上",
+        "（三）英语教师5名（北京考点招聘3名、武汉考点招聘2名） 1.需求专业： 英语语言文学（A050201） 外国语言学及应用语言学（A050211） 英语笔译硕士（专业硕士）（A050212） 英语口译硕士（专业硕士）（A050213） 课程与教学论（A040102） 学科教学硕士（专业硕士）（A040113） 2.岗位要求： 硕士研究生及以上",
+        "（四）物理教师5名（北京考点招聘3名、武汉考点招聘2名）",
+        "（五）化学教师5名（北京考点招聘3名、武汉考点招聘2名）",
+        "（六）生物教师5名（北京考点招聘3名、武汉考点招聘2名）",
+        "（七）政治教师2名（北京考点）",
+        "（八）历史教师2名（北京考点）",
+        "（九）地理教师2名（北京考点）",
+        "报考意向调查问卷："
+      ],
+      "imageObservation": "Body contained two image.png images, one following a recruitment communication-group section and one after the questionnaire label. Image/QR payloads were not decoded or extracted.",
+      "interpretationWarnings": [
+        "Announcement title says 2026; body heading says 2027. Preserve both source text and discrepancy rather than silently correcting the year.",
+        "Beijing and Wuhan are explicitly exam/recruitment sites; do not treat them as job workplace locations.",
+        "Nine role categories in one announcement; 36 hires total, not 36 distinct job records.",
+        "Source expiry 2026-11-30 is observed. A true application cutoff was not identified in readable body; do not populate applicationDeadline from source expiry without a separate inference flag.",
+        "Role-specific qualifications differ; do not apply one degree threshold to all roles."
+      ]
+    },
+    {
+      "sourceId": "997447",
+      "sourceUrl": "https://career.sysu.edu.cn/campus/view/id/997447",
+      "title": "上海银行2027届校园招聘",
+      "company": "上海银行股份有限公司",
+      "companyUrl": "https://career.sysu.edu.cn/company/view/id/1099870",
+      "listPublicationText": "2026-09-30 17:16:11",
+      "detailPublicationText": "发布时间：2026-09-30 17:16",
+      "sourceExpiryText": "过期时间：2026-11-22",
+      "bodySnippets": [
+        "（一）总行岗位",
+        "1、总行管理培训生",
+        "培养方向为总分支行管理与专业人才。",
+        "2、总行职能岗位",
+        "金融市场",
+        "培养方向为金融市场投资交易、市场研究等领域的专业人才。",
+        "金融科技岗位",
+        "培养方向为平台、工具、系统的设计、开发、测试和运维，以及数据及AI等领域的技术专业人才。",
+        "（二）分支机构岗位",
+        "1、业务培训生",
+        "培养方向为分支机构精通银行业务的专业人才。",
+        "2、客户经理",
+        "培养方向为分支机构公司金融、普惠金融、财富管理、零售信贷等领域的营销专业人才。",
+        "3、运营岗",
+        "培养方向为分支机构客户服务、网点结算业务等领域的运营管理类专业人才。",
+        "（三）子公司岗位",
+        "上银基金、上银理财、尚诚消费金融岗位，培养方向为上海银行集团内子公司投资研究、信息科技、销售运营等领域的专业人才。",
+        "（一）大学本科及以上学历应届毕业生，其中总行管理培训生、总行职能岗位（金融市场）要求研究生学历应届毕业生。",
+        "（二）毕业时间为2026年1月至2027年7月，其中总行管理培训生、总行职能岗位（金融市场）要求境内院校2027年1月至2027年7月、境外院校2026年8月至2027年7月，须在对应时间内取得毕业证（境外院校需取得教育部留学服务中心认证），且为初次就业。",
+        "（三）总行金融科技岗位要求计算机、软件工程、电子信息、通信、自动化、数学、统计学等相关专业，其余岗位不限专业。",
+        "（一）简历投递：",
+        "截至2026年11月22日",
+        "（二）校园宣讲及线上宣传：",
+        "2026年9月-11月",
+        "（三）笔试测评：",
+        "2026年10月-12月，分批进行",
+        "（四）面试测评：",
+        "2026年10月-12月，分批进行",
+        "（五）录用通知：",
+        "2026年11月-12月，分批进行",
+        "四、应聘方式 （一） 登录PC端网申门户（https://bosc.zhiye.com）进行在线注册及报名申请。 （二） 扫描下方“上海银行招聘”微信公众号二维码，点击“校园招聘”-“我要应聘”进行在线报名申请。 （三）更多招聘动态请关注“上海银行招聘”微信公众号。"
+      ],
+      "interpretationWarnings": [
+        "This fixture preserves text-node fragmentation from observed DOM: some role labels span several text nodes. Snippet concatenation is not an exact original HTML reconstruction.",
+        "Application deadline 2026-11-22 is explicitly tied to resume submission, separate from later assessment/offer dates.",
+        "Graduation eligibility dates are not application deadline dates.",
+        "Several role categories and subsidiary opportunities occur in one announcement; subsidiaries should not be blindly expanded into precise vacancies.",
+        "Bank office geography in company introduction is not necessarily the location of each advertised role.",
+        "The application portal URL is text observed in the source only; destination availability was not verified."
+      ]
+    }
+  ]
+}
