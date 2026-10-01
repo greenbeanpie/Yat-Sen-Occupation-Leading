@@ -62,7 +62,9 @@ export function buildAiRequest(config: AiConfig, messages: ChatMessage[], apiKey
       path = 'chat/completions';
       body = { ...common, messages, [config.preset === 'openai' ? 'max_completion_tokens' : 'max_tokens']: config.maxOutputTokens };
       if (config.reasoningEffort) {
-        if (config.preset === 'openrouter') body.reasoning = { effort: config.reasoningEffort };
+        // DeepSeek Chat uses a thinking toggle to disable reasoning, not effort=none.
+        if (config.preset === 'deepseek' && config.reasoningEffort === 'none') body.thinking = { type: 'disabled' };
+        else if (config.preset === 'openrouter') body.reasoning = { effort: config.reasoningEffort };
         else body.reasoning_effort = config.reasoningEffort;
       }
       if (config.preset === 'openrouter') body.provider = { require_parameters: true };
@@ -82,6 +84,7 @@ export function completionText(config: AiConfig, value: unknown): string {
   let content: unknown;
   if (config.protocol === 'chat-completions') {
     const first = record(Array.isArray(body.choices) ? body.choices[0] : undefined);
+    if (first?.finish_reason === 'length') throw new AiError('模型未完整完成文本输出：达到 token 上限；思考 token 也占输出预算，请调整输出上限或思考强度', false);
     if (first?.finish_reason && first.finish_reason !== 'stop') throw new AiError('模型未完整完成文本输出', false);
     const message = record(first?.message);
     if (message?.refusal || message?.tool_calls || message?.function_call) throw new AiError('模型未返回可用文本', false);

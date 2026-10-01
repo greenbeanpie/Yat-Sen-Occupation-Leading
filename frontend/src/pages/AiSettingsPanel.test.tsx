@@ -10,6 +10,11 @@ const fixture: Settings = { version:0,credentialStatus:'missing',updatedAt:null,
 };
 const render=(settings=fixture)=>renderToStaticMarkup(<AiSettingsEditor settings={settings} busy={false} onSave={async()=>{}} onReload={()=>{}}/>);
 describe('AI web settings form',()=>{
+ it.each(['deepseek-flash','deepseek-v4-pro'])('renders all native DeepSeek effort options for %s',model=>{
+  const native={...fixture,config:{...fixture.config,providerPreset:'deepseek' as const,model},presets:[...fixture.presets,{id:'deepseek' as const,label:'DeepSeek',baseUrl:'https://api.deepseek.com',models:[{id:model,protocol:'chat-completions' as const,temperature:false,topP:true,samplingWithNoneOnly:true,reasoningEfforts:['none','low','high','max']}]}]};
+  const html=render(native);for(const effort of ['none','low','high','max'])expect(html).toContain(`value="${effort}"`);
+  expect(aiFormCapabilities(native,native.config).reasoningEfforts).toEqual(['none','low','high','max']);
+ });
  it('explains the shared text-only model without inventing advanced routes',()=>{
   const html=render();expect(html).toContain('统一模型：文档解析');expect(html).toContain('招聘公告提取共用');expect(html).toContain('当前仅支持文本输入');expect(html).toContain('不会自动改用其他端点');
  });

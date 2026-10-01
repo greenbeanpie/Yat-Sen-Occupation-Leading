@@ -76,13 +76,23 @@ describe('captured provider HTTP contracts', () => {
     expect(sent(fetch).body).toMatchObject({ temperature: 0.7, top_p: 0.8 });
     expect(sent(fetch).body).not.toHaveProperty('reasoning');
   });
-  it.each(['none', 'low', 'high', 'max'])('sends DeepSeek effort=%s in its native flat field', async (effort) => {
+  it.each(['none', 'low', 'high', 'max'])('sends DeepSeek effort=%s using its native toggle/effort fields', async (effort) => {
     const fetch = capture('chat-completions');
     await getAiProvider(env({ AI_PROVIDER_PRESET: 'deepseek', AI_MODEL: 'deepseek-flash', AI_REASONING_EFFORT: effort })).complete(messages);
     expect(sent(fetch).url).toBe('https://api.deepseek.com/chat/completions');
-    expect(sent(fetch).body).toMatchObject({ reasoning_effort: effort, max_tokens: 4096 });
+    expect(sent(fetch).body).toMatchObject({ max_tokens: 4096 });
+    if (effort === 'none') {
+      expect(sent(fetch).body.thinking).toEqual({ type: 'disabled' });
+      expect(sent(fetch).body).not.toHaveProperty('reasoning_effort');
+    } else expect(sent(fetch).body.reasoning_effort).toBe(effort);
     expect(sent(fetch).body).not.toHaveProperty('reasoning');
     if (effort !== 'none') expect(sent(fetch).body).not.toHaveProperty('temperature');
+  });
+  it('reports an exhausted DeepSeek reasoning/output budget without returning thought text or retrying', async () => {
+    const fetch = capture('chat-completions');
+    fetch.mockImplementationOnce(async () => new Response(JSON.stringify({ choices: [{ finish_reason: 'length', message: { content: null, reasoning_content: 'synthetic private thought' } }], usage: { completion_tokens: 4096, completion_tokens_details: { reasoning_tokens: 4096 } } })));
+    await expect(getAiProvider(env({ AI_PROVIDER_PRESET: 'deepseek', AI_MODEL: 'deepseek-flash' })).complete(messages)).rejects.toThrow('token 上限');
+    expect(fetch).toHaveBeenCalledOnce();
   });
   it('sends OpenRouter nested reasoning and only validated attribution headers', async () => {
     const fetch = capture('chat-completions');

@@ -95,8 +95,8 @@ export class OpenAiCompatProvider implements AiProvider {
         if (e instanceof AiError) {
           lastError = e;
           if (!e.retryable) throw e;
-        } else if (e instanceof Error && e.name === "AbortError") {
-          lastError = new AiError("模型请求超时", true);
+        } else if (controller.signal.aborted || (e instanceof Error && ["AbortError", "TimeoutError"].includes(e.name))) {
+          lastError = new AiError(`模型请求超时（${timeoutMs / 1000} 秒）`, true);
           if (attempt + 1 < maxAttempts) await backoff(attempt);
         } else {
           lastError = new AiError("网络错误", true);
