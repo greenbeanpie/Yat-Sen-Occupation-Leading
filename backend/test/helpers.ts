@@ -71,7 +71,7 @@ export function getMf(): Promise<MfBundle> {
 export const testEnv = { placeholder: true } as never;
 
 const TABLES = [
-  "support_ticket_messages", "support_tickets", "account_role_audit", "system_settings", "invitations", "reminder_push_deliveries", "sessions", "rate_limits", "users", "profiles", "experiences", "skills", "experience_skills",
+  "career_source_cache", "support_ticket_messages", "support_tickets", "account_role_audit", "system_settings", "invitations", "reminder_push_deliveries", "sessions", "rate_limits", "users", "profiles", "experiences", "skills", "experience_skills",
   "documents", "document_segments", "parse_drafts",
   "jobs", "job_versions", "job_requirements",
   "match_snapshots", "portfolios",

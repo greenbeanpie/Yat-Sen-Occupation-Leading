@@ -458,4 +458,12 @@ CREATE TABLE account_role_audit (
   created_at TEXT NOT NULL
 );
 CREATE INDEX idx_account_role_audit_target ON account_role_audit(target_user_id,created_at,id);
+-- Review-only source cache and globally fenced leases, no jobs or account changes.
+CREATE TABLE career_source_cache (
+  cache_key TEXT PRIMARY KEY,
+  payload TEXT,
+  expires_at INTEGER NOT NULL DEFAULT 0,
+  lease_until INTEGER NOT NULL DEFAULT 0,
+  lease_token TEXT
+);
 `;

@@ -8,6 +8,10 @@ export interface ChatMessage {
 export interface CompletionOptions {
   temperature?: number;
   timeoutMs?: number;
+  /** Bounded review-only tasks can disable retries and cap response bytes. */
+  maxAttempts?: number;
+  maxResponseBytes?: number;
+  rejectRedirects?: boolean;
 }
 
 /** 统一模型适配器（PLAN.md 2.4）：OpenAI 风格 + mock，超时/限流重试由实现负责。 */
@@ -56,12 +60,13 @@ export class OpenAiCompatProvider implements AiProvider {
     }
     const timeoutMs = opts?.timeoutMs ?? 60_000;
     let lastError: AiError = new AiError("模型请求失败", false);
-    for (let attempt = 0; attempt < 3; attempt++) {
+    for (let attempt = 0; attempt < (opts?.maxAttempts ?? 3); attempt++) {
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), timeoutMs);
       try {
         const res = await fetch(`${this.env.AI_BASE_URL.replace(/\/$/, "")}/chat/completions`, {
           method: "POST",
+          redirect: opts?.rejectRedirects ? "manual" : "follow",
           headers: {
             "Content-Type": "application/json",
             ...(this.env.AI_API_KEY ? { Authorization: `Bearer ${this.env.AI_API_KEY}` } : {}),
@@ -82,7 +87,7 @@ export class OpenAiCompatProvider implements AiProvider {
         if (!res.ok) {
           throw new AiError(`模型请求被拒绝（HTTP ${res.status}）`, false);
         }
-        const body = (await res.json()) as { choices?: { message?: { content?: string } }[] };
+        const body = (opts?.maxResponseBytes ? JSON.parse(await boundedModelResponse(res, opts.maxResponseBytes)) : await res.json()) as { choices?: { message?: { content?: string } }[] };
         const content = body.choices?.[0]?.message?.content;
         if (typeof content !== "string") throw new AiError("模型响应格式错误", false);
         return content;
@@ -103,6 +108,15 @@ export class OpenAiCompatProvider implements AiProvider {
     }
     throw lastError;
   }
+}
+
+async function boundedModelResponse(res: Response, limit: number): Promise<string> {
+  const reader=res.body?.getReader(); if(!reader)throw new AiError("模型响应为空",false);
+  let size=0;const chunks:Uint8Array[]=[];
+  try {while(true){const {done,value}=await reader.read();if(done)break;size+=value.byteLength;if(size>limit)throw new AiError("模型响应过大",false);chunks.push(value);}}
+  finally {await reader.cancel();}
+  const bytes=new Uint8Array(size);let at=0;for(const chunk of chunks){bytes.set(chunk,at);at+=chunk.length;}
+  return new TextDecoder('utf-8',{fatal:true,ignoreBOM:false}).decode(bytes);
 }
 
 async function backoff(attempt: number): Promise<void> {

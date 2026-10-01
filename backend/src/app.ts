@@ -1,3 +1,4 @@
+import { registerCareerSourceRoutes } from "./routes/career-source";
 import { bodyLimit } from "hono/body-limit";
 import { registerTicketRoutes } from "./routes/tickets";
 import { registerInvitationRoutes } from "./routes/invitations";
@@ -87,7 +88,7 @@ export function createApp(): App {
     }
     await next();
   });
-  app.use("/*", bodyLimit({ maxSize: 11 * 1024 * 1024, onError: (c) => c.json(errorBody(new AppError(413, "payload_too_large", "请求体超过上限")), 413) }));
+  app.use("/*", (c, next) => bodyLimit({ maxSize: /^\/api\/v1\/admin\/career-source(?:\/|$)/.test(c.req.path) ? 2048 : 11 * 1024 * 1024, onError: (ctx) => ctx.json(errorBody(new AppError(413, "payload_too_large", "请求体超过上限")), 413) })(c, next));
 
   app.onError((err, c) => {
     if (err instanceof AppError) {
@@ -110,6 +111,7 @@ export function createApp(): App {
   registerOperationRoutes(app);
   registerJobRoutes(app);
   registerAdminRoutes(app);
+  registerCareerSourceRoutes(app);
   registerUserManagementRoutes(app);
   registerMatchingRoutes(app);
   registerPlanningRoutes(app);

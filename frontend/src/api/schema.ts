@@ -2689,6 +2689,451 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/career-source": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description 仅缓存及能力，不发出来源请求 */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["CareerSourceStatus"];
+                    };
+                };
+                /** @description 错误包络；code 区分鉴权、来源保护、版本冲突或模型未配置 */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorBody"];
+                    };
+                };
+                /** @description 错误包络；code 区分鉴权、来源保护、版本冲突或模型未配置 */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorBody"];
+                    };
+                };
+                /** @description 错误包络；code 区分鉴权、来源保护、版本冲突或模型未配置 */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorBody"];
+                    };
+                };
+                /** @description 错误包络；code 区分鉴权、来源保护、版本冲突或模型未配置 */
+                413: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorBody"];
+                    };
+                };
+                /** @description 错误包络；code 区分鉴权、来源保护、版本冲突或模型未配置 */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorBody"];
+                    };
+                };
+                /** @description 错误包络；code 区分鉴权、来源保护、版本冲突或模型未配置 */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorBody"];
+                    };
+                };
+                /** @description 错误包络；code 区分鉴权、来源保护、版本冲突或模型未配置 */
+                502: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorBody"];
+                    };
+                };
+                /** @description 错误包络；code 区分鉴权、来源保护、版本冲突或模型未配置 */
+                503: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorBody"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/career-source/refresh": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+            responses: {
+                /** @description 首页公告缓存，15 分钟内复用；无自动翻页 */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["CareerSourceListing"];
+                    };
+                };
+                /** @description 错误包络；code 区分鉴权、来源保护、版本冲突或模型未配置 */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorBody"];
+                    };
+                };
+                /** @description 错误包络；code 区分鉴权、来源保护、版本冲突或模型未配置 */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorBody"];
+                    };
+                };
+                /** @description 错误包络；code 区分鉴权、来源保护、版本冲突或模型未配置 */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorBody"];
+                    };
+                };
+                /** @description 错误包络；code 区分鉴权、来源保护、版本冲突或模型未配置 */
+                413: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorBody"];
+                    };
+                };
+                /** @description 错误包络；code 区分鉴权、来源保护、版本冲突或模型未配置 */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorBody"];
+                    };
+                };
+                /** @description 错误包络；code 区分鉴权、来源保护、版本冲突或模型未配置 */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorBody"];
+                    };
+                };
+                /** @description 错误包络；code 区分鉴权、来源保护、版本冲突或模型未配置 */
+                502: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorBody"];
+                    };
+                };
+                /** @description 错误包络；code 区分鉴权、来源保护、版本冲突或模型未配置 */
+                503: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorBody"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/career-source/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        id: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description 限定公告纯文本及来源版本，15 分钟内复用 */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["CareerSourcePreview"];
+                    };
+                };
+                /** @description 错误包络；code 区分鉴权、来源保护、版本冲突或模型未配置 */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorBody"];
+                    };
+                };
+                /** @description 错误包络；code 区分鉴权、来源保护、版本冲突或模型未配置 */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorBody"];
+                    };
+                };
+                /** @description 错误包络；code 区分鉴权、来源保护、版本冲突或模型未配置 */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorBody"];
+                    };
+                };
+                /** @description 错误包络；code 区分鉴权、来源保护、版本冲突或模型未配置 */
+                413: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorBody"];
+                    };
+                };
+                /** @description 错误包络；code 区分鉴权、来源保护、版本冲突或模型未配置 */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorBody"];
+                    };
+                };
+                /** @description 错误包络；code 区分鉴权、来源保护、版本冲突或模型未配置 */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorBody"];
+                    };
+                };
+                /** @description 错误包络；code 区分鉴权、来源保护、版本冲突或模型未配置 */
+                502: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorBody"];
+                    };
+                };
+                /** @description 错误包络；code 区分鉴权、来源保护、版本冲突或模型未配置 */
+                503: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorBody"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/career-source/extract": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        id: string;
+                        sourceVersionHash: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description 仅待人工审核候选，不写岗位；相同来源版本复用结果 */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["CareerExtractionReview"];
+                    };
+                };
+                /** @description 错误包络；code 区分鉴权、来源保护、版本冲突或模型未配置 */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorBody"];
+                    };
+                };
+                /** @description 错误包络；code 区分鉴权、来源保护、版本冲突或模型未配置 */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorBody"];
+                    };
+                };
+                /** @description 错误包络；code 区分鉴权、来源保护、版本冲突或模型未配置 */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorBody"];
+                    };
+                };
+                /** @description 错误包络；code 区分鉴权、来源保护、版本冲突或模型未配置 */
+                413: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorBody"];
+                    };
+                };
+                /** @description 错误包络；code 区分鉴权、来源保护、版本冲突或模型未配置 */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorBody"];
+                    };
+                };
+                /** @description 错误包络；code 区分鉴权、来源保护、版本冲突或模型未配置 */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorBody"];
+                    };
+                };
+                /** @description 错误包络；code 区分鉴权、来源保护、版本冲突或模型未配置 */
+                502: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorBody"];
+                    };
+                };
+                /** @description 错误包络；code 区分鉴权、来源保护、版本冲突或模型未配置 */
+                503: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorBody"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/users": {
         parameters: {
             query?: never;
@@ -5357,6 +5802,160 @@ export interface components {
         JobPublishRequest: {
             /** @enum {string} */
             action: "publish" | "archive" | "unpublish";
+        };
+        CareerSourceStatus: {
+            /** @enum {number} */
+            schemaVersion: 1;
+            /** @enum {string} */
+            sourceId: "sysu-campus";
+            extractionAvailable: boolean;
+            extractionUnavailableReason: string | null;
+            cachedList: components["schemas"]["NullableCareerSourceListing"];
+            /** @enum {number} */
+            cacheTtlSeconds: 900;
+            /** @enum {boolean} */
+            publicationSupported: false;
+        };
+        NullableCareerSourceListing: {
+            /** @enum {number} */
+            schemaVersion: 1;
+            items: {
+                id: string;
+                title: string;
+                /** Format: uri */
+                url: string;
+                publishedAt: string;
+                pinned: boolean;
+            }[];
+            /** Format: date-time */
+            retrievedAt: string;
+            /** Format: date-time */
+            expiresAt: string;
+        } | null;
+        CareerSourceListing: {
+            /** @enum {number} */
+            schemaVersion: 1;
+            items: {
+                id: string;
+                title: string;
+                /** Format: uri */
+                url: string;
+                publishedAt: string;
+                pinned: boolean;
+            }[];
+            /** Format: date-time */
+            retrievedAt: string;
+            /** Format: date-time */
+            expiresAt: string;
+        };
+        CareerSourcePreview: {
+            /** @enum {number} */
+            schemaVersion: 1;
+            source: components["schemas"]["CareerSourceSnapshot"];
+            title: string;
+            employer: string | null;
+            warnings: string[];
+            /** Format: date-time */
+            expiresAt: string;
+        };
+        CareerSourceSnapshot: {
+            metadata: {
+                /** Format: uri */
+                url: string;
+                numericId: string;
+                /** Format: date-time */
+                retrievedAt: string;
+                originalDate: string | null;
+                sourceExpiry: string | null;
+                /** @enum {string} */
+                captureMethod: "rendered-dom-excerpt" | "rendered-dom" | "static-html-text";
+                partial: boolean;
+            };
+            text: string;
+            versionHash: string;
+        };
+        CareerExtractionReview: {
+            /** @enum {string} */
+            status: "needs-human-review";
+            provider: string;
+            source: components["schemas"]["CareerSourceSnapshot"];
+            candidate: {
+                /** @enum {number} */
+                schemaVersion: 1;
+                title: {
+                    value: string;
+                    evidence: {
+                        start: number;
+                        end: number;
+                        quote: string;
+                    };
+                } | null;
+                employer: {
+                    value: string;
+                    evidence: {
+                        start: number;
+                        end: number;
+                        quote: string;
+                    };
+                } | null;
+                applicationDeadline: {
+                    value: string;
+                    evidence: {
+                        start: number;
+                        end: number;
+                        quote: string;
+                    };
+                } | null;
+                sharedRequirements: {
+                    value: string;
+                    evidence: {
+                        start: number;
+                        end: number;
+                        quote: string;
+                    };
+                }[];
+                positions: {
+                    title: {
+                        value: string;
+                        evidence: {
+                            start: number;
+                            end: number;
+                            quote: string;
+                        };
+                    };
+                    section: {
+                        start: number;
+                        end: number;
+                        quote: string;
+                    };
+                    location: {
+                        value: string;
+                        evidence: {
+                            start: number;
+                            end: number;
+                            quote: string;
+                        };
+                    } | null;
+                    degree: {
+                        value: string;
+                        evidence: {
+                            start: number;
+                            end: number;
+                            quote: string;
+                        };
+                    } | null;
+                    requirements: {
+                        value: string;
+                        evidence: {
+                            start: number;
+                            end: number;
+                            quote: string;
+                        };
+                    }[] | null;
+                }[];
+                ambiguities: string[];
+            };
+            warnings: string[];
         };
         ManagedUser: {
             id: components["schemas"]["Uuid"];
