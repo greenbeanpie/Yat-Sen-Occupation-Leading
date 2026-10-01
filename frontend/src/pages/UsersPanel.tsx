@@ -1,4 +1,4 @@
-import { confirmDiscardSettings, useSettingsDirty } from './settings-dirty';
+import { useConfirmDiscardSettings, useSettingsDirty } from './settings-dirty';
 import { useRef, useState, type FormEvent } from 'react';
 import { patch, put } from '../api/client';
 import type { components } from '../api/schema';
@@ -18,6 +18,7 @@ export function UsersPanel({ context, role, onRefreshSession }: {
   const [refresh, setRefresh] = useState(0);
   const users = useAdminResource<{ items: ManagedUser[] }>('/admin/users', context.userId, `${context.refresh}:${refresh}`);
   const [action, setAction] = useState<UserAction | null>(null);
+  const confirmDiscardSettings = useConfirmDiscardSettings(`${context.userId}:${action?.user.id ?? ""}`);
   const [name, setName] = useState('');
   const [nextRole, setNextRole] = useState<UserRole>('student');
   const [search, setSearch] = useState('');
@@ -27,7 +28,7 @@ export function UsersPanel({ context, role, onRefreshSession }: {
   const submitting = useRef(false);
   const dirty = Boolean(action && ((action.kind === 'name' && name !== action.user.displayName) || (action.kind === 'role' && nextRole !== action.user.role)));
   useSettingsDirty(dirty);
-  function cancel() { if (!submitting.current && confirmDiscardSettings(dirty)) setAction(null); }
+  async function cancel() { if (!submitting.current && await confirmDiscardSettings(dirty)) setAction(null); }
   const superAdmin = role === 'super_admin';
   const query = search.trim().toLocaleLowerCase();
   const items = (users.data?.items ?? []).filter(user => canManageUser(role, user.role))

@@ -1,4 +1,4 @@
-import { confirmDiscardSettings, useSettingsDirty } from './settings-dirty';
+import { useConfirmDiscardSettings, useSettingsDirty } from './settings-dirty';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { ApiError, get, patch, post } from '../api/client';
 import { Panel } from '../components';
@@ -27,6 +27,7 @@ export function AccountProfileEditor({ name, account, busy, onNameChange, onSubm
 export function AccountSettings({ section = 'profile', demo, onRefreshSession, onSessionEnded }: {
   section?: 'profile' | 'security'; demo: boolean; onRefreshSession: () => Promise<void>; onSessionEnded: (message: string) => Promise<void>;
 }) {
+  const confirmDiscardSettings = useConfirmDiscardSettings(section);
   const [account, setAccount] = useState<AccountProfile | null>(null);
   const [name, setName] = useState('');
   const [editingProfile, setEditingProfile] = useState(false);
@@ -77,14 +78,14 @@ export function AccountSettings({ section = 'profile', demo, onRefreshSession, o
     {demo ? <p className="muted">演示与游客身份不能修改账户信息或密码。请登录个人账户使用此功能。</p> : <>
       {message && <p role="status">{message}</p>}
       {account && <>
-        {section === 'profile' && (editingProfile ? <AccountProfileEditor account={account} name={name} busy={busy} onNameChange={setName} onSubmit={event => void submit(event, false)} onCancel={() => { if (confirmDiscardSettings(name !== account.displayName)) { setName(account.displayName); setEditingProfile(false); setMessage(''); } }}/> : <AccountProfileSummary account={account}/>)}
+        {section === 'profile' && (editingProfile ? <AccountProfileEditor account={account} name={name} busy={busy} onNameChange={setName} onSubmit={event => void submit(event, false)} onCancel={async () => { if (await confirmDiscardSettings(name !== account.displayName)) { setName(account.displayName); setEditingProfile(false); setMessage(''); } }}/> : <AccountProfileSummary account={account}/>)}
         {section === 'security' && <p className="muted">用户名：{account.username ?? '未设置'}（不可修改）</p>}
         {section === 'security' && (!editingPassword ? <button className="btn secondary" disabled={busy || !account.username} onClick={() => { setEditingPassword(true); setMessage(''); }}>修改密码</button> : <form className="form-grid" onSubmit={event => void submit(event, true)}>
           <p className="muted form-notice">新密码须为 12–128 位，包含大小写字母、数字和符号，且不同于原密码。修改成功后包括当前设备在内的所有会话都会退出。</p>
           <label className="field"><span>原密码</span><input type="password" autoComplete="current-password" required maxLength={128} disabled={busy} value={currentPassword} onChange={event => setCurrentPassword(event.target.value)} /></label>
           <label className="field"><span>新密码</span><input type="password" autoComplete="new-password" required minLength={12} maxLength={128} disabled={busy} value={newPassword} onChange={event => setNewPassword(event.target.value)} /></label>
           <label className="field"><span>确认新密码</span><input type="password" autoComplete="new-password" required maxLength={128} disabled={busy} value={confirm} onChange={event => setConfirm(event.target.value)} /></label>
-          <div className="button-row"><button className="btn primary" disabled={busy}>确认修改密码</button><button type="button" className="btn secondary" disabled={busy} onClick={() => { if (confirmDiscardSettings(Boolean(currentPassword || newPassword || confirm))) { clearPasswords(); setEditingPassword(false); setMessage(''); } }}>取消修改密码</button></div>
+          <div className="button-row"><button className="btn primary" disabled={busy}>确认修改密码</button><button type="button" className="btn secondary" disabled={busy} onClick={async () => { if (await confirmDiscardSettings(Boolean(currentPassword || newPassword || confirm))) { clearPasswords(); setEditingPassword(false); setMessage(''); } }}>取消修改密码</button></div>
         </form>)}
       </>}
     </>}

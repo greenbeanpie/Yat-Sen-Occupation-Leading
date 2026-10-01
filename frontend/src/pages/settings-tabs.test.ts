@@ -1,6 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
 import { settingsTabs } from './settings-tabs';
 import { confirmDiscardSettings } from './settings-dirty';
+import { confirmPage } from '../dialogs/dialog-service';
+vi.mock('../dialogs/dialog-service', () => ({ confirmPage: vi.fn(), promptPage: vi.fn() }));
 
 describe('settings category access', () => {
   const user = { id: 'fixture', displayName: 'Fixture', timezone: 'UTC', demo: false, role: 'student' as const };
@@ -16,14 +18,12 @@ describe('settings category access', () => {
     expect(settingsTabs({ ...user, role: 'super_admin', demo: true }, true).map(tab => tab.id)).toEqual(['appearance', 'installation', 'notifications', 'sync']);
     expect(settingsTabs(undefined, true).map(tab => tab.id)).toEqual(['appearance', 'installation', 'notifications', 'sync']);
   });
-  it('requires affirmative confirmation before discarding edits', () => {
-    const confirm = vi.fn(() => false);
-    vi.stubGlobal('window', { confirm });
-    expect(confirmDiscardSettings(false)).toBe(true);
-    expect(confirm).not.toHaveBeenCalled();
-    expect(confirmDiscardSettings(true)).toBe(false);
-    confirm.mockReturnValue(true);
-    expect(confirmDiscardSettings(true)).toBe(true);
-    vi.unstubAllGlobals();
+  it('requires affirmative in-page confirmation before discarding edits', async () => {
+    vi.mocked(confirmPage).mockResolvedValue(false);
+    expect(await confirmDiscardSettings(false)).toBe(true);
+    expect(confirmPage).not.toHaveBeenCalled();
+    expect(await confirmDiscardSettings(true)).toBe(false);
+    vi.mocked(confirmPage).mockResolvedValue(true);
+    expect(await confirmDiscardSettings(true)).toBe(true);
   });
 });

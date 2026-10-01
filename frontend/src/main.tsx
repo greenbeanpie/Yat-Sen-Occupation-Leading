@@ -1,5 +1,5 @@
-import { getInstallState } from './pwa-install';
 import './notifications/notifications.css';
+import './dialogs/dialog-service';
 import React from 'react';
 import { createRoot } from 'react-dom/client';
 import { createBrowserRouter, RouterProvider } from 'react-router-dom';
