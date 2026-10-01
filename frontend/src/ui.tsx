@@ -44,7 +44,7 @@ const SESSION_CACHE_KEY = 'session:last';
 
 const navigation = [
   { to: '/', label: '工作台', icon: House },
-  { to: '/profile', label: '画像与证据', icon: UserRound },
+  { to: '/profile', label: '求职资料', icon: UserRound },
   { to: '/personal-profile', label: '个人资料', icon: UserRound },
   { to: '/jobs', label: '岗位库', icon: BriefcaseBusiness },
   { to: '/match', label: '匹配与组合', icon: ChartNoAxesCombined },
@@ -495,7 +495,7 @@ function MobileNavigation() {
   const items = navigation.filter((item) => ['/', '/profile', '/jobs', '/match', '/applications'].includes(item.to));
   return <nav className="mobile-bottom-nav" aria-label="常用页面">
     {items.map(({ to, label, icon: Icon }) => <NavLink key={to} end={to === '/'} to={to} className={({ isActive }) => isActive ? 'active' : ''}>
-      <Icon size={18}/><span>{label === '画像与证据' ? '画像' : label === '匹配与组合' ? '匹配' : label === '投递跟踪' ? '投递' : label}</span>
+      <Icon size={18}/><span>{label === '匹配与组合' ? '匹配' : label === '投递跟踪' ? '投递' : label}</span>
     </NavLink>)}
   </nav>;
 }
@@ -670,7 +670,7 @@ function Dashboard({ context, pending }: { context: ActionContext; pending: numb
     </div>
     <Panel title="下一步" description="一条完整工作流：确认画像 → 选择岗位 → 查看解释 → 建立计划 → 记录投递与工时">
       <div className="next-grid">
-        <QuickLink to="/profile" icon={<UserRound/>} title="完善画像与证据" description="确认经历原文与技能引用。"/>
+        <QuickLink to="/profile" icon={<UserRound/>} title="完善求职资料" description="确认经历原文与技能引用。"/>
         <QuickLink to="/jobs" icon={<BriefcaseBusiness/>} title="浏览或添加岗位" description="公共岗位和私人 JD 分开管理。"/>
         <QuickLink to="/match" icon={<ChartNoAxesCombined/>} title="生成匹配解释" description="硬条件、分项分数与引用均来自服务端。"/>
         <QuickLink to="/applications" icon={<ClipboardList/>} title="记录投递与工时" description="查看状态历史与实际投入效率。"/>

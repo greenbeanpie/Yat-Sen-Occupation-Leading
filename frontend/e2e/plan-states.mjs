@@ -75,7 +75,7 @@ await step('岗位下架：归档岗位不进入学生公共库', async () => {
 
 // 2. 引用缺失：quote 未命中经历原文
 await step('引用缺失：原文未命中时返回 quote_rejected 并提示', async () => {
-  await goNav('画像与证据');
+  await goNav('求职资料');
   await page.getByText('你的求职画像').first().waitFor({ state: 'visible', timeout: 20000 });
   const target = panel('技能证据');
   const form = target.locator('form.form-grid').nth(1);
@@ -111,7 +111,7 @@ await step('解析失败：上传非示例文件不返回固定成功结果', as
 
 // 4. 硬条件未知：画像缺少意向地点时不按通过处理
 await step('硬条件未知：画像缺项时保留 unknown 并说明覆盖范围', async () => {
-  await goNav('画像与证据');
+  await goNav('求职资料');
   const profileForm = page.locator('form.form-grid').first();
   await profileForm.getByLabel('期望地点（逗号分隔）').fill('');
   await profileForm.getByRole('button', { name: '保存画像' }).click();
@@ -143,7 +143,7 @@ await step('零工时：效率统计显示暂无数据', async () => {
 // 6. 旧计划被替代：确认新计划后旧计划标记 superseded
 await step('旧计划结果：确认新计划后旧计划标记为已被替代', async () => {
   // 上一步刻意清空了意向地点，这里先恢复画像，否则岗位会因硬条件待核实而不进入组合。
-  await goNav('画像与证据');
+  await goNav('求职资料');
   const profileForm = page.locator('form.form-grid').first();
   await profileForm.getByLabel('期望地点（逗号分隔）').fill('广州');
   await profileForm.getByRole('button', { name: '保存画像' }).click();
