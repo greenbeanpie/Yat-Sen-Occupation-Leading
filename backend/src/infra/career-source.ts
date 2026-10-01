@@ -1,4 +1,5 @@
 /** Bounded, read-only SYSU static source adapter. No page JavaScript is executed. */
+import { classifySourceRedirect, type SourceRedirect } from './career-source-redirect';
 export const CAREER_SOURCE_ORIGIN = "https://career.sysu.edu.cn";
 export const CAREER_SOURCE_USER_AGENT = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36";
 const MAX_HTML_BYTES = 512 * 1024;
@@ -11,7 +12,7 @@ const DETAIL_PATH = /^\/campus\/view\/id\/([0-9]{1,12})$/;
 const ID = /^[0-9]{1,12}$/;
 
 export class CareerSourceError extends Error {
-  constructor(message: string, readonly httpStatus?: number) { super(message); this.name = "CareerSourceError"; }
+  constructor(message: string, readonly httpStatus?: number, readonly sourceRedirect?: SourceRedirect) { super(message); this.name = "CareerSourceError"; }
 }
 export interface CareerListItem {
   id: string;
@@ -88,13 +89,15 @@ export async function fetchCareerHtml(path: string): Promise<string> {
         headers: { "User-Agent": CAREER_SOURCE_USER_AGENT, Accept: "text/html" },
       });
       httpStatus=response.status;
-      const rejectResponse = (message: string): never => {
+      const rejectResponse = (message: string, sourceRedirect?: SourceRedirect): never => {
         void response.body?.cancel().catch(() => undefined);
-        return fail(message);
+        throw new CareerSourceError(message, response.status, sourceRedirect);
       };
       if (controller.signal.aborted) return rejectResponse("Source request timed out");
-      if (response.redirected || (response.status >= 300 && response.status < 400) || response.headers.has("Location") || (response.url && response.url !== url)) return rejectResponse("Source redirect rejected");
       if (response.status === 403 || response.status === 429) return rejectResponse(`Source access restricted (${response.status}); stopped`);
+      if (response.redirected || (response.status >= 300 && response.status < 400) || response.headers.has("Location") || (response.url && response.url !== url)) {
+        return rejectResponse("Source redirect rejected", classifySourceRedirect(response.headers.get('Location'), url));
+      }
       if (response.status !== 200) return rejectResponse(`Source HTTP ${response.status}; stopped`);
       const contentType = response.headers.get("Content-Type") ?? "";
       if (!/^text\/html(?:\s*;|\s*$)/i.test(contentType) || /charset\s*=\s*["']?(?!utf-8\b|utf8\b)[^\s;"']+/i.test(contentType)) return rejectResponse("Source response is not UTF-8 HTML");
@@ -105,7 +108,7 @@ export async function fetchCareerHtml(path: string): Promise<string> {
       return html;
     })()]);
   } catch (error) {
-    if (error instanceof CareerSourceError) throw new CareerSourceError(error.message,error.httpStatus??httpStatus);
+    if (error instanceof CareerSourceError) throw new CareerSourceError(error.message,error.httpStatus??httpStatus,error.sourceRedirect);
     throw new CareerSourceError(controller.signal.aborted ? "Source request timed out" : "Source network request failed; stopped",httpStatus);
   } finally { if (timer !== undefined) clearTimeout(timer); }
 }

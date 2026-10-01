@@ -1,6 +1,12 @@
 import { z } from '@hono/zod-openapi';
 import type { Env } from '../../env';
 import { AI_MODELS_BY_PRESET, type AiProtocol, type ProviderPreset } from './config';
+import { SOURCE_REDIRECT_KINDS, SOURCE_REDIRECT_TARGETS, type SourceRedirect } from '../career-source-redirect';
+
+export const SourceRedirectSchema = z.object({
+  kind:z.enum(SOURCE_REDIRECT_KINDS),target:z.enum(SOURCE_REDIRECT_TARGETS),
+  queryRemoved:z.boolean(),fragmentRemoved:z.boolean(),
+}).strict();
 
 export const DiagnosticStage = z.enum(['config_validated','dispatch','response','parse','end','source_fetch','source_response','source_decode','source_parse','source_end']);
 export const DiagnosticCode = z.enum(['ok','mock_mode','timeout','network_error','dns_error','tls_error','connection_reset','connection_refused','redirect_rejected','output_limit','provider_http','invalid_response','invalid_configuration','internal_error','source_forbidden','source_rate_limited','source_challenge','source_redirect','source_http','source_timeout','source_network','source_decode_error','source_parser_error','source_size_limit','source_internal_error']);
@@ -11,6 +17,7 @@ export const DiagnosticEventSchema = z.object({
   elapsedMs: z.number().int().min(0).max(600000), attempt: z.number().int().min(0).max(3),
   httpStatus: z.number().int().min(100).max(599).nullable(), timeoutMs: z.number().int().min(0).max(120000), maxOutputTokens: z.number().int().min(0).max(32768),
   usage: z.object({inputTokens:z.number().int().min(0).max(10000000).nullable(),outputTokens:z.number().int().min(0).max(10000000).nullable(),reasoningTokens:z.number().int().min(0).max(10000000).nullable()}).strict().optional(),
+  sourceRedirect: SourceRedirectSchema.optional(),
 }).strict().openapi('AiDiagnosticEvent');
 export type DiagnosticEvent = z.infer<typeof DiagnosticEventSchema>;
 export interface DiagnosticInput {
@@ -18,6 +25,7 @@ export interface DiagnosticInput {
   model?: string; protocol?: AiProtocol; elapsedMs?: number; attempt?: number; httpStatus?: number;
   timeoutMs?: number; maxOutputTokens?: number;
   usage?: {inputTokens:number|null;outputTokens:number|null;reasoningTokens:number|null};
+  sourceRedirect?: SourceRedirect;
 }
 /** Read only standard error hints; return a fixed category, never the raw text/cause/stack. */
 export function networkDiagnosticCode(error: unknown): DiagnosticEvent['code'] {
@@ -37,7 +45,7 @@ export function networkDiagnosticCode(error: unknown): DiagnosticEvent['code'] {
   } catch{return'network_error';}
 }
 const bounded = (value: number|undefined, max: number) => Number.isFinite(value) ? Math.max(0,Math.min(max,Math.floor(value!))) : 0;
-/** No text/header/URL/error passthrough. Unknown user-selected model identifiers are not logged. */
+/** No raw text/header/URL/error passthrough. Redirects use only fixed public paths/categories. */
 export async function writeAiDiagnostic(env: Env, input: DiagnosticInput): Promise<boolean> {
   let timer: ReturnType<typeof setTimeout>|undefined;
   try {
@@ -50,6 +58,7 @@ export async function writeAiDiagnostic(env: Env, input: DiagnosticInput): Promi
       httpStatus: input.httpStatus && input.httpStatus>=100 && input.httpStatus<=599 ? Math.floor(input.httpStatus) : null,
       timeoutMs: bounded(input.timeoutMs,120000), maxOutputTokens: bounded(input.maxOutputTokens,32768),
       ...(input.usage?{usage:{inputTokens:input.usage.inputTokens,outputTokens:input.usage.outputTokens,reasoningTokens:input.usage.reasoningTokens}}:{}),
+      ...(input.code==='source_redirect'&&input.sourceRedirect?{sourceRedirect:SourceRedirectSchema.parse(input.sourceRedirect)}:{}),
     });
     const payload = JSON.stringify(event), bytes = new TextEncoder().encode(payload).length;
     // D1 batch is one transaction: concurrent writers cannot expose an untrimmed committed tail.

@@ -6970,6 +6970,14 @@ export interface components {
                 outputTokens: number | null;
                 reasoningTokens: number | null;
             };
+            sourceRedirect?: {
+                /** @enum {string} */
+                kind: "same_origin_public" | "same_origin_other" | "login" | "challenge" | "external" | "insecure" | "invalid" | "missing";
+                /** @enum {string} */
+                target: "https://career.sysu.edu.cn/" | "https://career.sysu.edu.cn/campus/index" | "https://career.sysu.edu.cn/campus/index/" | "https://career.sysu.edu.cn/campus/view/id/[id]" | "https://career.sysu.edu.cn/campus/view/id/[id]/" | "https://career.sysu.edu.cn/[other-path]" | "https://career.sysu.edu.cn/[login]" | "https://career.sysu.edu.cn/[challenge]" | "[external HTTPS target]" | "[external login target]" | "[external challenge target]" | "[non-HTTPS target]" | "[invalid target]" | "[missing Location]";
+                queryRemoved: boolean;
+                fragmentRemoved: boolean;
+            };
         };
         AiSettingsResponse: {
             version: number;

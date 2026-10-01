@@ -51,8 +51,8 @@ async function sourceCall<T>(env:import('../env').Env,requestId:string,fn:(trace
   await trace('source_fetch');
   try{const result=await fn(trace);await trace('source_end');return result;}
   catch(error){if(error instanceof AppError)throw error;const failure=classifyCareerSourceError(error);
-    await writeAiDiagnostic(env,{requestId,stage:failure.stage,code:failure.code,httpStatus:failure.httpStatus,timeoutMs:15000,elapsedMs:Date.now()-started});
-    await writeAiDiagnostic(env,{requestId,stage:'source_end',code:failure.code,httpStatus:failure.httpStatus,timeoutMs:15000,elapsedMs:Date.now()-started});
+    await writeAiDiagnostic(env,{requestId,stage:failure.stage,code:failure.code,httpStatus:failure.httpStatus,sourceRedirect:failure.sourceRedirect,timeoutMs:15000,elapsedMs:Date.now()-started});
+    await writeAiDiagnostic(env,{requestId,stage:'source_end',code:failure.code,httpStatus:failure.httpStatus,sourceRedirect:failure.sourceRedirect,timeoutMs:15000,elapsedMs:Date.now()-started});
     throw new AppError(failure.status,failure.code,failure.message);
   }
 }

@@ -3820,6 +3820,56 @@
               "reasoningTokens"
             ],
             "additionalProperties": false
+          },
+          "sourceRedirect": {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "same_origin_public",
+                  "same_origin_other",
+                  "login",
+                  "challenge",
+                  "external",
+                  "insecure",
+                  "invalid",
+                  "missing"
+                ]
+              },
+              "target": {
+                "type": "string",
+                "enum": [
+                  "https://career.sysu.edu.cn/",
+                  "https://career.sysu.edu.cn/campus/index",
+                  "https://career.sysu.edu.cn/campus/index/",
+                  "https://career.sysu.edu.cn/campus/view/id/[id]",
+                  "https://career.sysu.edu.cn/campus/view/id/[id]/",
+                  "https://career.sysu.edu.cn/[other-path]",
+                  "https://career.sysu.edu.cn/[login]",
+                  "https://career.sysu.edu.cn/[challenge]",
+                  "[external HTTPS target]",
+                  "[external login target]",
+                  "[external challenge target]",
+                  "[non-HTTPS target]",
+                  "[invalid target]",
+                  "[missing Location]"
+                ]
+              },
+              "queryRemoved": {
+                "type": "boolean"
+              },
+              "fragmentRemoved": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "kind",
+              "target",
+              "queryRemoved",
+              "fragmentRemoved"
+            ],
+            "additionalProperties": false
           }
         },
         "required": [
