@@ -68,7 +68,8 @@ export class OpenAiCompatProvider implements AiProvider {
     const maxAttempts = Math.min(this.config.maxAttempts, boundedNumber(opts?.maxAttempts, 'maxAttempts', 1, 3, this.config.maxAttempts, true)!);
     const maxResponseBytes = boundedNumber(opts?.maxResponseBytes, 'maxResponseBytes', 1, 1_000_000, 1_000_000, true)!;
     const request = buildAiRequest(this.config, messages, this.env.AI_API_KEY, opts?.sessionId ?? this.sessionId, opts);
-    const requestId = opts?.sessionId ?? this.sessionId;
+    const traceId = opts?.sessionId ?? this.sessionId;
+    const requestId = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(traceId) ? traceId : crypto.randomUUID();
     const started = Date.now();
     const trace = (stage: DiagnosticEvent['stage'], code: DiagnosticEvent['code'], attempt = 0, httpStatus?: number) => writeAiDiagnostic(this.env,{requestId,stage,code,attempt,httpStatus,provider:this.config.preset,model:this.config.model,protocol:this.config.protocol,timeoutMs,maxOutputTokens:this.config.maxOutputTokens,elapsedMs:Date.now()-started});
     await trace('config_validated','ok');
@@ -109,7 +110,9 @@ export class OpenAiCompatProvider implements AiProvider {
         let body: unknown;
         try { body = JSON.parse(responseText); }
         catch { await trace('parse','invalid_response',attempt+1,httpStatus); throw new AiError('模型响应不是有效 JSON', false); }
-        const text = completionText(this.config, body);
+        let text: string;
+        try { text = completionText(this.config, body); }
+        catch(error) { await trace('parse',error instanceof AiError&&error.message.includes('token 上限')?'output_limit':'invalid_response',attempt+1,httpStatus);throw error; }
         outcome = 'ok';
         await trace('parse','ok',attempt+1,httpStatus);
         return text;
