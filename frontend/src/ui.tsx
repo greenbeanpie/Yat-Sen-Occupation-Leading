@@ -4,6 +4,7 @@ import { InstallationNotice } from './notifications/InstallationNotice';
 import { unsubscribeDevice, deviceSubscriptionId } from './notifications/core';
 import { notificationRequest } from './notifications/api';
 import { NotificationRuntime } from './notifications/NotificationRuntime';
+import { BrandMark } from './BrandMark';
 import { ThemeSelect, ThemeSync } from './ThemeSelect';
 import { useCallback, useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { NavLink, Navigate, Route, Routes, useLocation } from 'react-router-dom';
@@ -413,7 +414,7 @@ export default function App() {
       <ThemeSync/><InstallationNotice/>
       <aside id="workbench-navigation" className={`sidebar ${mobileOpen ? 'open' : ''}`}>
         <div className="brand">
-          <div className="brand-mark">实</div>
+          <div className="brand-mark"><BrandMark/></div>
           <span><b>实习工作台</b><small>DECISION & ACTION</small></span>
           <button className="icon-btn mobile-close" aria-label="关闭菜单" onClick={() => setMobileOpen(false)}><X size={18}/></button>
         </div>
@@ -544,7 +545,7 @@ function LoginScreen({
     <main className="login">
       <header className="login-topbar"><ThemeSelect/></header>
       <section className="login-card">
-        <div className="brand-mark">实</div>
+        <div className="brand-mark"><BrandMark/></div>
         <span className="eyebrow">{demoSource ? '演示模式 · 本机虚构数据' : '实习决策与执行工作台'}</span>
         <h1>进入实习工作台</h1>
         <p>{demoSource
