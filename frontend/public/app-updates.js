@@ -196,7 +196,13 @@ export function mountUpdates() {
     const button = document.createElement('button');
     button.type = 'button';
     if (item.action === 'update' && controller.state === 'ready') { button.textContent = '确认更新'; button.onclick = () => controller.apply(); }
-    else if (item.url || item.action === 'inbox') { button.textContent = '查看通知'; button.onclick = () => window.dispatchEvent(new CustomEvent('app-notification-open', { detail: { url: item.url || inboxUrl } })); }
+    else if (item.url || item.action === 'inbox') { button.textContent = '查看通知'; button.onclick = () => {
+      const url=item.url||inboxUrl;
+      const samePage=new URL(url,location.href).href===location.href;
+      const panelEntry=open&&window.history.state?.appNotificationPanel===panelHistoryKey;
+      closePanel(true,samePage);
+      window.dispatchEvent(new CustomEvent('app-notification-open',{detail:{url,replace:panelEntry&&!samePage}}));
+    }; }
     else if (item.action === 'install') { button.textContent = '安装到桌面'; button.onclick = () => window.dispatchEvent(new Event('app-install-request')); }
     else return null;
     return button;
