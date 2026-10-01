@@ -98,7 +98,7 @@ export function ProfilePage({ context }: { context: ActionContext }) {
   }
 
   return <>
-    <PageHead kicker="画像与证据" title="你的求职画像" description="画像和经历可以离线修改。技能证据必须关联经历原文，并由你确认。"/>
+    <PageHead kicker="求职资料" title="你的求职资料" description="画像和经历可以离线修改。技能证据必须关联经历原文，并由你确认。"/>
     <div className="two-col profile-columns">
       <Panel title="求职偏好" description="画像更新后，旧匹配快照会被视为过期">
         {profileResource.loading && !profile && <Loading/>}

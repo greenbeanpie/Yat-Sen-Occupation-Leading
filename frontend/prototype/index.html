@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <meta name="color-scheme" content="light" />
 <title>实习决策与执行工作台 · 前端原型</title>
-<meta name="description" content="实习决策与执行工作台的前端原型：画像与证据、岗位、匹配与组合、两周计划、投递跟踪、管理员与同步中心。演示站使用虚构资料，仅展示前端框架与交互，不连接后端。" />
+<meta name="description" content="实习决策与执行工作台的前端原型：求职资料、岗位、匹配与组合、两周计划、投递跟踪、管理员与同步中心。演示站使用虚构资料，仅展示前端框架与交互，不连接后端。" />
 <style>
 @layer od-layout {
   :where(.od-stack,.od-row,.od-row-top,.od-cluster,.od-grid,.od-field,.od-stat,.od-cell,.od-tile) > :where(*) { min-width: 0; }
@@ -911,7 +911,7 @@ table.tbl { min-width: 640px; }
     <nav class="side-nav" id="sideNav">
       <a class="side-item" data-nav="dashboard" href="#/dashboard"><svg class="ic" viewBox="0 0 24 24"><use href="#i-home"/></svg>工作台</a>
       <p class="side-group">求职流程</p>
-      <a class="side-item" data-nav="profile" href="#/profile"><svg class="ic" viewBox="0 0 24 24"><use href="#i-user"/></svg>画像与证据</a>
+      <a class="side-item" data-nav="profile" href="#/profile"><svg class="ic" viewBox="0 0 24 24"><use href="#i-user"/></svg>求职资料</a>
       <a class="side-item" data-nav="jobs" href="#/jobs"><svg class="ic" viewBox="0 0 24 24"><use href="#i-briefcase"/></svg>岗位</a>
       <a class="side-item" data-nav="match" href="#/match"><svg class="ic" viewBox="0 0 24 24"><use href="#i-target"/></svg>匹配与组合</a>
       <a class="side-item" data-nav="plan" href="#/plan"><svg class="ic" viewBox="0 0 24 24"><use href="#i-calendar"/></svg>计划与改写</a>
@@ -1288,7 +1288,7 @@ const empty = (ic, title, sub, action = '') => `<div class="empty"><span class="
 const kv = (k, v) => `<div class="kv"><span class="kv-k">${esc(k)}</span><span class="kv-v">${v}</span></div>`;
 
 /* ── 路由与渲染 ── */
-const TITLES = { dashboard: '工作台', profile: '画像与证据', jobs: '岗位', match: '匹配与组合', plan: '计划与改写', apps: '投递跟踪', admin: '管理员岗位', settings: '设置与同步中心' };
+const TITLES = { dashboard: '工作台', profile: '求职资料', jobs: '岗位', match: '匹配与组合', plan: '计划与改写', apps: '投递跟踪', admin: '管理员岗位', settings: '设置与同步中心' };
 const RENDERERS = {};
 function currentView() { const h = location.hash.replace(/^#\/?/, ''); return TITLES[h] ? h : 'dashboard'; }
 function render() {
@@ -1417,7 +1417,7 @@ function openPop(kind) {
   } else {
     const isAdmin = S.role === 'admin';
     wrap.innerHTML = `<div class="pop-head"><strong>${esc(S.profile.name)}</strong><span class="chip chip-muted">${isAdmin ? '管理员（演示）' : '学生（演示）'}</span></div>
-      <button class="pop-item" data-act="pop-nav" data-id="profile">${icon('user')}<span>画像与证据<span class="po-sub">完成度 ${S.profile.completeness}%</span></span></button>
+      <button class="pop-item" data-act="pop-nav" data-id="profile">${icon('user')}<span>求职资料<span class="po-sub">完成度 ${S.profile.completeness}%</span></span></button>
       <button class="pop-item" data-act="pop-nav" data-id="settings">${icon('settings')}<span>设置与同步中心<span class="po-sub">同步 · 通知 · 安装</span></span></button>
       <div class="pop-sep"></div>
       <button class="pop-item" data-act="switch-role">${icon(isAdmin ? 'user' : 'shield')}<span>${isAdmin ? '切回学生演示身份' : '切换到管理员演示身份'}<span class="po-sub">仅影响本机演示，不涉及真实认证</span></span></button>
@@ -1473,7 +1473,7 @@ ACTIONS['suggest-accept'] = (id) => {
   s.gone = true;
   if (id === 's1') { const t = S.tasks.find((x) => x.id === 't2'); if (t) t.day = 1; S.planVersion = (S.planVersion || 3) + 1; }
   if (id === 's2') { go('profile'); }
-  toast('已采纳建议：' + (id === 's1' ? '任务排期已调整（版本 v' + S.planVersion + '，采纳时已再次检查版本）' : '已定位到画像与证据'), 'ok', 3600);
+  toast('已采纳建议：' + (id === 's1' ? '任务排期已调整（版本 v' + S.planVersion + '，采纳时已再次检查版本）' : '已定位到求职资料'), 'ok', 3600);
   render();
 };
 ACTIONS['suggest-ignore'] = (id) => {
@@ -1675,7 +1675,7 @@ ACTIONS['chart-day'] = (idx) => {
 };
 ACTIONS['chart-day-goto'] = () => { closeSheet(); go('apps'); };
 
-/* ───────────────────────── 视图：画像与证据 ───────────────────────── */
+/* ───────────────────────── 视图：求职资料 ───────────────────────── */
 const IMPORT_STATE = {};
 RENDERERS.profile = () => {
   const p = S.profile, parse = S.parse;
@@ -1723,7 +1723,7 @@ RENDERERS.profile = () => {
   return `
   <div class="page-head">
     <div>
-      <p class="eyebrow">画像与证据</p>
+      <p class="eyebrow">求职资料</p>
       <h1>我的求职画像</h1>
       <p class="lead">经历、技能与偏好构成匹配解释的唯一事实来源；模型推断必须经你确认。修改经历原文后，相关分析会标记为过期。</p>
     </div>

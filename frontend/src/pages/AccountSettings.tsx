@@ -73,7 +73,7 @@ export function AccountSettings({ section = 'profile', demo, onRefreshSession, o
       else setMessage(error instanceof Error ? error.message : '保存失败，请重试');
     } finally { submitting.current = false; setBusy(false); }
   }
-  return <Panel title={section === 'security' ? '账户安全' : editingProfile ? '编辑个人资料' : '我的资料'} description={section === 'security' ? '管理账户密码' : '账户资料仅供自己查看；求职画像与经历仍在“画像与证据”中管理'}
+  return <Panel title={section === 'security' ? '账户安全' : editingProfile ? '编辑个人资料' : '我的资料'} description={section === 'security' ? '管理账户密码' : '账户资料仅供自己查看；求职画像与经历仍在“求职资料”中管理'}
     action={section === 'profile' && account && !editingProfile && !demo ? <button className="btn secondary" disabled={busy} onClick={() => { setEditingProfile(true); setMessage(''); }}><Pencil size={15}/>编辑资料</button> : undefined}>
     {demo ? <p className="muted">演示与游客身份不能修改账户信息或密码。请登录个人账户使用此功能。</p> : <>
       {message && <p role="status">{message}</p>}

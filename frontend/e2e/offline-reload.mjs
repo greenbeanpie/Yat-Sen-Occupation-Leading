@@ -43,7 +43,7 @@ await step('准备：登录并等待 Service Worker 接管页面', async () => {
 
 const offlineValue = `离线待同步岗位 ${RUN}`;
 await step('离线：断网后保存画像进入本机队列', async () => {
-  await goNav('画像与证据');
+  await goNav('求职资料');
   await page.getByText('你的求职画像').first().waitFor({ state: 'visible', timeout: 20000 });
   const form = page.locator('form.form-grid').first();
   await form.getByLabel('目标岗位（逗号分隔）').fill(offlineValue);
@@ -56,7 +56,7 @@ await step('离线：断网后保存画像进入本机队列', async () => {
 await step('离线刷新：外壳从 Service Worker 加载并保留本机内容', async () => {
   await page.reload({ waitUntil: 'domcontentloaded' });
   await page.locator('.who').waitFor({ state: 'visible', timeout: 30000 });
-  await goNav('画像与证据');
+  await goNav('求职资料');
   await page.getByText('你的求职画像').first().waitFor({ state: 'visible', timeout: 20000 });
   const value = await page.locator('form.form-grid').first().getByLabel('目标岗位（逗号分隔）').inputValue();
   if (!value.includes(RUN)) throw new Error(`刷新后未保留离线修改：${value}`);

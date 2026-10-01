@@ -141,7 +141,7 @@ await step('登录：选择演示学生身份', async () => {
 // ------------------------------------------------------- 画像保存
 const roleTitle = `数据分析实习生 ${RUN}`;
 await step('画像：保存求职偏好（PUT /profile）', async () => {
-  await goNav('画像与证据');
+  await goNav('求职资料');
   await waitForText(page, '你的求职画像');
   const form = page.locator('form.form-grid').first();
   await form.getByLabel('目标岗位（逗号分隔）').fill(roleTitle);
@@ -232,7 +232,7 @@ await writeFile(resumePdfPath, buildMinimalPdf([
 ]));
 
 await step('简历：上传 PDF 并等待解析草稿（POST /documents）', async () => {
-  await goNav('画像与证据');
+  await goNav('求职资料');
   await waitForText(page, '简历导入');
   const [chooser] = await Promise.all([
     page.waitForEvent('filechooser', { timeout: 15000 }),
@@ -423,7 +423,7 @@ await step('投递：推进状态并写入历史（POST /applications/{id}/event
 // ------------------------------------------------------- 设置与同步
 await step('离线：断网保存画像进入本机队列', async () => {
   await page.context().setOffline(true);
-  await goNav('画像与证据');
+  await goNav('求职资料');
   await waitForText(page, '你的求职画像');
   const form = page.locator('form.form-grid').first();
   await form.getByLabel('目标岗位（逗号分隔）').fill(`${roleTitle} 离线修订`);
@@ -437,7 +437,7 @@ await step('离线：断网保存画像进入本机队列', async () => {
 await step('离线：切换页面后仍显示本机缓存内容', async () => {
   await goNav('工作台');
   await waitForText(page, /早上好/);
-  await goNav('画像与证据');
+  await goNav('求职资料');
   await page.getByText(/当前显示本机上次同步的数据/).first().waitFor({ state: 'visible', timeout: 20000 });
   const value = await page.locator('form.form-grid').first().getByLabel('目标岗位（逗号分隔）').inputValue();
   if (!value.includes('离线修订')) throw new Error(`本机缓存未保留离线修改：${value}`);
@@ -539,7 +539,7 @@ await step('设置：重置演示数据（POST /demo/reset）并清空本机缓�
   await page.getByRole('button', { name: '重置我的演示数据' }).click();
   const call = await waitForCall('POST', /^\/demo\/reset$/);
   await page.getByText(/已清空服务端/).first().waitFor({ state: 'visible', timeout: 20000 });
-  await goNav('画像与证据');
+  await goNav('求职资料');
   await waitForText(page, '你的求职画像');
   const value = await page.locator('form.form-grid').first().getByLabel('目标岗位（逗号分隔）').inputValue();
   if (value.trim() !== '') throw new Error(`重置后画像仍有内容：${value}`);
