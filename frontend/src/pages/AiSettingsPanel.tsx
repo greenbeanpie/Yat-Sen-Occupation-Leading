@@ -1,4 +1,4 @@
-import { aiFormCapabilities } from './ai-settings-form';
+import { aiDestinationChanged, aiFormCapabilities } from './ai-settings-form';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { put } from '../api/client';
 import type { components } from '../api/schema';
@@ -41,7 +41,7 @@ export function AiSettingsEditor({ settings, busy, onSave, onReload }: { setting
   const capabilities = aiFormCapabilities(settings, config);
   const preset = settings.presets.find(item => item.id === config.providerPreset);
   const disabled = saving || busy;
-  const destinationChanged = config.providerPreset !== settings.config.providerPreset || config.protocol !== settings.config.protocol || config.baseUrl !== settings.config.baseUrl;
+  const destinationChanged = aiDestinationChanged(settings, config);
   function update(values: Partial<Config>) { setConfig(current => ({ ...current, ...values })); setAccepted(false); }
   function changePreset(value: Config['providerPreset']) {
     const next = settings.presets.find(item => item.id === value);

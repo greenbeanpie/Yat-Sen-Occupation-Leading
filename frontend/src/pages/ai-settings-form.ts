@@ -10,3 +10,14 @@ export function aiFormCapabilities(settings: Settings, config: Config) {
   };
 }
 
+export function aiDestinationChanged(settings: Settings, current: Config): boolean {
+  const destination = (config: Config) => {
+    const preset = settings.presets.find(item => item.id === config.providerPreset);
+    const protocol = config.protocol === 'auto' ? preset?.models.find(item => item.id === config.model)?.protocol ?? 'auto' : config.protocol;
+    const raw = config.baseUrl.trim() || preset?.baseUrl || '';
+    let root = raw;
+    try { root = new URL(raw).href.replace(/\/+$/, ''); } catch { /* Invalid input remains different until corrected. */ }
+    return JSON.stringify([config.providerPreset, protocol, root]);
+  };
+  return destination(current) !== destination(settings.config);
+}
