@@ -1,0 +1,18 @@
+.career-source-review { min-width: 0; }
+.career-source-list { list-style: none; padding: 0; margin: 1rem 0; }
+.career-source-list > li { display: flex; justify-content: space-between; gap: 1rem; border-bottom: 1px solid var(--line); padding: 1rem 0; }
+.career-source-list > li > div { min-width: 0; }
+.career-source-list strong, .career-source-metadata dd { overflow-wrap: anywhere; }
+.career-source-list p { margin: .4rem 0 0; }
+.career-source-snapshot, .career-candidate-review { margin-top: 1.5rem; padding-top: 1rem; border-top: 1px solid var(--line); }
+.career-source-metadata { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: .5rem 1rem; }
+.career-source-metadata dd { margin: 0; }
+.career-source-text { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 24rem; overflow: auto; font-family: inherit; font-size: .9rem; }
+.career-evidence-fact, .career-position-review { margin: .8rem 0; padding: .6rem 0; }
+.career-source-warnings { padding-left: 1.5rem; overflow-wrap: anywhere; }
+.career-source-review summary { cursor: pointer; padding: .4rem 0; }
+@media (max-width: 640px) {
+  .career-source-list > li { flex-direction: column; }
+  .career-source-metadata { grid-template-columns: 1fr; gap: .2rem; }
+  .career-source-metadata dd { margin-bottom: .6rem; }
+}

@@ -18,5 +18,9 @@ describe('public job administration remains separate from global settings', () =
     expect(html).not.toContain('<h2>邀请注册</h2>');
     expect(html).not.toContain('<h2>系统设置</h2>');
     expect(html).not.toContain('AI 模型配置');
+    expect(html).toContain('中大就业网公告');
+  });
+  it('does not expose source or paid extraction controls to a demo administrator', () => {
+    expect(render('admin', true)).not.toContain('中大就业网公告');
   });
 });
