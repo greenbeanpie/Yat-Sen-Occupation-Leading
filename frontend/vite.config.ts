@@ -37,9 +37,16 @@ export default defineConfig({
       workbox: {
         globPatterns: ['**/*.{js,css,html,svg,png,woff2}'],
         navigateFallback: 'index.html',
-        runtimeCaching: [],
+        importScripts: ['/asset-compat.js'],
+        runtimeCaching: [{
+          urlPattern: ({ url, sameOrigin }) => sameOrigin && /^\/assets\/[^/]+-[A-Za-z0-9_-]+\.(?:js|css)$/.test(url.pathname),
+          handler: 'CacheFirst',
+          options: { cacheName: 'intern-workbench-assets-compat-v1', cacheableResponse: { statuses: [200] }, expiration: { maxEntries: 64, maxAgeSeconds: 7 * 24 * 60 * 60 } },
+        }],
         cleanupOutdatedCaches: true,
-        clientsClaim: false,
+        // Keep activation manual; only a confirmed update claims the existing tabs.
+        skipWaiting: false,
+        clientsClaim: true,
       },
     }),
   ],
